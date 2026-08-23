@@ -43,9 +43,13 @@ static func wrap_text(text: String, width_chars: int = 22) -> String:
 		lines.append(current)
 	return "\n".join(lines)
 
-## Multi-line summary for a printed card (not a live instance).
-static func card_summary(card_data: CardData, cost: int) -> String:
-	var lines := [card_data.card_name, "Cost %d" % cost, kingdom_label(card_data)]
+## Multi-line summary for a printed card (not a live instance). `surcharged`
+## (§4 Kingdom Cost Matching) marks that `cost` already includes the +2
+## off-Kingdom Larva surcharge, so that's visible on the card itself rather
+## than something the player has to work out by comparing Kingdoms.
+static func card_summary(card_data: CardData, cost: int, surcharged: bool = false) -> String:
+	var cost_line := "Cost %d (+2 off-Kingdom)" % cost if surcharged else "Cost %d" % cost
+	var lines := [card_data.card_name, cost_line, kingdom_label(card_data)]
 	if card_data is CreatureData:
 		var cd := card_data as CreatureData
 		if cd.creature_type != "":

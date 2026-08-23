@@ -749,7 +749,8 @@ func _render_hand() -> void:
 		var cost := CostCalculator.calculate_cost(card.data, human.leader.data)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(170, 190)
-		btn.text = _card_text(card, cost)
+		var surcharged := not card.data.matches_kingdom(human.leader.data.kingdoms)
+		btn.text = _card_text(card, cost, surcharged)
 		btn.modulate = _card_color(card.data)
 		btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > human.current_larva
 		btn.pressed.connect(_on_hand_card_pressed.bind(i))
@@ -813,8 +814,9 @@ func _creature_bbcode(c: CardInstance) -> String:
 func _bbcode_escape(text: String) -> String:
 	return text.replace("[", "(").replace("]", ")")
 
-func _card_text(c: CardInstance, cost: int) -> String:
-	var lines := [c.display_name(), "Cost %d" % cost]
+func _card_text(c: CardInstance, cost: int, surcharged: bool = false) -> String:
+	var cost_line := "Cost %d (+2 off-Kingdom)" % cost if surcharged else "Cost %d" % cost
+	var lines := [c.display_name(), cost_line]
 	if c.data is CreatureData:
 		var cd := c.data as CreatureData
 		if cd.creature_type != "":

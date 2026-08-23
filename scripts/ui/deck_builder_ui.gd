@@ -271,9 +271,10 @@ func _refresh_browser() -> void:
 		if _search_filter != "" and not card.card_name.to_lower().contains(_search_filter):
 			continue
 		var cost := CostCalculator.calculate_cost(card, leader_data) if leader_data != null else card.cost
+		var surcharged := leader_data != null and not card.matches_kingdom(leader_data.kingdoms)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(160, 170)
-		btn.text = CardRenderUtil.card_summary(card, cost)
+		btn.text = CardRenderUtil.card_summary(card, cost, surcharged)
 		btn.modulate = CardRenderUtil.card_color(card)
 		btn.pressed.connect(_add_card.bind(card.id))
 		_browser_grid.add_child(btn)

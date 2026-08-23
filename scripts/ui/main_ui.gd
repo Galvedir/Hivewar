@@ -632,12 +632,23 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(150, 150)
-	btn.text = _creature_text(c)
 	btn.modulate = _card_color(c.data)
-	if c.instance_id == _selected_attacker_id:
-		btn.text += "\n[SELECTED]"
 	btn.pressed.connect(_on_board_creature_pressed.bind(c, friendly))
 	box.add_child(btn)
+
+	# A plain Button can't mix text colors, so a click-through RichTextLabel
+	# is overlaid on top of it to render BBCode — this is what lets
+	# temporarily-granted keywords show in a different color from the
+	# card's permanent text (§ user request).
+	var rtl := RichTextLabel.new()
+	rtl.bbcode_enabled = true
+	rtl.fit_content = true
+	rtl.scroll_active = false
+	rtl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rtl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rtl.text = _creature_bbcode(c)
+	btn.add_child(rtl)
+
 	if friendly and c.is_face_down and c.true_data != null and c.true_data.ambush.get("flip_trigger", "") == "paid":
 		var cost := int(c.true_data.ambush.get("flip_cost", 0))
 		var flip_btn := Button.new()
@@ -647,8 +658,10 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 		box.add_child(flip_btn)
 	return box
 
-func _creature_text(c: CardInstance) -> String:
-	var lines := [c.display_name()]
+const TEMP_KEYWORD_COLOR := "#ffcc33"
+
+func _creature_bbcode(c: CardInstance) -> String:
+	var lines: Array[String] = [_bbcode_escape(c.display_name())]
 	var cd0 := c.data as CreatureData
 	if cd0 != null and cd0.creature_type != "":
 		lines.append(cd0.creature_type)
@@ -656,13 +669,20 @@ func _creature_text(c: CardInstance) -> String:
 	if c.poison_counters > 0:
 		lines.append("Poison x%d" % c.poison_counters)
 	if c.data.text != "":
-		lines.append(_wrap_text(c.data.text))
+		lines.append(_bbcode_escape(_wrap_text(c.data.text)))
+	if not c.temp_keywords.is_empty():
+		lines.append("[color=%s]%s (this turn)[/color]" % [TEMP_KEYWORD_COLOR, _bbcode_escape(", ".join(c.temp_keywords))])
 	if not c.attached_gear.is_empty():
 		var gear_names := c.attached_gear.map(func(g: CardInstance) -> String: return g.display_name())
-		lines.append("Gear: " + ", ".join(gear_names))
+		lines.append("Gear: " + _bbcode_escape(", ".join(gear_names)))
 	if not c.is_alive():
 		lines.append("(dead)")
+	if c.instance_id == _selected_attacker_id:
+		lines.append("[SELECTED]")
 	return "\n".join(lines)
+
+func _bbcode_escape(text: String) -> String:
+	return text.replace("[", "(").replace("]", ")")
 
 func _card_text(c: CardInstance, cost: int) -> String:
 	var lines := [c.display_name(), "Cost %d" % cost]

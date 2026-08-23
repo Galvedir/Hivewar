@@ -36,6 +36,20 @@ func _ready() -> void:
 	_check(col.size.x > 100 and col.size.y > 100, "Collection screen has a real nonzero size when opened (got %s)" % col.size)
 	main._on_collection_closed()
 
+	# --- Rules screen: real size, and returns to whichever screen opened it ---
+	var rules: RulesScreenUI = main._rules_screen
+	main._on_open_rules(main._deck_select)
+	_check(rules.size.x > 100 and rules.size.y > 100, "Rules screen has a real nonzero size when opened (got %s)" % rules.size)
+	_check(not main._deck_select.visible, "Opening Rules hides the screen it was opened from")
+	main._on_rules_closed()
+	_check(rules.visible == false and main._deck_select.visible, "Closing Rules (opened from the main menu) returns to the main menu")
+
+	main._on_open_deck_builder()
+	main._on_open_rules(main._deck_builder)
+	main._on_rules_closed()
+	_check(main._deck_builder.visible and not main._deck_select.visible, "Closing Rules (opened from the Deck Builder) returns to the Deck Builder, not the main menu")
+	main._on_deck_builder_closed()
+
 	# --- Deck-select list is actually scrollable (18 fixed decks overflow the window) ---
 	# Container layout resolves only after real frame processing, unlike the
 	# anchor-preset bug above — this needs `await`, not an immediate check.

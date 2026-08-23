@@ -125,6 +125,9 @@ func _apply_modifier(instance: CardInstance, mod: Dictionary) -> void:
 			if cd != null and cd.is_token:
 				instance.current_attack += int(mod.get("attack", 0))
 				instance.max_health += int(mod.get("health", 0))
+		"all_stat_bonus":
+			instance.current_attack += int(mod.get("attack", 0))
+			instance.max_health += int(mod.get("health", 0))
 
 ## Call whenever a creature enters play (played from hand or summoned), so
 ## it immediately picks up bonuses from any Hive already in play.

@@ -23,6 +23,8 @@ var _deck_select: VBoxContainer
 var _saved_decks_menu_box: VBoxContainer
 var _deck_builder: DeckBuilderUI
 var _collection: CollectionUI
+var _rules_screen: RulesScreenUI
+var _rules_return_target: Control # whichever screen was open before Rules — main menu or Deck Builder
 var _match_view: HBoxContainer
 var _match_root: VBoxContainer
 var _log_display: RichTextLabel
@@ -70,6 +72,12 @@ func _ready() -> void:
 	_collection.visible = false
 	_collection.closed.connect(_on_collection_closed)
 	add_child(_collection)
+
+	_rules_screen = RulesScreenUI.new()
+	_rules_screen.visible = false
+	_rules_screen.closed.connect(_on_rules_closed)
+	add_child(_rules_screen)
+	_deck_builder.open_rules.connect(_on_open_rules.bind(_deck_builder))
 
 	TurnManager.turn_started.connect(_on_turn_started)
 	TurnManager.block_decision_requested.connect(_on_block_requested)
@@ -122,6 +130,10 @@ func _build_deck_select() -> void:
 	collection_btn.text = "Collection"
 	collection_btn.pressed.connect(_on_open_collection)
 	menu_row.add_child(collection_btn)
+	var rules_btn := Button.new()
+	rules_btn.text = "Rules & Keywords"
+	rules_btn.pressed.connect(_on_open_rules.bind(_deck_select))
+	menu_row.add_child(rules_btn)
 
 	# The 18 fixed decks (one per Leader) plus any saved decks easily
 	# overflow the window, so the list itself scrolls — only the title/menu
@@ -192,6 +204,18 @@ func _on_open_collection() -> void:
 func _on_collection_closed() -> void:
 	_collection.visible = false
 	_deck_select.visible = true
+
+## `from` is whichever screen was open when Rules was requested (the main
+## menu or the Deck Builder), so closing Rules returns to the right place.
+func _on_open_rules(from: Control) -> void:
+	_rules_return_target = from
+	from.visible = false
+	_rules_screen.visible = true
+
+func _on_rules_closed() -> void:
+	_rules_screen.visible = false
+	if _rules_return_target != null:
+		_rules_return_target.visible = true
 
 func _on_deck_chosen(deck_id: String) -> void:
 	var ai_pool := DeckDefinitions.all_deck_ids()

@@ -59,7 +59,7 @@ func _ready() -> void:
 	# --- buff_all_matching (Nyxa's ultimate pattern) ----------------------------
 	var spider1 := CardDatabase.create_instance("black_widow_stalker", 1)
 	var spider2 := CardDatabase.create_instance("tarantula_ambusher", 1)
-	var non_spider := CardDatabase.create_instance("wasp_striker", 1)
+	var non_spider := CardDatabase.create_instance("roly_poly_grub", 1) # vanilla, no innate keywords — a clean control
 	p1.board.append(spider1)
 	p1.board.append(spider2)
 	p1.board.append(non_spider)

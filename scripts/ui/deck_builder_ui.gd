@@ -6,6 +6,7 @@ extends Control
 ## (Phase 3), so the whole CardDatabase pool is always available to build with.
 
 signal closed
+signal open_rules
 
 const HERO_POWER_COLOR := "#8fd0ff"
 const ULTIMATE_COLOR := "#ffcc33"
@@ -68,6 +69,11 @@ func _build_ui() -> void:
 	save_btn.text = "Save Deck"
 	save_btn.pressed.connect(_on_save_pressed)
 	top.add_child(save_btn)
+
+	var rules_btn := Button.new()
+	rules_btn.text = "Rules & Keywords"
+	rules_btn.pressed.connect(func() -> void: open_rules.emit())
+	top.add_child(rules_btn)
 
 	_leader_info_label = RichTextLabel.new()
 	_leader_info_label.bbcode_enabled = true

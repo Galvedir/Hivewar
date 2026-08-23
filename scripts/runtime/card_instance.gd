@@ -17,11 +17,11 @@ var current_attack: int = 0
 var max_health: int = 0
 var damage_marked: int = 0
 var runtime_keywords: Array[String] = []
-var temp_keywords: Array[String] = [] # granted "this turn" only; cleared by TurnManager at end of turn
+var temp_keywords: Array[String] = [] # granted "until end of next turn"; cleared by TurnManager at the start of the owner's following turn
 var poison_counters: int = 0
 var summoning_sick: bool = true
 var has_attacked_this_turn: bool = false # also means "exhausted" — see is_exhausted()
-var temp_attack_bonus: int = 0 # tracks the portion of current_attack from a "this turn" buff, so it can be cleanly reverted
+var temp_attack_bonus: int = 0 # tracks the portion of current_attack from an "until end of next turn" buff, so it can be cleanly reverted
 var temp_health_bonus: int = 0
 var is_face_down: bool = false
 var turns_in_play: int = 0
@@ -95,10 +95,11 @@ func has_keyword(kw: String) -> bool:
 func is_exhausted() -> bool:
 	return has_attacked_this_turn
 
-## Adds a stat bonus that expires at end of turn (e.g. "+2/+0 until end of
-## turn"). The bonus amount is tracked so clear_temp_buffs() can revert
-## exactly this much regardless of other permanent changes in between —
-## addition/subtraction commute, so order never matters.
+## Adds a stat bonus that expires at the end of the owner's next turn (e.g.
+## "+2/+0 until end of next turn"). The bonus amount is tracked so
+## clear_temp_buffs() can revert exactly this much regardless of other
+## permanent changes in between — addition/subtraction commute, so order
+## never matters.
 func add_temp_buff(attack_bonus: int, health_bonus: int) -> void:
 	current_attack += attack_bonus
 	max_health += health_bonus

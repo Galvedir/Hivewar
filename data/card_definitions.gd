@@ -489,7 +489,7 @@ const BLACK: Array[Dictionary] = [
 		"id": "venom_lash", "name": "Venom Lash", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 3}}],
-		"text": "Deal 3 damage to the strongest enemy creature.",
+		"text": "Deal 3 damage to target enemy creature.",
 	},
 	{
 		"id": "sacrificial_rite", "name": "Sacrificial Rite", "type": "Ability",
@@ -557,7 +557,7 @@ const BLACK: Array[Dictionary] = [
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 2, "creature_type": "Spider", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "damage_creature", "params": {"amount": 1}}],
-		"text": "On Play: deal 1 damage to the strongest enemy creature.",
+		"text": "On Play: deal 1 damage to target enemy creature.",
 	},
 	{
 		"id": "bone_wasp", "name": "Bone Wasp", "type": "Creature",
@@ -613,13 +613,13 @@ const BLACK: Array[Dictionary] = [
 		"cost": 6, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.LEGENDARY,
 		"attack": 6, "health": 6, "creature_type": "Scorpion", "keywords": [Keywords.POISON, Keywords.PIERCE],
 		"effects": [{"trigger": "on_play", "effect_id": "damage_creature", "params": {"amount": 2}}],
-		"text": "Poison. Pierce. On Play: deal 2 damage to the strongest enemy creature.",
+		"text": "Poison. Pierce. On Play: deal 2 damage to target enemy creature.",
 	},
 	{
 		"id": "withering_touch", "name": "Withering Touch", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 2}}],
-		"text": "Deal 2 damage to the strongest enemy creature.",
+		"text": "Deal 2 damage to target enemy creature.",
 	},
 	{
 		"id": "blood_pact", "name": "Blood Pact", "type": "Ability",
@@ -634,7 +634,7 @@ const BLACK: Array[Dictionary] = [
 		"id": "venom_burst", "name": "Venom Burst", "type": "Ability",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 5}}],
-		"text": "Deal 5 damage to the strongest enemy creature.",
+		"text": "Deal 5 damage to target enemy creature.",
 	},
 	{
 		"id": "grim_harvest", "name": "Grim Harvest", "type": "Ability",
@@ -739,7 +739,7 @@ const BLUE: Array[Dictionary] = [
 		"id": "gust_of_wind", "name": "Gust of Wind", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "bounce_creature", "params": {}}],
-		"text": "Return the strongest enemy creature to its owner's hand.",
+		"text": "Return target enemy creature to its owner's hand.",
 	},
 	{
 		"id": "dragonfly_ace", "name": "Dragonfly Ace", "type": "Creature",
@@ -846,7 +846,7 @@ const BLUE: Array[Dictionary] = [
 		"cost": 5, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"attack": 5, "health": 5, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"effects": [{"trigger": "on_play", "effect_id": "bounce_creature", "params": {}}],
-		"text": "Flying. On Play: return the strongest enemy creature to its owner's hand.",
+		"text": "Flying. On Play: return target enemy creature to its owner's hand.",
 	},
 	{
 		"id": "skywhisper_matriarch", "name": "Skywhisper Matriarch", "type": "Creature",
@@ -859,7 +859,7 @@ const BLUE: Array[Dictionary] = [
 		"id": "gale_step", "name": "Gale Step", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "bounce_creature", "params": {}}],
-		"text": "Return the strongest enemy creature to its owner's hand.",
+		"text": "Return target enemy creature to its owner's hand.",
 	},
 	{
 		"id": "tidal_insight", "name": "Tidal Insight", "type": "Ability",
@@ -877,7 +877,7 @@ const BLUE: Array[Dictionary] = [
 		"id": "undertow", "name": "Undertow", "type": "Ability",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"effects": [{"trigger": "on_cast", "effect_id": "shuffle_into_library", "params": {}}],
-		"text": "Shuffle the strongest enemy creature into its owner's library.",
+		"text": "Shuffle target enemy creature into its owner's library.",
 	},
 	{
 		"id": "windswept_veil", "name": "Windswept Veil", "type": "Ability",
@@ -892,7 +892,7 @@ const BLUE: Array[Dictionary] = [
 			{"trigger": "on_cast", "effect_id": "bounce_creature", "params": {}},
 			{"trigger": "on_cast", "effect_id": "draw_card", "params": {"count": 1}},
 		],
-		"text": "Return the strongest enemy creature to its owner's hand. Draw a card.",
+		"text": "Return target enemy creature to its owner's hand. Draw a card.",
 	},
 	{
 		"id": "gossamer_wings", "name": "Gossamer Wings", "type": "Gear",
@@ -1004,7 +1004,7 @@ const RED: Array[Dictionary] = [
 		"cost": 3, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 3, "creature_type": "Botfly", "keywords": [Keywords.LIFESTEAL],
 		"effects": [{"trigger": "on_play", "effect_id": "grant_decay_to_enemy", "params": {"token_id": "botfly_token", "count": 1}}],
-		"text": "Lifesteal. On Play: afflict the strongest enemy creature with a parasitic Decay — when it dies, you gain a 1/1 Botfly with Lifesteal.",
+		"text": "Lifesteal. On Play: afflict target enemy creature with a parasitic Decay — when it dies, you gain a 1/1 Botfly with Lifesteal.",
 	},
 	{
 		"id": "warble_berserker", "name": "Warble Fly Berserker", "type": "Creature",
@@ -1067,7 +1067,7 @@ const RED: Array[Dictionary] = [
 		"id": "reckless_bite", "name": "Reckless Bite", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 2}}],
-		"text": "Deal 2 damage to the strongest enemy creature.",
+		"text": "Deal 2 damage to target enemy creature.",
 	},
 	{
 		"id": "swarm_tactics", "name": "Swarm Tactics", "type": "Ability",
@@ -1085,13 +1085,13 @@ const RED: Array[Dictionary] = [
 		"id": "savage_lunge", "name": "Savage Lunge", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "buff_friendly", "params": {"attack": 2, "health": 0, "temporary": true}}],
-		"text": "Give a friendly creature +2/+0 until end of turn.",
+		"text": "Give a friendly creature +2/+0 until end of next turn.",
 	},
 	{
 		"id": "frenzied_onslaught", "name": "Frenzied Onslaught", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.RED], "rarity": Rarities.UNCOMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "buff_friendly", "params": {"attack": 3, "health": 0, "temporary": true}}],
-		"text": "Give a friendly creature +3/+0 until end of turn.",
+		"text": "Give a friendly creature +3/+0 until end of next turn.",
 	},
 	{
 		"id": "feeding_strike", "name": "Feeding Strike", "type": "Ability",
@@ -1240,7 +1240,7 @@ const COLORLESS: Array[Dictionary] = [
 		"id": "adaptive_strike", "name": "Adaptive Strike", "type": "Ability",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 2}}],
-		"text": "Deal 2 damage to the strongest enemy creature.",
+		"text": "Deal 2 damage to target enemy creature.",
 	},
 	{
 		"id": "feeders_bounty", "name": "Feeders' Bounty", "type": "Ability",

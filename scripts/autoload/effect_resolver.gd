@@ -266,8 +266,8 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 					extra += " and %s" % params["keyword"]
 				if params.has("temp_keyword") and not target.temp_keywords.has(params["temp_keyword"]):
 					target.temp_keywords.append(params["temp_keyword"])
-					extra += " and %s this turn" % params["temp_keyword"]
-				GameLog.log("%s gets +%d/+%d%s%s from %s." % [target.display_name(), atk, hp, extra, " this turn" if temporary else "", source_label])
+					extra += " and %s until end of their next turn" % params["temp_keyword"]
+				GameLog.log("%s gets +%d/+%d%s%s from %s." % [target.display_name(), atk, hp, extra, " until end of their next turn" if temporary else "", source_label])
 		"buff_all_matching":
 			# Permanent board-wide buff filtered by creature_type and/or
 			# keyword (e.g. Nyxa's Ultimate: "All Spiders get +1/+1 and Venomstrike").

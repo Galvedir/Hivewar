@@ -144,6 +144,24 @@ func _ready() -> void:
 	GameState.cleanup_dead(1)
 	_check(p0.board.size() == p0_board_before + 1, "When the afflicted enemy creature dies, the token spawns for the GRANTER (not the victim's own controller)")
 
+	# --- "Until end of next turn" effects survive the opponent's whole turn ----
+	# (§ user request): a same-turn expiry made e.g. temporary Guard pointless,
+	# since it wore off before the opponent's turn — the only turn Guard could
+	# actually matter on — ever arrived. GameState.active_player_index is still
+	# 0 (P0's turn) at this point since no earlier section in this file has
+	# called TurnManager.end_turn().
+	var temp_guard_target := CardDatabase.create_instance("worker_ant_line", 0) # vanilla, no innate Guard
+	p0.board.append(temp_guard_target)
+	EffectResolver.resolve_effect_list(
+		[{"effect_id": "buff_friendly", "params": {"attack": 0, "health": 0, "temp_keyword": Keywords.GUARD}}],
+		p0, p1, temp_guard_target.instance_id
+	)
+	_check(temp_guard_target.has_keyword(Keywords.GUARD), "A temp_keyword grant applies immediately")
+	TurnManager.end_turn() # ends P0's turn, starts P1's turn
+	_check(temp_guard_target.has_keyword(Keywords.GUARD), "Temp keyword survives past the end of the granting player's own turn (this is the actual fix)")
+	TurnManager.end_turn() # ends P1's turn, starts P0's turn again
+	_check(not temp_guard_target.has_keyword(Keywords.GUARD), "Temp keyword clears at the start of the granting player's NEXT turn, after the opponent's full turn has passed")
+
 	print("")
 	if _failures == 0:
 		print("ALL CHECKS PASSED")

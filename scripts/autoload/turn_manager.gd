@@ -40,6 +40,12 @@ func start_turn(player_index: int) -> void:
 	for c: CardInstance in player.board:
 		c.summoning_sick = false
 		c.has_attacked_this_turn = false
+		# "Until end of next turn" effects (§ user request) expire here, not at
+		# the end of the turn they were granted on — a same-turn expiry meant a
+		# temporary Guard grant, say, wore off before the opponent ever got a
+		# turn to be forced into attacking it, making it pointless.
+		c.temp_keywords.clear()
+		c.clear_temp_buffs()
 	player.leader.hero_power_used_this_turn = false
 	GameState.turn_number += 1
 	GameLog.log("— Turn %d: %s's turn (Larva %d/%d, Health %d) —" % [
@@ -59,9 +65,6 @@ func end_turn() -> void:
 	var player_index := GameState.active_player_index
 	var player := GameState.players[player_index]
 	var opponent := GameState.get_opponent(player_index)
-	for c: CardInstance in player.board:
-		c.temp_keywords.clear()
-		c.clear_temp_buffs()
 	while player.hand.size() > MAX_HAND_SIZE:
 		var discarded: CardInstance = player.hand.pop_back()
 		player.graveyard.append(discarded)

@@ -17,6 +17,8 @@ const TARGETING_EFFECT_SIDES := {
 	"buff_friendly": "friendly",
 	"damage_creature": "enemy",
 	"bounce_creature": "enemy",
+	"shuffle_into_library": "enemy",
+	"grant_decay_to_enemy": "enemy",
 }
 
 var _deck_select: VBoxContainer
@@ -796,7 +798,7 @@ func _creature_bbcode(c: CardInstance) -> String:
 	if c.data.text != "":
 		lines.append(_bbcode_escape(_wrap_text(c.data.text)))
 	if not c.temp_keywords.is_empty():
-		lines.append("[color=%s]%s (this turn)[/color]" % [TEMP_KEYWORD_COLOR, _bbcode_escape(", ".join(c.temp_keywords))])
+		lines.append("[color=%s]%s (until your next turn)[/color]" % [TEMP_KEYWORD_COLOR, _bbcode_escape(", ".join(c.temp_keywords))])
 	if not c.attached_gear.is_empty():
 		var gear_names := c.attached_gear.map(func(g: CardInstance) -> String: return g.display_name())
 		lines.append("Gear: " + _bbcode_escape(", ".join(gear_names)))

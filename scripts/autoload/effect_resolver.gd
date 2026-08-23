@@ -113,13 +113,18 @@ func flip_paid(instance: CardInstance) -> void:
 ## --- Hive static stat bonuses (§5) ----------------------------------------
 
 func _apply_modifier(instance: CardInstance, mod: Dictionary) -> void:
-	if mod.get("type", "") != "keyword_stat_bonus":
-		return
 	if instance.is_face_down:
 		return
-	if instance.has_keyword(mod.get("filter_keyword", "")):
-		instance.current_attack += int(mod.get("attack", 0))
-		instance.max_health += int(mod.get("health", 0))
+	match mod.get("type", ""):
+		"keyword_stat_bonus":
+			if instance.has_keyword(mod.get("filter_keyword", "")):
+				instance.current_attack += int(mod.get("attack", 0))
+				instance.max_health += int(mod.get("health", 0))
+		"token_stat_bonus":
+			var cd := instance.data as CreatureData
+			if cd != null and cd.is_token:
+				instance.current_attack += int(mod.get("attack", 0))
+				instance.max_health += int(mod.get("health", 0))
 
 ## Call whenever a creature enters play (played from hand or summoned), so
 ## it immediately picks up bonuses from any Hive already in play.
@@ -195,8 +200,12 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 			if target != null:
 				var atk := int(params.get("attack", 0))
 				var hp := int(params.get("health", 0))
-				target.current_attack += atk
-				target.max_health += hp
+				var temporary: bool = params.get("temporary", false)
+				if temporary:
+					target.add_temp_buff(atk, hp)
+				else:
+					target.current_attack += atk
+					target.max_health += hp
 				var extra := ""
 				if params.has("keyword") and not target.runtime_keywords.has(params["keyword"]):
 					target.runtime_keywords.append(params["keyword"])
@@ -204,7 +213,32 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 				if params.has("temp_keyword") and not target.temp_keywords.has(params["temp_keyword"]):
 					target.temp_keywords.append(params["temp_keyword"])
 					extra += " and %s this turn" % params["temp_keyword"]
-				GameLog.log("%s gets +%d/+%d%s from %s." % [target.display_name(), atk, hp, extra, source_label])
+				GameLog.log("%s gets +%d/+%d%s%s from %s." % [target.display_name(), atk, hp, extra, " this turn" if temporary else "", source_label])
+		"buff_all_matching":
+			# Permanent board-wide buff filtered by creature_type and/or
+			# keyword (e.g. Nyxa's Ultimate: "All Spiders get +1/+1 and Venomstrike").
+			var filter_type: String = params.get("filter_creature_type", "")
+			var filter_kw: String = params.get("filter_keyword", "")
+			var atk2 := int(params.get("attack", 0))
+			var hp2 := int(params.get("health", 0))
+			var affected := 0
+			for c: CardInstance in player.board:
+				if not c.is_alive() or c.is_face_down:
+					continue
+				var cd := c.creature_data()
+				if filter_type != "" and (cd == null or cd.creature_type != filter_type):
+					continue
+				if filter_kw != "" and not c.has_keyword(filter_kw):
+					continue
+				c.current_attack += atk2
+				c.max_health += hp2
+				if params.has("keyword") and not c.runtime_keywords.has(params["keyword"]):
+					c.runtime_keywords.append(params["keyword"])
+				affected += 1
+			GameLog.log("%s's %d creature(s) get +%d/+%d%s from %s." % [
+				player.leader.data.card_name, affected, atk2, hp2,
+				(" and %s" % params["keyword"]) if params.has("keyword") else "", source_label
+			])
 		"damage_creature":
 			var target := _pick_target(ctx, opponent.board, "strongest")
 			if target != null:
@@ -220,6 +254,43 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 					GameLog.log("%s returns %s to %s's hand (from %s)." % [
 						player.leader.data.card_name, fresh.display_name(), opponent.leader.data.card_name, source_label
 					])
+		"shuffle_into_library":
+			# A harder removal than bounce_creature: goes back into the deck
+			# (shuffled), not straight to hand, so it can't be immediately replayed.
+			var target := _pick_target(ctx, opponent.board, "strongest")
+			if target != null:
+				var true_id: String = target.true_data.id if target.true_data != null else target.data.id
+				opponent.board.erase(target)
+				var fresh := CardDatabase.create_instance(true_id, opponent.player_id)
+				if fresh != null:
+					var pos := randi() % (opponent.deck.size() + 1)
+					opponent.deck.insert(pos, fresh)
+					GameLog.log("%s shuffles %s into %s's library (from %s)." % [
+						player.leader.data.card_name, fresh.display_name(), opponent.leader.data.card_name, source_label
+					])
+		"return_from_graveyard":
+			# Auto-picks the most recently-died creature card, consistent with
+			# this resolver's other auto-pick effects (no manual-selection UI in v1).
+			var candidates := player.graveyard.filter(func(c: CardInstance) -> bool: return c.data is CreatureData)
+			if not candidates.is_empty():
+				var reclaimed: CardInstance = candidates[candidates.size() - 1]
+				player.graveyard.erase(reclaimed)
+				player.hand.append(reclaimed)
+				GameLog.log("%s returns %s from the graveyard to hand (from %s)." % [player.leader.data.card_name, reclaimed.display_name(), source_label])
+		"scry":
+			# Simplified v1 scry: peek the top card, auto-bottom it if it would
+			# cost an off-Kingdom surcharge (§4), else keep it on top. No
+			# interactive keep/bottom prompt yet — matches this resolver's
+			# existing pattern of auto-deciding rather than adding new UI.
+			if not player.deck.is_empty():
+				var top: CardInstance = player.deck[0]
+				var costs_more := CostCalculator.calculate_cost(top.data, player.leader.data) > top.data.cost
+				if costs_more:
+					player.deck.remove_at(0)
+					player.deck.append(top)
+					GameLog.log("%s scries %s to the bottom (from %s)." % [player.leader.data.card_name, top.display_name(), source_label])
+				else:
+					GameLog.log("%s scries and keeps %s on top (from %s)." % [player.leader.data.card_name, top.display_name(), source_label])
 		_:
 			push_warning("EffectResolver: unknown effect_id '%s'" % effect_id)
 

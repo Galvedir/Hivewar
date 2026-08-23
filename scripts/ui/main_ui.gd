@@ -733,7 +733,7 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(150, 150)
-	btn.modulate = _card_color(c.data)
+	btn.modulate = _card_color(c.data) * (Color(0.6, 0.6, 0.6) if c.is_exhausted() else Color.WHITE)
 	btn.pressed.connect(_on_board_creature_pressed.bind(c, friendly))
 	box.add_child(btn)
 
@@ -776,6 +776,8 @@ func _creature_bbcode(c: CardInstance) -> String:
 	if not c.attached_gear.is_empty():
 		var gear_names := c.attached_gear.map(func(g: CardInstance) -> String: return g.display_name())
 		lines.append("Gear: " + _bbcode_escape(", ".join(gear_names)))
+	if c.is_exhausted() and c.is_alive():
+		lines.append("[color=#999999](Exhausted — can't block)[/color]")
 	if not c.is_alive():
 		lines.append("(dead)")
 	if c.instance_id == _selected_attacker_id:

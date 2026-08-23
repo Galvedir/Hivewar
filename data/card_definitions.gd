@@ -58,7 +58,7 @@ const WHITE: Array[Dictionary] = [
 	},
 	{
 		"id": "protective_ward", "name": "Protective Ward", "type": "Gear",
-		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"grants_keywords": [Keywords.GUARD],
 		"text": "Equipped creature gains Guard.",
 	},
@@ -190,13 +190,13 @@ const WHITE: Array[Dictionary] = [
 	},
 	{
 		"id": "polished_shell", "name": "Polished Shell", "type": "Gear",
-		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
+		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"health_buff": 3,
 		"text": "Equipped creature gets +0/+3.",
 	},
 	{
 		"id": "royal_sash", "name": "Royal Sash", "type": "Gear",
-		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
+		"cost": 3, "kingdoms": [], "rarity": Rarities.RARE,
 		"attack_buff": 1, "health_buff": 1, "grants_keywords": [Keywords.LIFESTEAL],
 		"text": "Equipped creature gets +1/+1 and Lifesteal.",
 	},
@@ -265,7 +265,7 @@ const GREEN: Array[Dictionary] = [
 	},
 	{
 		"id": "thorned_carapace", "name": "Thorned Carapace", "type": "Gear",
-		"cost": 2, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
+		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 2, "health_buff": 2,
 		"text": "Equipped creature gets +2/+2.",
 	},
@@ -380,13 +380,13 @@ const GREEN: Array[Dictionary] = [
 	},
 	{
 		"id": "bark_shield", "name": "Bark Shield", "type": "Gear",
-		"cost": 1, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"health_buff": 2,
 		"text": "Equipped creature gets +0/+2.",
 	},
 	{
 		"id": "serrated_claws", "name": "Serrated Claws", "type": "Gear",
-		"cost": 2, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.RARE,
+		"cost": 2, "kingdoms": [], "rarity": Rarities.RARE,
 		"attack_buff": 2, "grants_keywords": [Keywords.TRAMPLE],
 		"text": "Equipped creature gets +2/+0 and Trample.",
 	},
@@ -464,7 +464,7 @@ const BLACK: Array[Dictionary] = [
 	},
 	{
 		"id": "stinger_gauntlet", "name": "Stinger Gauntlet", "type": "Gear",
-		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
+		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1, "grants_keywords": [Keywords.PIERCE],
 		"text": "Equipped creature gets +1/+0 and Pierce.",
 	},
@@ -595,7 +595,7 @@ const BLACK: Array[Dictionary] = [
 	},
 	{
 		"id": "venom_fangs", "name": "Venom Fangs", "type": "Gear",
-		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
+		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1, "grants_keywords": [Keywords.POISON],
 		"text": "Equipped creature gets +1/+0 and Poison.",
 	},
@@ -653,7 +653,7 @@ const BLUE: Array[Dictionary] = [
 	},
 	{
 		"id": "spider_silk_net", "name": "Spider Silk Net", "type": "Gear",
-		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"grants_keywords": [Keywords.REACH],
 		"text": "Equipped creature gains Reach.",
 	},
@@ -790,7 +790,7 @@ const BLUE: Array[Dictionary] = [
 	},
 	{
 		"id": "gossamer_wings", "name": "Gossamer Wings", "type": "Gear",
-		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
+		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"grants_keywords": [Keywords.FLYING],
 		"text": "Equipped creature gains Flying.",
 	},
@@ -977,13 +977,13 @@ const RED: Array[Dictionary] = [
 	},
 	{
 		"id": "barbed_stinger", "name": "Barbed Stinger", "type": "Gear",
-		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1, "grants_keywords": [Keywords.SWIFT],
 		"text": "Equipped creature gets +1/+0 and Swift.",
 	},
 	{
 		"id": "blood_vial", "name": "Blood Vial", "type": "Gear",
-		"cost": 2, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
+		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1, "grants_keywords": [Keywords.LIFESTEAL],
 		"text": "Equipped creature gets +1/+0 and Lifesteal.",
 	},
@@ -1202,32 +1202,38 @@ const HYBRID: Array[Dictionary] = [
 const TOKENS: Array[Dictionary] = [
 	{
 		"id": "termite_worker_token", "name": "Termite Worker", "type": "Creature",
-		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Termite", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
 	},
 	{
 		"id": "ladybug_guard_token", "name": "Ladybug", "type": "Creature",
-		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Ladybug", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
 	},
 	{
 		"id": "cicada_swarm_token", "name": "Cicada Swarm", "type": "Creature",
-		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Cicada", "keywords": [],
 		"text": "",
 	},
 	{
 		"id": "flea_biter_token", "name": "Flea", "type": "Creature",
-		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Flea", "keywords": [Keywords.SWIFT],
 		"text": "Swift.",
 	},
 	{
 		"id": "hornet_swarm_token", "name": "Hornet", "type": "Creature",
-		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Hornet", "keywords": [Keywords.SWIFT],
 		"text": "Swift.",
+	},
+	{
+		"id": "black_widow_silksac_spiderling_token", "name": "Black Widow Silksac Spiderling", "type": "Creature",
+		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
+		"attack": 1, "health": 1, "creature_type": "Spider", "keywords": [Keywords.POISON],
+		"text": "Poison.",
 	},
 ]

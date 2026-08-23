@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://mqxr0k8m2nfpo"]
+
+[ext_resource type="Script" path="res://tests/new_mechanics_check.gd" id="1"]
+
+[node name="NewMechanicsCheck" type="Node"]
+script = ExtResource("1")

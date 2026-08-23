@@ -20,7 +20,9 @@ var runtime_keywords: Array[String] = []
 var temp_keywords: Array[String] = [] # granted "this turn" only; cleared by TurnManager at end of turn
 var poison_counters: int = 0
 var summoning_sick: bool = true
-var has_attacked_this_turn: bool = false
+var has_attacked_this_turn: bool = false # also means "exhausted" — see is_exhausted()
+var temp_attack_bonus: int = 0 # tracks the portion of current_attack from a "this turn" buff, so it can be cleanly reverted
+var temp_health_bonus: int = 0
 var is_face_down: bool = false
 var turns_in_play: int = 0
 var attached_gear: Array[CardInstance] = []
@@ -81,6 +83,30 @@ func is_alive() -> bool:
 
 func has_keyword(kw: String) -> bool:
 	return runtime_keywords.has(kw) or temp_keywords.has(kw)
+
+## Exhaustion (§ user request): a creature that has attacked this turn
+## can't be chosen as an optional blocker until its controller's next turn
+## clears has_attacked_this_turn. Named separately from that field for
+## clarity at call sites even though it's the same underlying state.
+func is_exhausted() -> bool:
+	return has_attacked_this_turn
+
+## Adds a stat bonus that expires at end of turn (e.g. "+2/+0 until end of
+## turn"). The bonus amount is tracked so clear_temp_buffs() can revert
+## exactly this much regardless of other permanent changes in between —
+## addition/subtraction commute, so order never matters.
+func add_temp_buff(attack_bonus: int, health_bonus: int) -> void:
+	current_attack += attack_bonus
+	max_health += health_bonus
+	temp_attack_bonus += attack_bonus
+	temp_health_bonus += health_bonus
+
+func clear_temp_buffs() -> void:
+	if temp_attack_bonus != 0 or temp_health_bonus != 0:
+		current_attack -= temp_attack_bonus
+		max_health -= temp_health_bonus
+		temp_attack_bonus = 0
+		temp_health_bonus = 0
 
 func display_name() -> String:
 	return data.card_name

@@ -61,6 +61,7 @@ func end_turn() -> void:
 	var opponent := GameState.get_opponent(player_index)
 	for c: CardInstance in player.board:
 		c.temp_keywords.clear()
+		c.clear_temp_buffs()
 	while player.hand.size() > MAX_HAND_SIZE:
 		var discarded: CardInstance = player.hand.pop_back()
 		player.graveyard.append(discarded)

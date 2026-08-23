@@ -46,13 +46,16 @@ func forced_guard_target(attacker: CardInstance, defender_player: PlayerState) -
 
 ## Legal optional blockers when the attacker targets the Leader directly and
 ## the defender has no Guard. Empty if Pierce (unblockable) or the attacker
-## isn't targeting the Leader.
+## isn't targeting the Leader. Exhausted creatures (§ user request — attacked
+## this turn) can't be chosen; this is the optional-block path only — a
+## Guard's mandatory redirect (forced_guard_target) isn't "blocking" and
+## stays available even while exhausted.
 func legal_block_options(attacker: CardInstance, defender_player: PlayerState) -> Array[CardInstance]:
 	if attacker.has_keyword(Keywords.PIERCE):
 		return []
 	var flying := attacker.has_keyword(Keywords.FLYING)
 	return defender_player.board.filter(func(c: CardInstance) -> bool:
-		if not c.is_alive() or c.is_face_down:
+		if not c.is_alive() or c.is_face_down or c.is_exhausted():
 			return false
 		if flying:
 			return c.has_keyword(Keywords.FLYING) or c.has_keyword(Keywords.REACH)
@@ -121,6 +124,16 @@ func _fight(attacker: CardInstance, defender: CardInstance, attacker_player: Pla
 	if defender.has_keyword(Keywords.POISON) and not attacker.has_keyword(Keywords.CHITIN):
 		attacker.poison_counters += 1
 		GameLog.log("%s is poisoned by %s (now %d Poison counters)." % [attacker.display_name(), defender.display_name(), attacker.poison_counters], "combat")
+
+	# Venomstrike: kills any creature it damages in combat outright, unless
+	# that creature has Chitin (which already grants Poison immunity — reused
+	# here rather than adding a second near-identical immunity keyword).
+	if attacker.has_keyword(Keywords.VENOMSTRIKE) and not defender.has_keyword(Keywords.CHITIN) and defender.is_alive():
+		defender.damage_marked = defender.max_health
+		GameLog.log("%s's Venomstrike kills %s instantly!" % [attacker.display_name(), defender.display_name()], "combat")
+	if defender.has_keyword(Keywords.VENOMSTRIKE) and not attacker.has_keyword(Keywords.CHITIN) and attacker.is_alive():
+		attacker.damage_marked = attacker.max_health
+		GameLog.log("%s's Venomstrike kills %s instantly!" % [defender.display_name(), attacker.display_name()], "combat")
 
 	if attacker.has_keyword(Keywords.LIFESTEAL):
 		GameState.heal_player(attacker_player.player_id, dmg_to_defender, attacker.display_name() + "'s Lifesteal")

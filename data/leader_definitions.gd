@@ -21,7 +21,7 @@ static func get_all() -> Array[Dictionary]:
 			"id": "thornback_grael", "name": "Thornback Grael",
 			"kingdoms": [Kingdoms.GREEN], "starting_health": 30,
 			"text": "Leader of the Wild.",
-			"hero_power_cost": 1,
+			"hero_power_cost": 0,
 			"hero_power_text": "Gain 1 extra Larva this turn.",
 			"hero_power_effects": [{"effect_id": "gain_larva", "params": {"amount": 1}}],
 			"ultimate_cost": 7,

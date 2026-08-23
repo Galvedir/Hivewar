@@ -71,6 +71,7 @@ func _build_card(def: Dictionary) -> CardData:
 			c.attack = def.get("attack", 0)
 			c.health = def.get("health", 1)
 			c.creature_type = def.get("creature_type", "")
+			c.is_token = def.get("is_token", false)
 			c.keywords = _str_array(def.get("keywords", []))
 			c.effects = _dict_array(def.get("effects", []))
 			c.ambush = (def.get("ambush", {}) as Dictionary).duplicate(true)

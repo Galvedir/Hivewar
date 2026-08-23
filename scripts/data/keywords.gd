@@ -18,3 +18,4 @@ const SWARM := "Swarm"
 const PIERCE := "Pierce"
 const TRAMPLE := "Trample"
 const AMBUSH := "Ambush"
+const VENOMSTRIKE := "Venomstrike" # kills any creature it damages in combat, unless that creature has Chitin

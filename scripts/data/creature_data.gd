@@ -16,6 +16,7 @@ extends CardData
 @export var keywords: Array[String] = []
 @export var effects: Array[Dictionary] = []
 @export var ambush: Dictionary = {}
+@export var is_token: bool = false # summon_token-only creatures; never in a deck list — used by token-boosting Hive cards
 
 func _init() -> void:
 	card_type = CardTypes.CREATURE

@@ -162,6 +162,19 @@ func _ready() -> void:
 	TurnManager.end_turn() # ends P1's turn, starts P0's turn again
 	_check(not temp_guard_target.has_keyword(Keywords.GUARD), "Temp keyword clears at the start of the granting player's NEXT turn, after the opponent's full turn has passed")
 
+	# --- Gear-granted Swift must lift summoning sickness immediately (bug fix) ---
+	# summoning_sick is set once, when a creature enters play, from its printed
+	# keywords only — Swift granted afterward (e.g. equipping Barbed Stinger)
+	# was never rechecked, so the creature stayed stuck unable to attack.
+	var sick_creature := CardDatabase.create_instance("worker_ant_line", 0) # vanilla, no innate Swift
+	sick_creature.summoning_sick = true # simulates having just been played this turn
+	p0.board.append(sick_creature)
+	_check(not CombatResolver.can_attack(sick_creature), "A freshly-played creature without Swift can't attack yet (summoning sickness)")
+	var barbed_stinger := CardDatabase.create_instance("barbed_stinger", 0)
+	GameState.attach_gear(barbed_stinger, sick_creature)
+	_check(sick_creature.has_keyword(Keywords.SWIFT), "Barbed Stinger grants Swift on equip")
+	_check(CombatResolver.can_attack(sick_creature), "Swift granted via Gear lifts summoning sickness immediately, even on a creature played this turn")
+
 	print("")
 	if _failures == 0:
 		print("ALL CHECKS PASSED")

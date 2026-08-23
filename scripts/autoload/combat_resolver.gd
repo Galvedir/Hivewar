@@ -10,7 +10,14 @@ extends Node
 ## may only attack if its flip trigger is "on_attack" (§8) — declaring the
 ## attack is what reveals it; other face-down creatures stay passive.
 func can_attack(attacker: CardInstance) -> bool:
-	if not attacker.is_alive() or attacker.summoning_sick or attacker.has_attacked_this_turn:
+	if not attacker.is_alive() or attacker.has_attacked_this_turn:
+		return false
+	# summoning_sick is set once, at the moment a creature enters play, based
+	# on whatever keywords it had printed then — it's never revisited. Swift
+	# granted afterward (e.g. equipping Barbed Stinger) must still lift
+	# sickness immediately, so re-check has_keyword live rather than trusting
+	# the stale flag alone.
+	if attacker.summoning_sick and not attacker.has_keyword(Keywords.SWIFT):
 		return false
 	if not attacker.is_face_down:
 		return true

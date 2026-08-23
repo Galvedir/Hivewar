@@ -24,18 +24,28 @@ func start_game(deck_ids: Array[String], starting_player_index: int = 0) -> void
 	game_started.emit()
 	start_turn(GameState.active_player_index)
 
+func _actor(player: PlayerState) -> String:
+	return player.leader.data.card_name
+
 func start_turn(player_index: int) -> void:
 	var player := GameState.players[player_index]
 	var opponent := GameState.get_opponent(player_index)
 	player.max_larva = min(player.max_larva + 1, MAX_LARVA_CAP)
 	player.current_larva = player.max_larva
 	player.temp_larva_bonus = 0
-	player.draw_card()
+	var drawn := player.draw_card()
 	for c: CardInstance in player.board:
 		c.summoning_sick = false
 		c.has_attacked_this_turn = false
 	player.leader.hero_power_used_this_turn = false
 	GameState.turn_number += 1
+	GameLog.log("— Turn %d: %s's turn (Larva %d/%d, Health %d) —" % [
+		GameState.turn_number, _actor(player), player.current_larva, player.max_larva, player.health
+	], "system")
+	if drawn != null:
+		GameLog.log("%s draws %s." % [_actor(player), drawn.display_name()])
+	else:
+		GameLog.log("%s tries to draw from an empty deck!" % _actor(player))
 	EffectResolver.fire_start_of_turn(player, opponent)
 	turn_started.emit(player_index)
 
@@ -48,7 +58,9 @@ func end_turn() -> void:
 	for c: CardInstance in player.board:
 		c.temp_keywords.clear()
 	while player.hand.size() > MAX_HAND_SIZE:
-		player.graveyard.append(player.hand.pop_back())
+		var discarded: CardInstance = player.hand.pop_back()
+		player.graveyard.append(discarded)
+		GameLog.log("%s discards %s (hand size limit)." % [_actor(player), discarded.display_name()], "system")
 	EffectResolver.fire_end_of_turn(player, opponent)
 	turn_ended.emit(player_index)
 	if GameState.is_over:
@@ -83,6 +95,7 @@ func play_card(player_index: int, hand_index: int, target_instance_id: int = -1)
 
 	match card_inst.data.card_type:
 		CardTypes.CREATURE:
+			var cd := card_inst.data as CreatureData
 			if card_inst.data.is_legendary:
 				# Legend Rule (§4): spec has the controller choose which copy to
 				# keep. v1 simplification — no UI for that choice yet, so the
@@ -90,17 +103,33 @@ func play_card(player_index: int, hand_index: int, target_instance_id: int = -1)
 				for dup: CardInstance in player.legendary_copies_in_play(card_inst.data.card_name):
 					player.board.erase(dup)
 					player.graveyard.append(dup)
+					GameLog.log("%s's existing %s is discarded (Legend Rule)." % [_actor(player), dup.display_name()], "system")
+			var is_ambush_creature := cd.is_ambush()
+			if is_ambush_creature:
+				card_inst.enter_play_face_down()
 			player.board.append(card_inst)
 			EffectResolver.apply_hive_bonuses_on_enter(card_inst, player)
+			if is_ambush_creature:
+				GameLog.log("%s plays a face-down Ambush creature for %d Larva." % [_actor(player), cost])
+			else:
+				var kw := (", ".join(cd.keywords)) if not cd.keywords.is_empty() else ""
+				GameLog.log("%s plays %s (%d/%d)%s for %d Larva." % [
+					_actor(player), card_inst.display_name(), cd.attack, cd.health,
+					(" [" + kw + "]") if kw != "" else "", cost
+				])
 			EffectResolver.fire_on_play(card_inst, player, opponent, target_instance_id)
 		CardTypes.ABILITY:
-			EffectResolver.fire_on_cast(card_inst.data, player, opponent, target_instance_id)
+			GameLog.log("%s casts %s for %d Larva." % [_actor(player), card_inst.display_name(), cost])
+			EffectResolver.fire_on_cast(card_inst, player, opponent, target_instance_id)
 			player.graveyard.append(card_inst)
 		CardTypes.GEAR:
-			GameState.attach_gear(card_inst, player.find_on_board(target_instance_id))
+			var gear_target := player.find_on_board(target_instance_id)
+			GameState.attach_gear(card_inst, gear_target)
+			GameLog.log("%s equips %s onto %s for %d Larva." % [_actor(player), card_inst.display_name(), gear_target.display_name(), cost])
 		CardTypes.HIVE:
 			player.hive_zone.append(card_inst)
 			EffectResolver.apply_new_hive_to_board(card_inst, player)
+			GameLog.log("%s establishes %s for %d Larva." % [_actor(player), card_inst.display_name(), cost])
 
 	GameState.cleanup_dead(player.player_id)
 	GameState.cleanup_dead(opponent.player_id)
@@ -118,6 +147,7 @@ func use_hero_power(player_index: int, target_instance_id: int = -1) -> bool:
 		return false
 	player.current_larva -= cost
 	player.leader.hero_power_used_this_turn = true
+	GameLog.log("%s uses Hero Power (%d Larva): %s" % [_actor(player), cost, player.leader.data.hero_power_text])
 	EffectResolver.resolve_effect_list(player.leader.data.hero_power_effects, player, opponent, target_instance_id)
 	return true
 
@@ -133,6 +163,7 @@ func use_ultimate(player_index: int, target_instance_id: int = -1) -> bool:
 		return false
 	player.current_larva -= cost
 	player.leader.ultimate_used = true
+	GameLog.log("%s unleashes their Ultimate (%d Larva): %s" % [_actor(player), cost, player.leader.data.ultimate_text], "combat")
 	EffectResolver.resolve_effect_list(player.leader.data.ultimate_effects, player, opponent, target_instance_id)
 	return true
 
@@ -152,6 +183,9 @@ func flip_ambush_paid(player_index: int, board_instance_id: int) -> bool:
 		return false
 	player.current_larva -= cost
 	EffectResolver.flip_paid(c)
+	GameLog.log("%s pays %d Larva to flip their hidden creature face up — it's %s (%d/%d)!" % [
+		_actor(player), cost, c.display_name(), c.current_attack, c.current_health()
+	], "combat")
 	return true
 
 ## Declares an attack. `target` is the String "leader", or a CardInstance

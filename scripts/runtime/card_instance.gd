@@ -25,6 +25,9 @@ var is_face_down: bool = false
 var turns_in_play: int = 0
 var attached_gear: Array[CardInstance] = []
 
+## A card is its true self while in deck/hand — it's only "face-down" as a
+## board state once played (§8; see enter_play_face_down). Cost, name, and
+## text must all read correctly while sitting in the owner's hand.
 func _init(card_data: CardData, p_owner_id: int) -> void:
 	instance_id = _next_id
 	_next_id += 1
@@ -32,20 +35,23 @@ func _init(card_data: CardData, p_owner_id: int) -> void:
 	owner_id = p_owner_id
 	if card_data is CreatureData:
 		var cd: CreatureData = card_data
+		current_attack = cd.attack
+		max_health = cd.health
+		runtime_keywords = cd.keywords.duplicate()
+		summoning_sick = not has_keyword(Keywords.SWIFT)
 		if cd.is_ambush():
-			_setup_ambush(cd)
-		else:
-			current_attack = cd.attack
-			max_health = cd.health
-			runtime_keywords = cd.keywords.duplicate()
-			summoning_sick = not has_keyword(Keywords.SWIFT)
+			true_data = cd
 
-func _setup_ambush(cd: CreatureData) -> void:
-	true_data = cd
+## Called by TurnManager when an Ambush creature is played from hand (§8) —
+## swaps the visible face to the generic face-down side. Must not run any
+## earlier than this, or the card would show 0 cost / no text in hand.
+func enter_play_face_down() -> void:
+	if true_data == null:
+		return
 	is_face_down = true
-	var fd: Dictionary = cd.ambush.get("face_down", {})
+	var fd: Dictionary = true_data.ambush.get("face_down", {})
 	var face_down := CreatureData.new()
-	face_down.id = cd.id + "_facedown"
+	face_down.id = true_data.id + "_facedown"
 	face_down.card_name = fd.get("name", "Unidentified Larva")
 	face_down.attack = fd.get("attack", 0)
 	face_down.health = fd.get("health", 1)

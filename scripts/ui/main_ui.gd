@@ -17,7 +17,9 @@ const HUMAN := 0
 const AI := 1
 
 var _deck_select: VBoxContainer
+var _match_view: HBoxContainer
 var _match_root: VBoxContainer
+var _log_display: RichTextLabel
 var _opponent_board: HBoxContainer
 var _opponent_info: Label
 var _player_board: HBoxContainer
@@ -40,10 +42,11 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_build_deck_select()
 	_build_match_view()
-	_match_root.visible = false
+	_match_view.visible = false
 	TurnManager.turn_started.connect(_on_turn_started)
 	TurnManager.block_decision_requested.connect(_on_block_requested)
 	GameState.game_ended.connect(_on_game_ended)
+	GameLog.entry_added.connect(_on_log_entry)
 
 ## --- Deck select ------------------------------------------------------------
 
@@ -73,9 +76,12 @@ func _on_deck_chosen(deck_id: String) -> void:
 	var ai_deck_id: String = ai_pool[randi() % ai_pool.size()] if not ai_pool.is_empty() else deck_id
 
 	_deck_select.visible = false
-	_match_root.visible = true
+	_match_view.visible = true
 	_selected_hand_index = -1
 	_selected_attacker_id = -1
+	GameLog.clear()
+	if _log_display != null:
+		_log_display.clear()
 
 	TurnManager.start_game([deck_id, ai_deck_id], HUMAN)
 	GameState.players[AI].is_ai = true
@@ -85,9 +91,14 @@ func _on_deck_chosen(deck_id: String) -> void:
 
 func _build_match_view() -> void:
 	_match_root = VBoxContainer.new()
-	_match_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_match_view = HBoxContainer.new()
+	_match_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_match_view.add_theme_constant_override("separation", 10)
+	add_child(_match_view)
+
+	_match_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_match_root.add_theme_constant_override("separation", 8)
-	add_child(_match_root)
+	_match_view.add_child(_match_root)
 
 	_opponent_info = Label.new()
 	_match_root.add_child(_opponent_info)
@@ -118,12 +129,43 @@ func _build_match_view() -> void:
 	_player_hand = _make_scrolling_row()
 	_match_root.add_child(_player_hand.get_parent())
 
+	_build_log_panel()
 	_build_block_popup()
 	_build_game_over_popup()
 
+func _build_log_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(320, 0)
+	_match_view.add_child(panel)
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	var title := Label.new()
+	title.text = "Action Log"
+	title.add_theme_font_size_override("font_size", 18)
+	box.add_child(title)
+	_log_display = RichTextLabel.new()
+	_log_display.bbcode_enabled = true
+	_log_display.scroll_following = true
+	_log_display.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_log_display.custom_minimum_size = Vector2(300, 200)
+	box.add_child(_log_display)
+
+func _on_log_entry(text: String, kind: String) -> void:
+	if _log_display == null:
+		return
+	var color := "#dddddd"
+	match kind:
+		"system":
+			color = "#8fa8ff"
+		"combat":
+			color = "#ff9955"
+		"chat":
+			color = "#55ddff"
+	_log_display.append_text("[color=%s]%s[/color]\n" % [color, text.replace("[", "(").replace("]", ")")])
+
 func _make_scrolling_row() -> HBoxContainer:
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 130)
+	scroll.custom_minimum_size = Vector2(0, 200)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var row := HBoxContainer.new()
@@ -155,7 +197,7 @@ func _build_game_over_popup() -> void:
 
 func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
-	_match_root.visible = false
+	_match_view.visible = false
 	_deck_select.visible = true
 
 ## --- Signal handlers ---------------------------------------------------------
@@ -305,7 +347,7 @@ func _on_enemy_leader_pressed() -> void:
 ## --- Rendering -----------------------------------------------------------
 
 func _refresh() -> void:
-	if not _match_root.visible:
+	if not _match_view.visible:
 		return
 	var human := GameState.players[HUMAN]
 	var ai := GameState.players[AI]
@@ -349,7 +391,7 @@ func _render_hand() -> void:
 		var card: CardInstance = human.hand[i]
 		var cost := CostCalculator.calculate_cost(card.data, human.leader.data)
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(110, 110)
+		btn.custom_minimum_size = Vector2(170, 190)
 		btn.text = _card_text(card, cost)
 		btn.modulate = _card_color(card.data)
 		btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > human.current_larva
@@ -359,7 +401,7 @@ func _render_hand() -> void:
 func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(100, 90)
+	btn.custom_minimum_size = Vector2(150, 150)
 	btn.text = _creature_text(c)
 	btn.modulate = _card_color(c.data)
 	if c.instance_id == _selected_attacker_id:
@@ -381,6 +423,8 @@ func _creature_text(c: CardInstance) -> String:
 		lines.append(", ".join(c.runtime_keywords))
 	if c.poison_counters > 0:
 		lines.append("Poison x%d" % c.poison_counters)
+	if c.data.text != "":
+		lines.append(_wrap_text(c.data.text))
 	if not c.is_alive():
 		lines.append("(dead)")
 	return "\n".join(lines)
@@ -394,6 +438,28 @@ func _card_text(c: CardInstance, cost: int) -> String:
 			lines.append(", ".join(cd.keywords))
 	else:
 		lines.append(c.data.card_type)
+	if c.data.text != "":
+		lines.append(_wrap_text(c.data.text))
+	return "\n".join(lines)
+
+## Buttons don't word-wrap their text on their own, so we hand-wrap ability
+## text at a rough character width to keep it legible on the card widgets.
+func _wrap_text(text: String, width_chars: int = 22) -> String:
+	if text == "":
+		return ""
+	var words := text.split(" ")
+	var lines: Array[String] = []
+	var current := ""
+	for w: String in words:
+		if current == "":
+			current = w
+		elif (current + " " + w).length() <= width_chars:
+			current += " " + w
+		else:
+			lines.append(current)
+			current = w
+	if current != "":
+		lines.append(current)
 	return "\n".join(lines)
 
 func _card_color(card_data: CardData) -> Color:

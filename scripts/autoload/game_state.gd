@@ -39,26 +39,45 @@ func get_active_player() -> PlayerState:
 func get_opponent(player_id: int) -> PlayerState:
 	return players[1 - player_id]
 
-func damage_player(player_id: int, amount: int) -> void:
+func damage_player(player_id: int, amount: int, source_label: String = "") -> void:
 	if amount <= 0 or is_over:
 		return
 	var p := players[player_id]
 	p.health -= amount
+	GameLog.log("%s's Leader takes %d damage%s (now %d health)." % [
+		p.leader.data.card_name, amount, (" from " + source_label) if source_label != "" else "", p.health
+	], "combat")
 	player_health_changed.emit(player_id)
 	if p.health <= 0:
 		_end_game(1 - player_id)
 
-func heal_player(player_id: int, amount: int) -> void:
+func heal_player(player_id: int, amount: int, source_label: String = "") -> void:
 	if amount <= 0 or is_over:
 		return
-	players[player_id].health += amount
+	var p := players[player_id]
+	p.health += amount
+	GameLog.log("%s's Leader heals %d%s (now %d health)." % [
+		p.leader.data.card_name, amount, (" from " + source_label) if source_label != "" else "", p.health
+	], "combat")
 	player_health_changed.emit(player_id)
+
+## Applies damage to a creature (source_label is who/what dealt it, for the
+## log — e.g. an attacker's name, "Poison", or an Ability's name).
+func damage_creature(instance: CardInstance, amount: int, source_label: String = "") -> void:
+	if amount <= 0 or is_over:
+		return
+	instance.damage_marked += amount
+	GameLog.log("%s takes %d damage%s (now %d/%d)." % [
+		instance.display_name(), amount, (" from " + source_label) if source_label != "" else "",
+		max(0, instance.current_health()), instance.max_health
+	], "combat")
 
 func _end_game(winner: int) -> void:
 	if is_over:
 		return
 	is_over = true
 	winner_id = winner
+	GameLog.log("*** %s wins the game! ***" % players[winner].leader.data.card_name, "system")
 	game_ended.emit(winner)
 
 ## Moves any dead creatures (current_health() <= 0) from board to graveyard,
@@ -71,6 +90,7 @@ func cleanup_dead(player_id: int) -> void:
 		if not c.is_alive():
 			p.board.remove_at(i)
 			p.graveyard.append(c)
+			GameLog.log("%s dies." % c.display_name(), "combat")
 			creature_died.emit(c, player_id)
 			EffectResolver.fire_on_death(c, p, get_opponent(player_id))
 		else:

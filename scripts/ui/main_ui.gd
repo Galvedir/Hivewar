@@ -28,6 +28,9 @@ const TARGETING_EFFECT_SIDES := {
 }
 
 var _deck_select: VBoxContainer
+var _saved_decks_menu_box: VBoxContainer
+var _deck_builder: DeckBuilderUI
+var _collection: CollectionUI
 var _match_view: HBoxContainer
 var _match_root: VBoxContainer
 var _log_display: RichTextLabel
@@ -65,6 +68,17 @@ func _ready() -> void:
 	_build_deck_select()
 	_build_match_view()
 	_match_view.visible = false
+
+	_deck_builder = DeckBuilderUI.new()
+	_deck_builder.visible = false
+	_deck_builder.closed.connect(_on_deck_builder_closed)
+	add_child(_deck_builder)
+
+	_collection = CollectionUI.new()
+	_collection.visible = false
+	_collection.closed.connect(_on_collection_closed)
+	add_child(_collection)
+
 	TurnManager.turn_started.connect(_on_turn_started)
 	TurnManager.block_decision_requested.connect(_on_block_requested)
 	TurnManager.legend_rule_decision_requested.connect(_on_legend_rule_requested)
@@ -80,10 +94,25 @@ func _build_deck_select() -> void:
 	add_child(_deck_select)
 
 	var title := Label.new()
-	title.text = "Hivewar — choose your deck"
+	title.text = "Hivewar"
 	title.add_theme_font_size_override("font_size", 28)
 	_deck_select.add_child(title)
 
+	var menu_row := HBoxContainer.new()
+	_deck_select.add_child(menu_row)
+	var builder_btn := Button.new()
+	builder_btn.text = "Deck Builder"
+	builder_btn.pressed.connect(_on_open_deck_builder)
+	menu_row.add_child(builder_btn)
+	var collection_btn := Button.new()
+	collection_btn.text = "Collection"
+	collection_btn.pressed.connect(_on_open_collection)
+	menu_row.add_child(collection_btn)
+
+	var fixed_title := Label.new()
+	fixed_title.text = "Fixed Test Decks"
+	fixed_title.add_theme_font_size_override("font_size", 16)
+	_deck_select.add_child(fixed_title)
 	for deck_id in DeckDefinitions.all_deck_ids():
 		var deck: Dictionary = DeckDefinitions.get_deck(deck_id)
 		var leader: LeaderData = CardDatabase.get_leader(deck["leader_id"])
@@ -92,6 +121,50 @@ func _build_deck_select() -> void:
 		btn.custom_minimum_size = Vector2(0, 56)
 		btn.pressed.connect(_on_deck_chosen.bind(deck_id))
 		_deck_select.add_child(btn)
+
+	var saved_title := Label.new()
+	saved_title.text = "Your Decks"
+	saved_title.add_theme_font_size_override("font_size", 16)
+	_deck_select.add_child(saved_title)
+	_saved_decks_menu_box = VBoxContainer.new()
+	_deck_select.add_child(_saved_decks_menu_box)
+	_refresh_saved_decks_menu()
+
+func _refresh_saved_decks_menu() -> void:
+	for child in _saved_decks_menu_box.get_children():
+		child.queue_free()
+	var names := DeckStorage.all_deck_names()
+	if names.is_empty():
+		var empty_label := Label.new()
+		empty_label.text = "(none yet — build one in the Deck Builder)"
+		_saved_decks_menu_box.add_child(empty_label)
+		return
+	for deck_name: String in names:
+		var d := DeckStorage.get_deck(deck_name)
+		var leader: LeaderData = CardDatabase.get_leader(d.get("leader_id", ""))
+		var btn := Button.new()
+		btn.text = "%s\n(%s)" % [deck_name, leader.card_name if leader != null else "?"]
+		btn.custom_minimum_size = Vector2(0, 56)
+		btn.pressed.connect(_on_deck_chosen.bind(deck_name))
+		_saved_decks_menu_box.add_child(btn)
+
+func _on_open_deck_builder() -> void:
+	_deck_select.visible = false
+	_deck_builder.refresh_on_show()
+	_deck_builder.visible = true
+
+func _on_deck_builder_closed() -> void:
+	_deck_builder.visible = false
+	_refresh_saved_decks_menu()
+	_deck_select.visible = true
+
+func _on_open_collection() -> void:
+	_deck_select.visible = false
+	_collection.visible = true
+
+func _on_collection_closed() -> void:
+	_collection.visible = false
+	_deck_select.visible = true
 
 func _on_deck_chosen(deck_id: String) -> void:
 	var ai_pool := DeckDefinitions.all_deck_ids()
@@ -299,6 +372,7 @@ func _build_game_over_popup() -> void:
 func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
 	_match_view.visible = false
+	_refresh_saved_decks_menu()
 	_deck_select.visible = true
 
 ## --- Signal handlers ---------------------------------------------------------

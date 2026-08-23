@@ -14,10 +14,14 @@ var turn_number: int = 0
 var is_over: bool = false
 var winner_id: int = -1
 
-func setup_game(deck_ids: Array[String], starting_player_index: int = 0) -> void:
+## `deck_refs` are strings resolved first against the fixed test decks
+## (DeckDefinitions), then against the player's saved custom decks
+## (DeckStorage) by name — so callers never need to know which kind a
+## given deck is.
+func setup_game(deck_refs: Array[String], starting_player_index: int = 0) -> void:
 	players.clear()
 	for i in range(2):
-		var deck_def: Dictionary = DeckDefinitions.get_deck(deck_ids[i])
+		var deck_def: Dictionary = _resolve_deck_ref(deck_refs[i])
 		var leader := LeaderInstance.new(CardDatabase.get_leader(deck_def["leader_id"]))
 		var player := PlayerState.new(i, leader, false)
 		var card_ids: Array[String] = DeckDefinitions.expand(deck_def["cards"])
@@ -29,6 +33,11 @@ func setup_game(deck_ids: Array[String], starting_player_index: int = 0) -> void
 	turn_number = 0
 	is_over = false
 	winner_id = -1
+
+func _resolve_deck_ref(deck_ref: String) -> Dictionary:
+	if DeckDefinitions.all_deck_ids().has(deck_ref):
+		return DeckDefinitions.get_deck(deck_ref)
+	return DeckStorage.get_deck(deck_ref)
 
 func get_player(id: int) -> PlayerState:
 	return players[id]

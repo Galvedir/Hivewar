@@ -7,16 +7,15 @@ extends Node
 
 func _ready() -> void:
 	print("=== Hivewar Phase 1 smoke test ===")
-	var pairings := [
-		["white_hive_guardians", "black_venom_broodmother"],
-		["green_wildgrowth", "blue_skyswarm"],
-		["white_hive_guardians", "blue_skyswarm"],
-		["black_venom_broodmother", "green_wildgrowth"],
-		["red_bloodhunt", "white_hive_guardians"],
-		["red_bloodhunt", "hybrid_venomwing"],
-		["hybrid_venomwing", "green_wildgrowth"],
-	]
-	var runs_per_pairing := 3
+	# Every deck (one per Leader, §user request) paired against the next one
+	# cyclically, so each deck gets exercised as both P0 and P1 at least once
+	# without hand-maintaining an ever-growing pairing list.
+	var ids := DeckDefinitions.all_deck_ids()
+	var pairings: Array = []
+	for i in range(ids.size()):
+		pairings.append([ids[i], ids[(i + 1) % ids.size()]])
+
+	var runs_per_pairing := 2
 	var total := 0
 	var stalemates := 0
 

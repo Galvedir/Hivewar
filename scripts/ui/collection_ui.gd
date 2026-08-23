@@ -43,7 +43,7 @@ func _build_ui() -> void:
 	root.add_child(filters)
 	_kingdom_option = OptionButton.new()
 	_kingdom_option.add_item("All Kingdoms")
-	for k in ["White", "Green", "Black", "Blue", "Red", "Colorless"]:
+	for k in Kingdoms.ALL + [Kingdoms.COLORLESS]:
 		_kingdom_option.add_item(k)
 	_kingdom_option.item_selected.connect(_on_kingdom_filter_selected)
 	filters.add_child(_kingdom_option)
@@ -93,7 +93,7 @@ func _refresh() -> void:
 	all_cards.sort_custom(func(a: CardData, b: CardData) -> bool: return a.card_name < b.card_name)
 	for card: CardData in all_cards:
 		if _kingdom_filter != "ALL":
-			if _kingdom_filter == "Colorless":
+			if _kingdom_filter == Kingdoms.COLORLESS:
 				if not card.kingdoms.is_empty():
 					continue
 			elif not card.kingdoms.has(_kingdom_filter):

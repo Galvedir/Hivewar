@@ -8,7 +8,7 @@ extends Node
 const MainScene := preload("res://scenes/Main.tscn")
 
 func _ready() -> void:
-	print("=== Hivewar UI-drive test ===")
+	print("=== LARVA UI-drive test ===")
 	var main := MainScene.instantiate()
 	add_child(main)
 	# Blue has zero Guard creatures, guaranteeing the optional block-prompt

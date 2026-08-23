@@ -6,7 +6,7 @@ extends Node
 ##   Godot_v4.7.1-stable_win64_console.exe --headless --path . res://tests/SmokeTest.tscn
 
 func _ready() -> void:
-	print("=== Hivewar Phase 1 smoke test ===")
+	print("=== LARVA Phase 1 smoke test ===")
 	# Every deck (one per Leader, §user request) paired against the next one
 	# cyclically, so each deck gets exercised as both P0 and P1 at least once
 	# without hand-maintaining an ever-growing pairing list.

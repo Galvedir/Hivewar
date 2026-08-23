@@ -5,14 +5,6 @@ extends Control
 ## layout) so it's easy to keep in sync with the engine; swap for real
 ## scenes/art in a later pass without touching TurnManager/GameState.
 
-const KINGDOM_COLORS := {
-	"White": Color(0.85, 0.78, 0.55),
-	"Green": Color(0.25, 0.55, 0.30),
-	"Black": Color(0.30, 0.20, 0.35),
-	"Blue": Color(0.30, 0.55, 0.85),
-	"Red": Color(0.80, 0.25, 0.25),
-}
-const COLORLESS_COLOR := Color(0.55, 0.55, 0.50)
 const HUMAN := 0
 const AI := 1
 
@@ -87,16 +79,37 @@ func _ready() -> void:
 
 ## --- Deck select ------------------------------------------------------------
 
+const LOGO_PATH := "res://art/branding/logo.png"
+
+## The main-menu title: the LARVA wordmark logo if it's present, else a
+## plain-text fallback so a missing asset never breaks the menu.
+func _make_title() -> Control:
+	if ResourceLoader.exists(LOGO_PATH):
+		var logo := TextureRect.new()
+		logo.texture = load(LOGO_PATH)
+		# TextureRect defaults to EXPAND_KEEP_SIZE (renders at the texture's
+		# native pixel size, ignoring any box it's given) — IGNORE_SIZE is
+		# what actually makes it respect custom_minimum_size, with
+		# STRETCH_KEEP_ASPECT_CENTERED then preserving the image's aspect
+		# ratio within that box instead of distorting it.
+		logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		logo.custom_minimum_size = Vector2(420, 180)
+		logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		logo.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		return logo
+	var title := Label.new()
+	title.text = "LARVA"
+	title.add_theme_font_size_override("font_size", 28)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return title
+
 func _build_deck_select() -> void:
 	_deck_select = VBoxContainer.new()
 	LayoutUtil.fill_parent(_deck_select)
 	add_child(_deck_select)
 
-	var title := Label.new()
-	title.text = "Hivewar"
-	title.add_theme_font_size_override("font_size", 28)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_deck_select.add_child(title)
+	_deck_select.add_child(_make_title())
 
 	var menu_row := HBoxContainer.new()
 	menu_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -806,6 +819,4 @@ func _wrap_text(text: String, width_chars: int = 22) -> String:
 	return "\n".join(lines)
 
 func _card_color(card_data: CardData) -> Color:
-	if card_data.kingdoms.is_empty():
-		return COLORLESS_COLOR
-	return KINGDOM_COLORS.get(card_data.kingdoms[0], COLORLESS_COLOR)
+	return CardRenderUtil.card_color(card_data)

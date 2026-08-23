@@ -5,11 +5,11 @@ extends RefCounted
 ## runtime state to reflect, unlike main_ui.gd's in-match widgets).
 
 const KINGDOM_COLORS := {
-	"White": Color(0.85, 0.78, 0.55),
-	"Green": Color(0.25, 0.55, 0.30),
-	"Black": Color(0.30, 0.20, 0.35),
-	"Blue": Color(0.30, 0.55, 0.85),
-	"Red": Color(0.80, 0.25, 0.25),
+	Kingdoms.WHITE: Color(0.85, 0.78, 0.55),
+	Kingdoms.GREEN: Color(0.25, 0.55, 0.30),
+	Kingdoms.BLACK: Color(0.30, 0.20, 0.35),
+	Kingdoms.BLUE: Color(0.30, 0.55, 0.85),
+	Kingdoms.RED: Color(0.80, 0.25, 0.25),
 }
 const COLORLESS_COLOR := Color(0.55, 0.55, 0.50)
 
@@ -20,7 +20,7 @@ static func card_color(card_data: CardData) -> Color:
 
 static func kingdom_label(card_data: CardData) -> String:
 	if card_data.kingdoms.is_empty():
-		return "Colorless"
+		return Kingdoms.COLORLESS
 	return "/".join(card_data.kingdoms)
 
 ## Buttons don't word-wrap their own text, so ability text is hand-wrapped

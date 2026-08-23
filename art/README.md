@@ -1,6 +1,6 @@
 # Art Directory
 
-Placeholder art directory structure (§14) for Hivewar. Everything in the game today is programmatically-drawn Control nodes with flat Kingdom-tinted colors — no textures are wired in yet. Drop files in following the naming conventions below, and a future pass can load them by convention (`card.id` / `leader.id` / keyword name → filename) instead of needing a manual mapping table per asset.
+Placeholder art directory structure (§14) for LARVA (the game formerly known as Hivewar — internal ids, save-data paths, and doc-comment references to "Hivewar" throughout the codebase are unchanged; only the displayed title changed). Everything in the game today is programmatically-drawn Control nodes with flat Kingdom-tinted colors — no textures are wired in yet. Drop files in following the naming conventions below, and a future pass can load them by convention (`card.id` / `leader.id` / keyword name → filename) instead of needing a manual mapping table per asset.
 
 ## Layout
 
@@ -21,7 +21,7 @@ art/
 
 ## Naming conventions
 
-**Logo** (`art/branding/`) — the main-menu title graphic (replacing/supplementing the current plain-text "Hivewar" title in `main_ui.gd`'s deck-select screen). No fixed name required since only one file is expected; `logo.png` is the natural choice. A wide/horizontal wordmark and a square icon-only mark are both reasonable to include if you have both — name them distinctly (e.g. `logo_wordmark.png`, `logo_mark.png`) if so.
+**Logo** (`art/branding/logo.png`) — the main-menu title graphic, loaded by `main_ui.gd`'s `_make_title()` in place of the plain-text "LARVA" fallback it shows if the file is missing. If you want to swap in a different mark, replace this file in place (same name) — no code change needed.
 
 **Card illustrations** (`art/cards/illustrations/`) — name each file after the card's `id` from `data/card_definitions.gd`, e.g.:
 - `worker_termite.png`

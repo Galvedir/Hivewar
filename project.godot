@@ -10,10 +10,12 @@ config_version=5
 
 [application]
 
-config/name="Hivewar"
-config/description="Insect trading card game - Phase 1 core match engine"
+config/name="LARVA"
+config/description="Insect trading card game"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+config/use_custom_user_dir=true
+config/custom_user_dir_name="Hivewar"
 
 [autoload]
 

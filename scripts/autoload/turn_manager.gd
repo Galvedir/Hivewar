@@ -48,7 +48,8 @@ func start_turn(player_index: int) -> void:
 	if drawn != null:
 		GameLog.log("%s draws %s." % [_actor(player), drawn.display_name()])
 	else:
-		GameLog.log("%s tries to draw from an empty deck!" % _actor(player))
+		GameState.lose_by_decked_out(player_index)
+		return
 	EffectResolver.fire_start_of_turn(player, opponent)
 	turn_started.emit(player_index)
 

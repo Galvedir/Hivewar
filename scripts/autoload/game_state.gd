@@ -80,6 +80,14 @@ func _end_game(winner: int) -> void:
 	GameLog.log("*** %s wins the game! ***" % players[winner].leader.data.card_name, "system")
 	game_ended.emit(winner)
 
+## A draw attempt (turn draw or a draw_card effect) that finds an empty
+## deck is an instant loss for that player.
+func lose_by_decked_out(player_id: int) -> void:
+	if is_over:
+		return
+	GameLog.log("%s's deck is empty — %s loses instantly!" % [players[player_id].leader.data.card_name, players[player_id].leader.data.card_name], "system")
+	_end_game(1 - player_id)
+
 ## Moves any dead creatures (current_health() <= 0) from board to graveyard,
 ## firing Decay (on_death) for each. Safe to call redundantly.
 func cleanup_dead(player_id: int) -> void:

@@ -96,6 +96,13 @@ func _ready() -> void:
 	EffectResolver.fire_end_of_turn(human, ai)
 	_check(human.health == health_before - poison_bug.current_attack, "Leader takes no extra damage from Poison at end of turn (Leaders are immune)")
 
+	# Decking out is an instant loss (§ user request), checked at the turn draw.
+	human.deck.clear()
+	var human_health_before := human.health
+	TurnManager.start_turn(0) # human is player index 0
+	_check(GameState.is_over and GameState.winner_id == 1, "Drawing from an empty deck is an instant loss for that player")
+	_check(human.health == human_health_before, "Decking out doesn't deal damage — it's a direct loss, not fatigue")
+
 	print("")
 	if _failures == 0:
 		print("ALL CHECKS PASSED")

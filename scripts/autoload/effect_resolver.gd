@@ -166,11 +166,13 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 			GameState.damage_player(target.player_id, int(params.get("amount", 0)), source_label)
 		"draw_card":
 			for i in range(int(params.get("count", 1))):
+				if GameState.is_over:
+					break
 				var drawn := player.draw_card()
 				if drawn != null:
 					GameLog.log("%s draws %s (from %s)." % [player.leader.data.card_name, drawn.display_name(), source_label])
 				else:
-					GameLog.log("%s tries to draw from an empty deck (from %s)!" % [player.leader.data.card_name, source_label])
+					GameState.lose_by_decked_out(player.player_id)
 		"gain_larva":
 			var amount := int(params.get("amount", 0))
 			player.current_larva += amount

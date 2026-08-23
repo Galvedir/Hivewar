@@ -17,13 +17,13 @@ var _grid: GridContainer
 var _count_label: Label
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	LayoutUtil.fill_parent(self)
 	_build_ui()
 	_refresh()
 
 func _build_ui() -> void:
 	var root := VBoxContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	LayoutUtil.fill_parent(root)
 	root.add_theme_constant_override("separation", 6)
 	add_child(root)
 

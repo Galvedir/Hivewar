@@ -21,6 +21,21 @@ func _ready() -> void:
 	add_child(main)
 	var db: DeckBuilderUI = main._deck_builder
 
+	# --- Screens actually get a nonzero size when shown ------------------------
+	# Regression check: set_anchors_preset(PRESET_FULL_RECT) defaults to
+	# resize_mode = PRESET_MODE_MINSIZE, which sizes a control to its own
+	# minimum size rather than stretching it to fill its parent — a plain
+	# Control with no inherent minimum size silently renders at (0,0) with
+	# no error. Bit both DeckBuilderUI and CollectionUI this way in practice
+	# (fixed via LayoutUtil.fill_parent, which sets anchors+offsets explicitly).
+	main._on_open_deck_builder()
+	_check(db.size.x > 100 and db.size.y > 100, "Deck Builder screen has a real nonzero size when opened (got %s)" % db.size)
+	main._on_deck_builder_closed()
+	main._on_open_collection()
+	var col: CollectionUI = main._collection
+	_check(col.size.x > 100 and col.size.y > 100, "Collection screen has a real nonzero size when opened (got %s)" % col.size)
+	main._on_collection_closed()
+
 	# --- Validation rejects an incomplete deck -----------------------------
 	db._new_deck()
 	db._leader_id = "queen_amara"

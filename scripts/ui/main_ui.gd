@@ -64,7 +64,7 @@ var _pending_power_kind := "" # "" / "hero" / "ultimate"
 var _busy := false # true while the AI or an awaited attack is resolving
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	LayoutUtil.fill_parent(self)
 	_build_deck_select()
 	_build_match_view()
 	_match_view.visible = false
@@ -188,7 +188,7 @@ func _on_deck_chosen(deck_id: String) -> void:
 func _build_match_view() -> void:
 	_match_root = VBoxContainer.new()
 	_match_view = HBoxContainer.new()
-	_match_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	LayoutUtil.fill_parent(_match_view)
 	_match_view.add_theme_constant_override("separation", 10)
 	add_child(_match_view)
 
@@ -719,7 +719,7 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	rtl.fit_content = true
 	rtl.scroll_active = false
 	rtl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rtl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	LayoutUtil.fill_parent(rtl)
 	rtl.text = _creature_bbcode(c)
 	btn.add_child(rtl)
 

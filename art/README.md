@@ -6,6 +6,7 @@ Placeholder art directory structure (§14) for Hivewar. Everything in the game t
 
 ```
 art/
+  branding/          Game logo / wordmark
   cards/
     frames/         Per-Kingdom card frame/border art
     illustrations/  Per-card artwork
@@ -19,6 +20,8 @@ art/
 ```
 
 ## Naming conventions
+
+**Logo** (`art/branding/`) — the main-menu title graphic (replacing/supplementing the current plain-text "Hivewar" title in `main_ui.gd`'s deck-select screen). No fixed name required since only one file is expected; `logo.png` is the natural choice. A wide/horizontal wordmark and a square icon-only mark are both reasonable to include if you have both — name them distinctly (e.g. `logo_wordmark.png`, `logo_mark.png`) if so.
 
 **Card illustrations** (`art/cards/illustrations/`) — name each file after the card's `id` from `data/card_definitions.gd`, e.g.:
 - `worker_termite.png`

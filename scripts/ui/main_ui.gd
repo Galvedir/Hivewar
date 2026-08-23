@@ -34,10 +34,14 @@ var _log_display: RichTextLabel
 var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
 var _opponent_info: Label
+var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
 var _player_hand: HBoxContainer
 var _player_info: Label
+var _player_discard_btn: Button
+var _discard_popup: PanelContainer
+var _discard_popup_box: VBoxContainer
 var _status_label: Label
 var _hero_power_btn: Button
 var _ultimate_btn: Button
@@ -45,6 +49,8 @@ var _end_turn_btn: Button
 var _cancel_btn: Button
 var _block_popup: PanelContainer
 var _block_popup_box: VBoxContainer
+var _legend_popup: PanelContainer
+var _legend_popup_box: VBoxContainer
 var _game_over_popup: PanelContainer
 var _game_over_label: Label
 
@@ -61,6 +67,7 @@ func _ready() -> void:
 	_match_view.visible = false
 	TurnManager.turn_started.connect(_on_turn_started)
 	TurnManager.block_decision_requested.connect(_on_block_requested)
+	TurnManager.legend_rule_decision_requested.connect(_on_legend_rule_requested)
 	GameState.game_ended.connect(_on_game_ended)
 	GameLog.entry_added.connect(_on_log_entry)
 
@@ -116,8 +123,14 @@ func _build_match_view() -> void:
 	_match_root.add_theme_constant_override("separation", 8)
 	_match_view.add_child(_match_root)
 
+	var opponent_info_row := HBoxContainer.new()
+	_match_root.add_child(opponent_info_row)
 	_opponent_info = Label.new()
-	_match_root.add_child(_opponent_info)
+	_opponent_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opponent_info_row.add_child(_opponent_info)
+	_opponent_discard_btn = Button.new()
+	_opponent_discard_btn.pressed.connect(_on_opponent_discard_pressed)
+	opponent_info_row.add_child(_opponent_discard_btn)
 	_opponent_hive = _make_scrolling_row(100)
 	_match_root.add_child(_opponent_hive.get_parent())
 	_opponent_board = _make_scrolling_row()
@@ -149,13 +162,21 @@ func _build_match_view() -> void:
 	_match_root.add_child(_player_board.get_parent())
 	_player_hive = _make_scrolling_row(100)
 	_match_root.add_child(_player_hive.get_parent())
+	var player_info_row := HBoxContainer.new()
+	_match_root.add_child(player_info_row)
 	_player_info = Label.new()
-	_match_root.add_child(_player_info)
+	_player_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	player_info_row.add_child(_player_info)
+	_player_discard_btn = Button.new()
+	_player_discard_btn.pressed.connect(_on_player_discard_pressed)
+	player_info_row.add_child(_player_discard_btn)
 	_player_hand = _make_scrolling_row()
 	_match_root.add_child(_player_hand.get_parent())
 
 	_build_log_panel()
 	_build_block_popup()
+	_build_legend_popup()
+	_build_discard_popup()
 	_build_game_over_popup()
 
 func _build_log_panel() -> void:
@@ -205,6 +226,61 @@ func _build_block_popup() -> void:
 	add_child(_block_popup)
 	_block_popup_box = VBoxContainer.new()
 	_block_popup.add_child(_block_popup_box)
+
+func _build_legend_popup() -> void:
+	_legend_popup = PanelContainer.new()
+	_legend_popup.visible = false
+	_legend_popup.set_anchors_preset(Control.PRESET_CENTER)
+	add_child(_legend_popup)
+	_legend_popup_box = VBoxContainer.new()
+	_legend_popup.add_child(_legend_popup_box)
+
+func _build_discard_popup() -> void:
+	_discard_popup = PanelContainer.new()
+	_discard_popup.visible = false
+	_discard_popup.set_anchors_preset(Control.PRESET_CENTER)
+	add_child(_discard_popup)
+	var box := VBoxContainer.new()
+	_discard_popup.add_child(box)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(420, 420)
+	box.add_child(scroll)
+	_discard_popup_box = VBoxContainer.new()
+	scroll.add_child(_discard_popup_box)
+	var close := Button.new()
+	close.text = "Close"
+	close.pressed.connect(func() -> void: _discard_popup.visible = false)
+	box.add_child(close)
+
+func _on_player_discard_pressed() -> void:
+	_show_discard(GameState.players[HUMAN], "Your")
+
+func _on_opponent_discard_pressed() -> void:
+	_show_discard(GameState.players[AI], "%s's" % GameState.players[AI].leader.data.card_name)
+
+func _show_discard(player: PlayerState, label: String) -> void:
+	for child in _discard_popup_box.get_children():
+		child.queue_free()
+	var title := Label.new()
+	title.text = "%s Discard Pile (%d card%s)" % [label, player.graveyard.size(), "" if player.graveyard.size() == 1 else "s"]
+	title.add_theme_font_size_override("font_size", 18)
+	_discard_popup_box.add_child(title)
+	if player.graveyard.is_empty():
+		var empty_label := Label.new()
+		empty_label.text = "(empty)"
+		_discard_popup_box.add_child(empty_label)
+	for c: CardInstance in player.graveyard:
+		var entry := Label.new()
+		entry.autowrap_mode = TextServer.AUTOWRAP_WORD
+		var desc := c.display_name()
+		if c.data is CreatureData:
+			var cd := c.data as CreatureData
+			desc += " (%d/%d)" % [cd.attack, cd.health]
+		if c.data.text != "":
+			desc += " — " + c.data.text
+		entry.text = desc
+		_discard_popup_box.add_child(entry)
+	_discard_popup.visible = true
 
 func _build_game_over_popup() -> void:
 	_game_over_popup = PanelContainer.new()
@@ -258,6 +334,27 @@ func _on_block_requested(attacker: CardInstance, legal_blockers: Array[CardInsta
 func _on_block_choice(choice) -> void:
 	_block_popup.visible = false
 	TurnManager.submit_block_choice(choice)
+
+func _on_legend_rule_requested(new_card: CardInstance, existing_copies: Array[CardInstance]) -> void:
+	for child in _legend_popup_box.get_children():
+		child.queue_free()
+	var label := Label.new()
+	label.text = "Legend Rule: you already control %s. Which copy do you keep?" % new_card.display_name()
+	_legend_popup_box.add_child(label)
+	var new_btn := Button.new()
+	new_btn.text = "Keep the new one (%d/%d)" % [new_card.current_attack, new_card.current_health()]
+	new_btn.pressed.connect(_on_legend_choice.bind(new_card))
+	_legend_popup_box.add_child(new_btn)
+	for c: CardInstance in existing_copies:
+		var btn := Button.new()
+		btn.text = "Keep the one already in play (%d/%d)" % [c.current_attack, c.current_health()]
+		btn.pressed.connect(_on_legend_choice.bind(c))
+		_legend_popup_box.add_child(btn)
+	_legend_popup.visible = true
+
+func _on_legend_choice(choice: CardInstance) -> void:
+	_legend_popup.visible = false
+	TurnManager.submit_legend_choice(choice)
 
 func _on_game_ended(winner_id: int) -> void:
 	_game_over_label.text = "%s wins!" % GameState.players[winner_id].leader.data.card_name
@@ -356,7 +453,11 @@ func _on_hand_card_pressed(index: int) -> void:
 			_refresh()
 			return
 
-	if TurnManager.play_card(HUMAN, index):
+	_busy = true
+	_refresh()
+	var ok := await TurnManager.play_card(HUMAN, index)
+	_busy = false
+	if ok:
 		_status_label.text = ""
 	else:
 		_status_label.text = "Can't play that right now (cost or Legend Rule)."
@@ -397,13 +498,16 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 		if is_friendly != wants_friendly:
 			_status_label.text = "Choose %s creature." % ("a friendly" if wants_friendly else "an enemy")
 			return
+		_busy = true
+		_refresh()
 		var ok := false
 		if _pending_power_kind == "hero":
 			ok = TurnManager.use_hero_power(HUMAN, instance.instance_id)
 		elif _pending_power_kind == "ultimate":
 			ok = TurnManager.use_ultimate(HUMAN, instance.instance_id)
 		else:
-			ok = TurnManager.play_card(HUMAN, _selected_hand_index, instance.instance_id)
+			ok = await TurnManager.play_card(HUMAN, _selected_hand_index, instance.instance_id)
+		_busy = false
 		_status_label.text = "" if ok else "Couldn't target that."
 		_clear_selection()
 		_refresh()
@@ -455,13 +559,15 @@ func _refresh() -> void:
 	var human := GameState.players[HUMAN]
 	var ai := GameState.players[AI]
 
-	_opponent_info.text = "%s — Health %d | Larva %d/%d | Hand %d" % [
-		ai.leader.data.card_name, ai.health, ai.current_larva, ai.max_larva, ai.hand.size()
+	_opponent_info.text = "%s — Health %d | Larva %d/%d | Hand %d | Deck %d" % [
+		ai.leader.data.card_name, ai.health, ai.current_larva, ai.max_larva, ai.hand.size(), ai.deck.size()
 	]
-	_player_info.text = "%s — Health %d | Larva %d/%d | Turn %d (%s)" % [
+	_opponent_discard_btn.text = "Discard (%d)" % ai.graveyard.size()
+	_player_info.text = "%s — Health %d | Larva %d/%d | Turn %d (%s) | Deck %d" % [
 		human.leader.data.card_name, human.health, human.current_larva, human.max_larva,
-		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn"
+		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn", human.deck.size()
 	]
+	_player_discard_btn.text = "Discard (%d)" % human.graveyard.size()
 
 	_render_row(_opponent_board, ai.board, false)
 	_render_row(_player_board, human.board, true)

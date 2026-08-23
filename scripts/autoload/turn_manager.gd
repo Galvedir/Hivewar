@@ -13,8 +13,11 @@ signal turn_ended(player_id: int)
 signal attack_resolved(attacker_instance_id: int)
 signal block_decision_requested(attacker: CardInstance, legal_blockers: Array[CardInstance])
 signal block_decision_made
+signal legend_rule_decision_requested(new_card: CardInstance, existing_copies: Array[CardInstance])
+signal legend_rule_decision_made
 
 var _pending_block_choice: CardInstance = null
+var _pending_legend_keep: CardInstance = null
 
 func start_game(deck_ids: Array[String], starting_player_index: int = 0) -> void:
 	GameState.setup_game(deck_ids, starting_player_index)
@@ -70,9 +73,43 @@ func end_turn() -> void:
 
 ## --- Player actions --------------------------------------------------------
 
+## Legend Rule (§4): if a second copy of a Legendary name would enter play,
+## the controller chooses which to keep — a real choice for a human
+## (legend_rule_decision_requested), while the AI just keeps the new copy
+## (no UI to ask it anything). Returns true if `new_card` should proceed
+## onto the board; false if an existing copy was kept instead, in which
+## case the caller discards `new_card` without it ever entering play.
+func _resolve_legend_rule(player: PlayerState, new_card: CardInstance) -> bool:
+	var existing := player.legendary_copies_in_play(new_card.data.card_name)
+	if existing.is_empty():
+		return true
+	var keep := new_card
+	if not player.is_ai:
+		keep = await _request_human_legend_choice(new_card, existing)
+	if keep == new_card:
+		for dup: CardInstance in existing:
+			player.board.erase(dup)
+			player.graveyard.append(dup)
+			GameLog.log("%s's existing %s is discarded (Legend Rule)." % [_actor(player), dup.display_name()], "system")
+		return true
+	GameLog.log("%s keeps their existing %s and discards the new copy (Legend Rule)." % [_actor(player), keep.display_name()], "system")
+	return false
+
+func _request_human_legend_choice(new_card: CardInstance, existing: Array[CardInstance]) -> CardInstance:
+	legend_rule_decision_requested.emit(new_card, existing)
+	await legend_rule_decision_made
+	return _pending_legend_keep
+
+## Called by the UI once the human has picked which copy to keep.
+func submit_legend_choice(keep: CardInstance) -> void:
+	_pending_legend_keep = keep
+	legend_rule_decision_made.emit()
+
 ## Plays hand[hand_index]. `target_instance_id` is used for Gear's equip
 ## target and passed through to on_play/on_cast effect resolution for
-## cards whose effect needs a target (e.g. a removal Ability).
+## cards whose effect needs a target (e.g. a removal Ability). May suspend
+## (via await) if playing a Legendary the human already controls a copy of
+## — the caller should `await` this.
 func play_card(player_index: int, hand_index: int, target_instance_id: int = -1) -> bool:
 	if GameState.is_over:
 		return false
@@ -96,28 +133,26 @@ func play_card(player_index: int, hand_index: int, target_instance_id: int = -1)
 	match card_inst.data.card_type:
 		CardTypes.CREATURE:
 			var cd := card_inst.data as CreatureData
+			var proceeds := true
 			if card_inst.data.is_legendary:
-				# Legend Rule (§4): spec has the controller choose which copy to
-				# keep. v1 simplification — no UI for that choice yet, so the
-				# newly-played copy always wins and any existing one(s) are discarded.
-				for dup: CardInstance in player.legendary_copies_in_play(card_inst.data.card_name):
-					player.board.erase(dup)
-					player.graveyard.append(dup)
-					GameLog.log("%s's existing %s is discarded (Legend Rule)." % [_actor(player), dup.display_name()], "system")
-			var is_ambush_creature := cd.is_ambush()
-			if is_ambush_creature:
-				card_inst.enter_play_face_down()
-			player.board.append(card_inst)
-			EffectResolver.apply_hive_bonuses_on_enter(card_inst, player)
-			if is_ambush_creature:
-				GameLog.log("%s plays a face-down Ambush creature for %d Larva." % [_actor(player), cost])
+				proceeds = await _resolve_legend_rule(player, card_inst)
+			if not proceeds:
+				player.graveyard.append(card_inst)
 			else:
-				var kw := (", ".join(cd.keywords)) if not cd.keywords.is_empty() else ""
-				GameLog.log("%s plays %s (%d/%d)%s for %d Larva." % [
-					_actor(player), card_inst.display_name(), cd.attack, cd.health,
-					(" [" + kw + "]") if kw != "" else "", cost
-				])
-			EffectResolver.fire_on_play(card_inst, player, opponent, target_instance_id)
+				var is_ambush_creature := cd.is_ambush()
+				if is_ambush_creature:
+					card_inst.enter_play_face_down()
+				player.board.append(card_inst)
+				EffectResolver.apply_hive_bonuses_on_enter(card_inst, player)
+				if is_ambush_creature:
+					GameLog.log("%s plays a face-down Ambush creature for %d Larva." % [_actor(player), cost])
+				else:
+					var kw := (", ".join(cd.keywords)) if not cd.keywords.is_empty() else ""
+					GameLog.log("%s plays %s (%d/%d)%s for %d Larva." % [
+						_actor(player), card_inst.display_name(), cd.attack, cd.health,
+						(" [" + kw + "]") if kw != "" else "", cost
+					])
+				EffectResolver.fire_on_play(card_inst, player, opponent, target_instance_id)
 		CardTypes.ABILITY:
 			GameLog.log("%s casts %s for %d Larva." % [_actor(player), card_inst.display_name(), cost])
 			EffectResolver.fire_on_cast(card_inst, player, opponent, target_instance_id)

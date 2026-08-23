@@ -14,7 +14,7 @@ static func take_turn(player_index: int) -> void:
 	var player := GameState.players[player_index]
 	var opponent := GameState.get_opponent(player_index)
 
-	_play_cards(player)
+	await _play_cards(player)
 	_flip_paid_ambush(player)
 	if not player.leader.hero_power_used_this_turn and player.leader.data.hero_power_cost <= player.current_larva:
 		TurnManager.use_hero_power(player_index)
@@ -45,7 +45,7 @@ static func _play_cards(player: PlayerState) -> void:
 			var target_id := -1
 			if player.hand[best_index].data.card_type == CardTypes.GEAR:
 				target_id = player.board[0].instance_id
-			if TurnManager.play_card(player.player_id, best_index, target_id):
+			if await TurnManager.play_card(player.player_id, best_index, target_id):
 				played = true
 
 static func _flip_paid_ambush(player: PlayerState) -> void:

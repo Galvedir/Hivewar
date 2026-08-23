@@ -63,6 +63,29 @@ func _ready() -> void:
 	main._on_hand_card_pressed(_hand_index(human, "termite_colony"))
 	_check(human.hive_zone.size() == 1 and human.hive_zone[0].display_name() == "Termite Colony", "Hive card enters hive_zone (rendered by _render_hive_row)")
 
+	# Legend Rule: a second copy of a Legendary must prompt the human, not auto-discard.
+	_put_in_hand(human, "ladybug_swarm_queen")
+	main._on_hand_card_pressed(_hand_index(human, "ladybug_swarm_queen"))
+	var first_queens := human.board.filter(func(c: CardInstance) -> bool: return c.data.card_name == "Ladybug Swarm Queen")
+	_check(first_queens.size() == 1, "First Ladybug Swarm Queen enters play without a Legend Rule prompt")
+	var first_queen: CardInstance = first_queens[0]
+
+	_put_in_hand(human, "ladybug_swarm_queen")
+	var legend_prompted := [false] # array, not bool — GDScript lambdas capture outer locals by value, not by reference
+	TurnManager.legend_rule_decision_requested.connect(func(new_card: CardInstance, existing: Array[CardInstance]) -> void:
+		legend_prompted[0] = true
+		TurnManager.call_deferred("submit_legend_choice", existing[0])) # choose to keep the one already in play
+	var gy_before := human.graveyard.size()
+	await main._on_hand_card_pressed(_hand_index(human, "ladybug_swarm_queen"))
+	var safety := 0
+	while human.graveyard.size() == gy_before and safety < 30:
+		await get_tree().process_frame
+		safety += 1
+	_check(legend_prompted[0], "Playing a second Legendary prompts the human for a choice")
+	_check(human.board.has(first_queen), "Choosing to keep the existing copy leaves the original instance in play")
+	_check(human.board.filter(func(c: CardInstance) -> bool: return c.data.card_name == "Ladybug Swarm Queen").size() == 1, "Exactly one Ladybug Swarm Queen remains in play")
+	_check(human.graveyard.size() == gy_before + 1, "The new copy went to the graveyard instead of replacing the kept one")
+
 	# Leaders must be immune to Poison (Poison creature attacking the Leader directly).
 	var poison_bug := CardDatabase.create_instance("wasp_striker", 1) # Poison keyword
 	ai.board.append(poison_bug)

@@ -26,6 +26,8 @@ var temp_health_bonus: int = 0
 var is_face_down: bool = false
 var turns_in_play: int = 0
 var attached_gear: Array[CardInstance] = []
+var granted_effects: Array[Dictionary] = [] # extra {trigger, effect_id, params, beneficiary_owner_id} entries attached at runtime (e.g. Botfly's granted Decay), resolved alongside this creature's own printed effects
+var colony_bonus: int = 0 # currently-applied total health bonus from Colony sources (§ Colony keyword); tracked so EffectResolver.refresh_colony_bonuses can cleanly strip and recompute it
 
 ## A card is its true self while in deck/hand — it's only "face-down" as a
 ## board state once played (§8; see enter_play_face_down). Cost, name, and
@@ -63,6 +65,7 @@ func enter_play_face_down() -> void:
 	max_health = face_down.health
 	runtime_keywords = []
 	summoning_sick = true
+	colony_bonus = 0 # stat baseline is being reset wholesale; a refresh right after will recompute cleanly
 
 ## Flips a face-down Ambush creature to its true face (§8). Combat stats and
 ## keywords are replaced wholesale; damage already marked carries through.
@@ -74,6 +77,7 @@ func flip_face_up() -> void:
 	current_attack = true_data.attack
 	max_health = true_data.health
 	runtime_keywords = true_data.keywords.duplicate()
+	colony_bonus = 0 # stat baseline is being reset wholesale; a refresh right after will recompute cleanly
 
 func current_health() -> int:
 	return max_health - damage_marked

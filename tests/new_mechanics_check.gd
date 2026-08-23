@@ -104,6 +104,46 @@ func _ready() -> void:
 	EffectResolver.resolve_effect_list([{"effect_id": "scry", "params": {}}], p0, p1)
 	_check(p0.deck.size() == scry_deck_size, "scry never changes deck size, only order")
 
+	# --- Colony keyword: dynamic aura, stacks, and un-applies on leaving -------
+	p0.board.clear()
+	var colony_ant := CardDatabase.create_instance("worker_ant_line", 0)
+	colony_ant.runtime_keywords.append(Keywords.COLONY)
+	p0.board.append(colony_ant)
+	var ant_mate := CardDatabase.create_instance("ant_phalanx", 0) # different Ant card, same creature_type, no printed Colony of its own
+	var non_ant := CardDatabase.create_instance("honeybee_sentinel", 0)
+	var ant_base_hp := ant_mate.max_health
+	var non_ant_base_hp := non_ant.max_health
+	p0.board.append(ant_mate)
+	p0.board.append(non_ant)
+	EffectResolver.refresh_colony_bonuses(p0)
+	_check(ant_mate.max_health == ant_base_hp + 1, "Colony grants +0/+1 to another creature sharing its creature_type")
+	_check(non_ant.max_health == non_ant_base_hp, "Colony does not affect a creature of a different creature_type")
+	_check(colony_ant.max_health == CardDatabase.create_instance("worker_ant_line", 0).max_health, "The Colony source itself gets no bonus from its own aura (no second Ant source)")
+
+	var second_colony_ant := CardDatabase.create_instance("worker_ant_line", 0)
+	second_colony_ant.runtime_keywords.append(Keywords.COLONY)
+	p0.board.append(second_colony_ant)
+	EffectResolver.refresh_colony_bonuses(p0)
+	_check(ant_mate.max_health == ant_base_hp + 2, "A second Colony source of the same type stacks the bonus")
+	_check(colony_ant.max_health == CardDatabase.create_instance("worker_ant_line", 0).max_health + 1, "A Colony creature also receives the bonus from another Colony source of its own type")
+
+	p0.board.erase(colony_ant)
+	p0.graveyard.append(colony_ant)
+	EffectResolver.refresh_colony_bonuses(p0)
+	_check(ant_mate.max_health == ant_base_hp + 1, "When one Colony source leaves the field, exactly its bonus leaves with it")
+
+	# --- Botfly: on_play grants an enemy creature a Decay that benefits the CASTER ---
+	p1.board.clear()
+	var botfly_victim := CardDatabase.create_instance("worker_termite", 1)
+	p1.board.append(botfly_victim)
+	var p0_board_before := p0.board.size()
+	EffectResolver.resolve_effect_list([{"effect_id": "grant_decay_to_enemy", "params": {"token_id": "termite_worker_token", "count": 1}}], p0, p1)
+	_check(botfly_victim.has_keyword(Keywords.DECAY), "grant_decay_to_enemy grants the Decay keyword to the targeted enemy creature")
+	_check(not botfly_victim.granted_effects.is_empty(), "grant_decay_to_enemy attaches a granted on_death effect to the target")
+	GameState.damage_creature(botfly_victim, 999, "test")
+	GameState.cleanup_dead(1)
+	_check(p0.board.size() == p0_board_before + 1, "When the afflicted enemy creature dies, the token spawns for the GRANTER (not the victim's own controller)")
+
 	print("")
 	if _failures == 0:
 		print("ALL CHECKS PASSED")

@@ -19,3 +19,4 @@ const PIERCE := "Pierce"
 const TRAMPLE := "Trample"
 const AMBUSH := "Ambush"
 const VENOMSTRIKE := "Venomstrike" # kills any creature it damages in combat, unless that creature has Chitin
+const COLONY := "Colony" # other friendly creatures sharing a creature_type with this one get +0/+1 while it's in play; leaves with it

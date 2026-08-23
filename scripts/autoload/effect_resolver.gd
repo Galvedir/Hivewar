@@ -43,6 +43,16 @@ func fire_on_death(instance: CardInstance, player: PlayerState, opponent: Player
 	var cd := instance.true_data if instance.true_data != null else instance.data
 	if cd is CreatureData:
 		_resolve_list((cd as CreatureData).effects, "on_death", _ctx(player, opponent, instance))
+	# Granted effects (e.g. Botfly's parasitic Decay) can benefit a DIFFERENT
+	# player than this creature's own owner — resolve each against the
+	# stored beneficiary rather than `player`/`opponent` above.
+	for ge: Dictionary in instance.granted_effects:
+		if ge.get("trigger", "") != "on_death":
+			continue
+		var beneficiary_id: int = ge.get("beneficiary_owner_id", instance.owner_id)
+		var beneficiary := GameState.get_player(beneficiary_id)
+		var other := GameState.get_opponent(beneficiary_id)
+		_resolve_effect(ge.get("effect_id", ""), ge.get("params", {}), _ctx(beneficiary, other, instance))
 
 func fire_on_attack(instance: CardInstance, player: PlayerState, opponent: PlayerState) -> void:
 	var cd := instance.creature_data()
@@ -73,6 +83,7 @@ func fire_start_of_turn(player: PlayerState, opponent: PlayerState) -> void:
 				GameLog.log("%s's hidden creature stirs and flips face up — it's %s (%d/%d)!" % [
 					player.leader.data.card_name, c.display_name(), c.current_attack, c.current_health()
 				], "combat")
+	refresh_colony_bonuses(player)
 	for c: CardInstance in player.board:
 		var cd := c.creature_data()
 		if cd != null:
@@ -104,11 +115,13 @@ func _check_damage_taken_flip(instance: CardInstance) -> void:
 		GameLog.log("The damage exposes a hidden creature — it's %s (%d/%d)!" % [
 			instance.display_name(), instance.current_attack, instance.current_health()
 		], "combat")
+		refresh_colony_bonuses(GameState.get_player(instance.owner_id))
 
 ## Manual/paid activation (§8) — called by TurnManager.flip_ambush_paid after
 ## the Larva cost has already been deducted by the caller.
 func flip_paid(instance: CardInstance) -> void:
 	instance.flip_face_up()
+	refresh_colony_bonuses(GameState.get_player(instance.owner_id))
 
 ## --- Hive static stat bonuses (§5) ----------------------------------------
 
@@ -147,6 +160,44 @@ func apply_new_hive_to_board(hive_instance: CardInstance, player: PlayerState) -
 	for mod: Dictionary in hd.static_modifiers:
 		for c: CardInstance in player.board:
 			_apply_modifier(c, mod)
+
+## --- Colony keyword (dynamic aura) ------------------------------------------
+## Unlike Hive's static_modifiers (baked in permanently, §5), Colony's bonus
+## must vanish the instant its source leaves the field, and multiple Colony
+## sources of the same creature_type must stack correctly with each other.
+## Rather than track per-source deltas at every entry/exit point, this does a
+## full strip-and-recompute of `player`'s board — cheap at this game's board
+## sizes, and immune to missed-update bugs at any one call site. Call it
+## whenever `player`'s board composition or face-down/face-up state changes
+## (hooked into GameState.cleanup_dead plus the Ambush flip paths, which
+## cleanup_dead alone doesn't cover).
+func refresh_colony_bonuses(player: PlayerState) -> void:
+	for c: CardInstance in player.board:
+		if c.colony_bonus != 0:
+			c.max_health -= c.colony_bonus
+			c.colony_bonus = 0
+	var sources: Array[CardInstance] = []
+	for c: CardInstance in player.board:
+		if c.is_alive() and not c.is_face_down and c.has_keyword(Keywords.COLONY):
+			sources.append(c)
+	if sources.is_empty():
+		return
+	for c: CardInstance in player.board:
+		if not c.is_alive() or c.is_face_down:
+			continue
+		var cd := c.creature_data()
+		if cd == null or cd.creature_type == "":
+			continue
+		var bonus := 0
+		for source: CardInstance in sources:
+			if source == c:
+				continue
+			var source_cd := source.creature_data()
+			if source_cd != null and source_cd.creature_type == cd.creature_type:
+				bonus += 1
+		if bonus > 0:
+			c.max_health += bonus
+			c.colony_bonus = bonus
 
 ## --- Effect-id library ------------------------------------------------------
 ## Small, deliberately generic vocabulary (§13) covering the Phase 1 card
@@ -271,6 +322,25 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 					GameLog.log("%s shuffles %s into %s's library (from %s)." % [
 						player.leader.data.card_name, fresh.display_name(), opponent.leader.data.card_name, source_label
 					])
+		"grant_decay_to_enemy":
+			# Botfly's signature (§ Triatoma kingdom): afflicts an enemy creature
+			# with a parasitic Decay whose payload benefits the CASTER, not the
+			# dying creature's own controller — stored as a granted_effect with
+			# an explicit beneficiary so fire_on_death resolves it against the
+			# right player (see EffectResolver.fire_on_death).
+			var target := _pick_target(ctx, opponent.board, "strongest")
+			if target != null:
+				target.granted_effects.append({
+					"trigger": "on_death",
+					"effect_id": "summon_token",
+					"params": {"token_id": params.get("token_id", "botfly_token"), "count": int(params.get("count", 1))},
+					"beneficiary_owner_id": player.player_id,
+				})
+				if not target.runtime_keywords.has(Keywords.DECAY):
+					target.runtime_keywords.append(Keywords.DECAY)
+				GameLog.log("%s afflicts %s with a parasitic Decay — when it dies, %s gains a Botfly (from %s)." % [
+					source_label, target.display_name(), player.leader.data.card_name, source_label
+				])
 		"return_from_graveyard":
 			# Auto-picks the most recently-died creature card, consistent with
 			# this resolver's other auto-pick effects (no manual-selection UI in v1).

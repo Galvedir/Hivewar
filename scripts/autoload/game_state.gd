@@ -112,6 +112,7 @@ func cleanup_dead(player_id: int) -> void:
 			EffectResolver.fire_on_death(c, p, get_opponent(player_id))
 		else:
 			i += 1
+	EffectResolver.refresh_colony_bonuses(p)
 
 ## Attaches Gear to a friendly creature, discarding any Gear already on it (§5).
 func attach_gear(gear_instance: CardInstance, target: CardInstance) -> void:

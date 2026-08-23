@@ -79,7 +79,9 @@ const WHITE_HIVE_GUARDIANS := {
 	"termite_colony": 2,
 	"wax_moth_larva": 2,
 	"royal_jelly": 2,
-} # 30 cards
+	"golden_reliquary": 1,
+	"undying_swarm_mother": 1,
+} # 32 cards
 
 const GREEN_WILDGROWTH := {
 	"roly_poly_grub": 4,
@@ -94,7 +96,10 @@ const GREEN_WILDGROWTH := {
 	"thorned_carapace": 2,
 	"wild_growth_hive": 2,
 	"chrysalis_titan": 1,
-} # 30 cards
+	"ancient_grove": 2,
+	"communal_growth": 1,
+	"primordial_bark_titan": 1,
+} # 34 cards
 
 const BLACK_VENOM_BROODMOTHER := {
 	"black_widow_stalker": 4,
@@ -108,7 +113,11 @@ const BLACK_VENOM_BROODMOTHER := {
 	"stinger_gauntlet": 2,
 	"grave_wasp": 3,
 	"tarantula_ambusher": 4,
-} # 30 cards
+	"ossuary_of_the_fallen": 1,
+	"widow_empress": 1,
+	"universal_vigor": 2,
+	"call_the_swarm": 2,
+} # 36 cards
 
 const BLUE_SKYSWARM := {
 	"house_fly_scout": 4,
@@ -121,8 +130,9 @@ const BLUE_SKYSWARM := {
 	"spider_silk_net": 2,
 	"cloudveil_hive": 2,
 	"monarch_caterpillar": 2,
-	"moth_of_shadows": 3,
-} # 30 cards
+	"undertow": 2,
+	"windswept_reach": 1,
+} # 33 cards
 
 const RED_BLOODHUNT := {
 	"mosquito_swarm": 4,
@@ -138,7 +148,12 @@ const RED_BLOODHUNT := {
 	"chigger_swarm_lord": 1,
 	"bloodhunt_alpha": 1,
 	"blood_frenzy": 2,
-} # 30 cards
+	"apex_bloodhunter": 1,
+	"feeders_nest": 1,
+	"feeding_frenzy_grounds": 2,
+	"savage_lunge": 2,
+	"frenzied_onslaught": 2,
+} # 38 cards
 
 const HYBRID_VENOMWING := {
 	"venomous_stinger_wasp": 3,
@@ -168,7 +183,8 @@ const SISTER_WREN_RECLAMATION := {
 	"fortify": 4, "colony_call": 3, "polished_shell": 2, "royal_sash": 2, "sanctum_of_the_hive": 2,
 	"ladybug_healer": 3, "termite_mound": 3, "protective_ward": 2, "ladybug_swarm_queen": 1,
 	"royal_jelly": 2, "feeders_bounty": 2, "sharpened_mandibles": 2,
-} # 40 cards
+	"broodmother_of_the_feeders": 1,
+} # 41 cards
 
 const BRAM_DEEP_ROOTS := {
 	"sapling_weevil": 4, "burrow_grub": 4, "thornback_beetle": 4, "meadow_cricket": 4,
@@ -201,13 +217,15 @@ const CAPTAIN_VELL_VANGUARD := {
 	"glassy_wing_moth": 3, "fog_moth": 4, "azure_damselfly": 4, "veil_moth": 2,
 	"current_rider_dragonfly": 3, "cloudmind_butterfly": 2, "house_fly_scout": 3, "dragonfly_duelist": 3,
 	"silverfish_scuttler": 2, "wandering_silverfish": 2,
-} # 40 cards
+	"admiral_larva": 2, "silt_diver": 2,
+} # 44 cards
 
 const MIRA_TIDEGLASS_VEIL := {
 	"tempest_dragonfly": 4, "monarch_ascendant": 4, "skywhisper_matriarch": 1, "gale_step": 3,
 	"tidal_insight": 3, "windswept_veil": 4, "storm_surge": 3, "gossamer_wings": 3, "veil_of_mist": 2,
 	"gnat_swarm": 3, "mayfly_seer": 3, "moth_of_shadows": 3, "locust_swarm": 2, "feeder_drone": 2,
-} # 40 cards
+	"painted_caterpillar": 2, "sovereign_of_storms": 1,
+} # 43 cards
 
 const SKARR_SWIFT_TALON := {
 	"deer_fly_harasser": 4, "bed_bug_swarm": 4, "midge_cloud": 4, "robber_fly": 4,

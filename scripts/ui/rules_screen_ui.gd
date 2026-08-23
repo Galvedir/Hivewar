@@ -54,6 +54,8 @@ const KEYWORDS_TEXT := """
 [b]Ambush[/b] — Printed as a two-sided card: a weak, generic face-down side that's what gets played and what the opponent sees, and a true face-up side that's revealed later. How it flips varies by card: on attacking, for a Larva cost paid any time on your turn, or automatically under a stated condition (like at the start of your next turn).
 
 [b]Exhausted[/b] — A creature that attacked this turn. Can't be chosen as an optional blocker, but can still be forced to fight as a Guard.
+
+[b]Colony[/b] — Every other friendly creature that shares a creature type with this one gets +0/+1 while it's on the field. Multiple Colony creatures of the same type stack. If a Colony creature leaves the field, the bonus it was granting leaves with it.
 """
 
 func _ready() -> void:

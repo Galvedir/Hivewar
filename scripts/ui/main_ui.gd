@@ -87,9 +87,46 @@ func _ready() -> void:
 	GameState.game_ended.connect(_on_game_ended)
 	GameLog.entry_added.connect(_on_log_entry)
 
+	_show_splash_screen()
+
 ## --- Deck select ------------------------------------------------------------
 
 const LOGO_PATH := "res://art/branding/logo.png"
+const SPLASH_PATH := "res://art/branding/title_screen.png"
+const SPLASH_DURATION := 2.5
+
+## A brief title-screen splash (§ user request) shown once at boot, layered
+## on top of the deck-select menu that's already built underneath it, before
+## the game becomes interactive. Dismisses itself after SPLASH_DURATION
+## seconds, or immediately on click/tap. Skipped entirely if the art asset
+## isn't present yet, matching _make_title's fallback-safe pattern for
+## optional branding assets — a missing splash image should never block
+## reaching the menu.
+func _show_splash_screen() -> void:
+	if not ResourceLoader.exists(SPLASH_PATH):
+		return
+	var overlay := ColorRect.new()
+	overlay.color = Color.BLACK
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	LayoutUtil.fill_parent(overlay)
+	add_child(overlay)
+
+	var image := TextureRect.new()
+	image.texture = load(SPLASH_PATH)
+	image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	LayoutUtil.fill_parent(image)
+	overlay.add_child(image)
+
+	var dismiss := func() -> void:
+		if is_instance_valid(overlay):
+			overlay.queue_free()
+	overlay.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			dismiss.call()
+	)
+	get_tree().create_timer(SPLASH_DURATION).timeout.connect(dismiss)
 
 ## The main-menu title: the LARVA wordmark logo if it's present, else a
 ## plain-text fallback so a missing asset never breaks the menu.

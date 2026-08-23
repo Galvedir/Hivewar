@@ -12,6 +12,9 @@ func _ready() -> void:
 		["green_wildgrowth", "blue_skyswarm"],
 		["white_hive_guardians", "blue_skyswarm"],
 		["black_venom_broodmother", "green_wildgrowth"],
+		["red_bloodhunt", "white_hive_guardians"],
+		["red_bloodhunt", "hybrid_venomwing"],
+		["hybrid_venomwing", "green_wildgrowth"],
 	]
 	var runs_per_pairing := 3
 	var total := 0

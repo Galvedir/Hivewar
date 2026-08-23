@@ -15,12 +15,16 @@ static func get_deck(deck_id: String) -> Dictionary:
 			return {"leader_id": "matriarch_vess", "cards": BLACK_VENOM_BROODMOTHER}
 		"blue_skyswarm":
 			return {"leader_id": "skywhisper_iyra", "cards": BLUE_SKYSWARM}
+		"red_bloodhunt":
+			return {"leader_id": "karneth_bloodfang", "cards": RED_BLOODHUNT}
+		"hybrid_venomwing":
+			return {"leader_id": "zeth_cindermaw", "cards": HYBRID_VENOMWING}
 		_:
 			push_error("DeckDefinitions: unknown deck id '%s'" % deck_id)
 			return {}
 
 static func all_deck_ids() -> Array[String]:
-	return ["white_hive_guardians", "green_wildgrowth", "black_venom_broodmother", "blue_skyswarm"]
+	return ["white_hive_guardians", "green_wildgrowth", "black_venom_broodmother", "blue_skyswarm", "red_bloodhunt", "hybrid_venomwing"]
 
 ## Expands a {card_id: count} deck entry into a flat Array[String] of card ids, one per copy.
 static func expand(deck_cards: Dictionary) -> Array[String]:
@@ -86,4 +90,36 @@ const BLUE_SKYSWARM := {
 	"cloudveil_hive": 2,
 	"monarch_caterpillar": 2,
 	"moth_of_shadows": 3,
+} # 30 cards
+
+const RED_BLOODHUNT := {
+	"mosquito_swarm": 4,
+	"flea_biter": 4,
+	"chigger_pest": 3,
+	"blood_tick": 3,
+	"horsefly_raider": 3,
+	"assassin_bug": 2,
+	"hornet_skirmisher": 2,
+	"botfly_harrier": 2,
+	"blood_wasp_swarm": 2,
+	"tick_matriarch": 1,
+	"chigger_swarm_lord": 1,
+	"bloodhunt_alpha": 1,
+	"blood_frenzy": 2,
+} # 30 cards
+
+const HYBRID_VENOMWING := {
+	"venomous_stinger_wasp": 3,
+	"wasp_striker": 3,
+	"black_widow_stalker": 3,
+	"scorpion_skulker": 2,
+	"mosquito_swarm": 3,
+	"blood_tick": 3,
+	"hornet_skirmisher": 2,
+	"blood_frenzy": 2,
+	"withering_touch": 2,
+	"venom_lash": 2,
+	"barbed_stinger": 2,
+	"venom_fangs": 2,
+	"gravehatch_riser": 1,
 } # 30 cards

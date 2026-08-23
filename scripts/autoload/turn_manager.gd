@@ -84,6 +84,9 @@ func play_card(player_index: int, hand_index: int, target_instance_id: int = -1)
 	match card_inst.data.card_type:
 		CardTypes.CREATURE:
 			if card_inst.data.is_legendary:
+				# Legend Rule (§4): spec has the controller choose which copy to
+				# keep. v1 simplification — no UI for that choice yet, so the
+				# newly-played copy always wins and any existing one(s) are discarded.
 				for dup: CardInstance in player.legendary_copies_in_play(card_inst.data.card_name):
 					player.board.erase(dup)
 					player.graveyard.append(dup)

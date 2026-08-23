@@ -36,6 +36,16 @@ func _ready() -> void:
 	_check(col.size.x > 100 and col.size.y > 100, "Collection screen has a real nonzero size when opened (got %s)" % col.size)
 	main._on_collection_closed()
 
+	# --- Deck-select list is actually scrollable (18 fixed decks overflow the window) ---
+	# Container layout resolves only after real frame processing, unlike the
+	# anchor-preset bug above — this needs `await`, not an immediate check.
+	for i in range(5):
+		await get_tree().process_frame
+	var scroll := _find_scroll_container(main._deck_select)
+	_check(scroll != null, "Deck-select screen has a ScrollContainer")
+	if scroll != null:
+		_check(scroll.get_v_scroll_bar().max_value > scroll.size.y, "Deck list content is taller than its scroll viewport (scrolling is actually needed and works)")
+
 	# --- Validation rejects an incomplete deck -----------------------------
 	db._new_deck()
 	db._leader_id = "queen_amara"
@@ -122,3 +132,12 @@ func _check(cond: bool, label: String) -> void:
 	else:
 		print("  [FAIL] %s" % label)
 		_failures += 1
+
+func _find_scroll_container(n: Node) -> ScrollContainer:
+	if n is ScrollContainer:
+		return n
+	for c in n.get_children():
+		var r := _find_scroll_container(c)
+		if r != null:
+			return r
+	return null

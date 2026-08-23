@@ -89,16 +89,17 @@ func _ready() -> void:
 
 func _build_deck_select() -> void:
 	_deck_select = VBoxContainer.new()
-	_deck_select.set_anchors_preset(Control.PRESET_CENTER)
-	_deck_select.custom_minimum_size = Vector2(420, 0)
+	LayoutUtil.fill_parent(_deck_select)
 	add_child(_deck_select)
 
 	var title := Label.new()
 	title.text = "Hivewar"
 	title.add_theme_font_size_override("font_size", 28)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_deck_select.add_child(title)
 
 	var menu_row := HBoxContainer.new()
+	menu_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_deck_select.add_child(menu_row)
 	var builder_btn := Button.new()
 	builder_btn.text = "Deck Builder"
@@ -109,10 +110,23 @@ func _build_deck_select() -> void:
 	collection_btn.pressed.connect(_on_open_collection)
 	menu_row.add_child(collection_btn)
 
+	# The 18 fixed decks (one per Leader) plus any saved decks easily
+	# overflow the window, so the list itself scrolls — only the title/menu
+	# row above stay pinned.
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_deck_select.add_child(scroll)
+
+	var list_box := VBoxContainer.new()
+	list_box.custom_minimum_size = Vector2(420, 0)
+	list_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	scroll.add_child(list_box)
+
 	var fixed_title := Label.new()
 	fixed_title.text = "Fixed Test Decks"
 	fixed_title.add_theme_font_size_override("font_size", 16)
-	_deck_select.add_child(fixed_title)
+	list_box.add_child(fixed_title)
 	for deck_id in DeckDefinitions.all_deck_ids():
 		var deck: Dictionary = DeckDefinitions.get_deck(deck_id)
 		var leader: LeaderData = CardDatabase.get_leader(deck["leader_id"])
@@ -120,14 +134,14 @@ func _build_deck_select() -> void:
 		btn.text = "%s\n(%s)" % [deck_id.replace("_", " ").capitalize(), leader.card_name]
 		btn.custom_minimum_size = Vector2(0, 56)
 		btn.pressed.connect(_on_deck_chosen.bind(deck_id))
-		_deck_select.add_child(btn)
+		list_box.add_child(btn)
 
 	var saved_title := Label.new()
 	saved_title.text = "Your Decks"
 	saved_title.add_theme_font_size_override("font_size", 16)
-	_deck_select.add_child(saved_title)
+	list_box.add_child(saved_title)
 	_saved_decks_menu_box = VBoxContainer.new()
-	_deck_select.add_child(_saved_decks_menu_box)
+	list_box.add_child(_saved_decks_menu_box)
 	_refresh_saved_decks_menu()
 
 func _refresh_saved_decks_menu() -> void:

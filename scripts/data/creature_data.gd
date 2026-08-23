@@ -12,6 +12,7 @@ extends CardData
 
 @export var attack: int = 0
 @export var health: int = 1
+@export var creature_type: String = "" # e.g. "Bee", "Beetle", "Mantis" — creatures only, per §3's examples
 @export var keywords: Array[String] = []
 @export var effects: Array[Dictionary] = []
 @export var ambush: Dictionary = {}

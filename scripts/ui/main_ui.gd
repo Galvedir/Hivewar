@@ -542,7 +542,11 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	return box
 
 func _creature_text(c: CardInstance) -> String:
-	var lines := [c.display_name(), "%d/%d" % [c.current_attack, c.current_health()]]
+	var lines := [c.display_name()]
+	var cd0 := c.data as CreatureData
+	if cd0 != null and cd0.creature_type != "":
+		lines.append(cd0.creature_type)
+	lines.append("%d/%d" % [c.current_attack, c.current_health()])
 	if c.poison_counters > 0:
 		lines.append("Poison x%d" % c.poison_counters)
 	if c.data.text != "":
@@ -558,6 +562,8 @@ func _card_text(c: CardInstance, cost: int) -> String:
 	var lines := [c.display_name(), "Cost %d" % cost]
 	if c.data is CreatureData:
 		var cd := c.data as CreatureData
+		if cd.creature_type != "":
+			lines.append(cd.creature_type)
 		lines.append("%d/%d" % [cd.attack, cd.health])
 	else:
 		lines.append(c.data.card_type)

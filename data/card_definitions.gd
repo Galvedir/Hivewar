@@ -15,39 +15,39 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "worker_termite", "name": "Worker Termite", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 2, "keywords": [Keywords.GUARD],
+		"attack": 1, "health": 2, "creature_type": "Termite", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
 	},
 	{
 		"id": "honeybee_sentinel", "name": "Honeybee Sentinel", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 3, "keywords": [Keywords.GUARD],
+		"attack": 2, "health": 3, "creature_type": "Bee", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
 	},
 	{
 		"id": "ladybug_healer", "name": "Ladybug Healer", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 2, "keywords": [],
+		"attack": 1, "health": 2, "creature_type": "Ladybug", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 2, "target": "self"}}],
 		"text": "On Play: restore 2 health to your Leader.",
 	},
 	{
 		"id": "carpenter_ant_defender", "name": "Carpenter Ant Defender", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
-		"attack": 3, "health": 4, "keywords": [Keywords.GUARD],
+		"attack": 3, "health": 4, "creature_type": "Ant", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
 	},
 	{
 		"id": "termite_mound", "name": "Termite Mound", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
-		"attack": 1, "health": 3, "keywords": [],
+		"attack": 1, "health": 3, "creature_type": "Termite", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "summon_token", "params": {"token_id": "termite_worker_token", "count": 2}}],
 		"text": "On Play: summon two 1/1 Termite Worker tokens with Guard.",
 	},
 	{
 		"id": "queens_guardian_beetle", "name": "Queen's Guardian Beetle", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
-		"attack": 4, "health": 6, "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
+		"attack": 4, "health": 6, "creature_type": "Beetle", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
 		"text": "Guard. Lifesteal.",
 	},
 	{
@@ -65,7 +65,7 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "ladybug_swarm_queen", "name": "Ladybug Swarm Queen", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.LEGENDARY,
-		"attack": 4, "health": 5, "keywords": [],
+		"attack": 4, "health": 5, "creature_type": "Ladybug", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "summon_token", "params": {"token_id": "ladybug_guard_token", "count": 2}}],
 		"text": "On Play: summon two 1/1 Ladybug tokens with Guard.",
 	},
@@ -78,7 +78,7 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "wax_moth_larva", "name": "Honeycomb Sentinel", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
-		"attack": 3, "health": 4, "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
+		"attack": 3, "health": 4, "creature_type": "Moth", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
 		"ambush": {
 			"face_down": {"name": "Unidentified Larva", "attack": 0, "health": 1},
 			"flip_trigger": "paid", "flip_cost": 2,
@@ -100,19 +100,19 @@ const GREEN: Array[Dictionary] = [
 	{
 		"id": "roly_poly_grub", "name": "Roly-Poly Grub", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 3, "keywords": [],
+		"attack": 1, "health": 3, "creature_type": "Pillbug", "keywords": [],
 		"text": "",
 	},
 	{
 		"id": "giant_weta_hatchling", "name": "Giant Weta Hatchling", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
-		"attack": 3, "health": 2, "keywords": [],
+		"attack": 3, "health": 2, "creature_type": "Weta", "keywords": [],
 		"text": "",
 	},
 	{
 		"id": "stag_beetle_charger", "name": "Stag Beetle Charger", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.UNCOMMON,
-		"attack": 4, "health": 4, "keywords": [Keywords.SWIFT],
+		"attack": 4, "health": 4, "creature_type": "Beetle", "keywords": [Keywords.SWIFT],
 		"text": "Swift.",
 	},
 	{
@@ -124,13 +124,13 @@ const GREEN: Array[Dictionary] = [
 	{
 		"id": "rhinoceros_beetle", "name": "Rhinoceros Beetle", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.UNCOMMON,
-		"attack": 5, "health": 5, "keywords": [Keywords.TRAMPLE],
+		"attack": 5, "health": 5, "creature_type": "Beetle", "keywords": [Keywords.TRAMPLE],
 		"text": "Trample.",
 	},
 	{
 		"id": "pillbug_titan", "name": "Pillbug Titan", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.RARE,
-		"attack": 6, "health": 7, "keywords": [Keywords.TRAMPLE],
+		"attack": 6, "health": 7, "creature_type": "Pillbug", "keywords": [Keywords.TRAMPLE],
 		"text": "Trample.",
 	},
 	{
@@ -142,13 +142,13 @@ const GREEN: Array[Dictionary] = [
 	{
 		"id": "praying_mantis", "name": "Praying Mantis", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
-		"attack": 4, "health": 3, "keywords": [Keywords.SWIFT],
+		"attack": 4, "health": 3, "creature_type": "Mantis", "keywords": [Keywords.SWIFT],
 		"text": "Swift.",
 	},
 	{
 		"id": "goliath_beetle", "name": "Goliath Beetle", "type": "Creature",
 		"cost": 6, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.LEGENDARY,
-		"attack": 8, "health": 8, "keywords": [Keywords.TRAMPLE, Keywords.SWIFT],
+		"attack": 8, "health": 8, "creature_type": "Beetle", "keywords": [Keywords.TRAMPLE, Keywords.SWIFT],
 		"text": "Trample. Swift.",
 	},
 	{
@@ -166,7 +166,7 @@ const GREEN: Array[Dictionary] = [
 	{
 		"id": "chrysalis_titan", "name": "Chrysalis Titan", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.RARE,
-		"attack": 6, "health": 6, "keywords": [Keywords.TRAMPLE],
+		"attack": 6, "health": 6, "creature_type": "Moth", "keywords": [Keywords.TRAMPLE],
 		"ambush": {
 			"face_down": {"name": "Dormant Grub", "attack": 0, "health": 2},
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
@@ -179,31 +179,31 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "black_widow_stalker", "name": "Black Widow Stalker", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 1, "keywords": [Keywords.POISON],
+		"attack": 2, "health": 1, "creature_type": "Spider", "keywords": [Keywords.POISON],
 		"text": "Poison.",
 	},
 	{
 		"id": "scorpion_skulker", "name": "Scorpion Skulker", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
-		"attack": 3, "health": 2, "keywords": [Keywords.POISON, Keywords.PIERCE],
+		"attack": 3, "health": 2, "creature_type": "Scorpion", "keywords": [Keywords.POISON, Keywords.PIERCE],
 		"text": "Poison. Pierce.",
 	},
 	{
 		"id": "wasp_striker", "name": "Wasp Striker", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "keywords": [Keywords.POISON],
+		"attack": 1, "health": 1, "creature_type": "Wasp", "keywords": [Keywords.POISON],
 		"text": "Poison.",
 	},
 	{
 		"id": "tarantula_ambusher", "name": "Tarantula Ambusher", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 3, "health": 3, "keywords": [Keywords.POISON],
+		"attack": 3, "health": 3, "creature_type": "Spider", "keywords": [Keywords.POISON],
 		"text": "Poison.",
 	},
 	{
 		"id": "cicada_nymph", "name": "Cicada Brood Riser", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
-		"attack": 4, "health": 3, "keywords": [Keywords.DECAY],
+		"attack": 4, "health": 3, "creature_type": "Cicada", "keywords": [Keywords.DECAY],
 		"ambush": {
 			"face_down": {"name": "Buried Nymph", "attack": 0, "health": 2},
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
@@ -229,7 +229,7 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "black_widow_matriarch", "name": "Black Widow Matriarch", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.LEGENDARY,
-		"attack": 5, "health": 4, "keywords": [Keywords.POISON, Keywords.DECAY],
+		"attack": 5, "health": 4, "creature_type": "Spider", "keywords": [Keywords.POISON, Keywords.DECAY],
 		"effects": [{"trigger": "on_death", "effect_id": "damage_creature", "params": {"amount": 4}}],
 		"text": "Poison. Decay: deal 4 damage to the strongest enemy creature.",
 	},
@@ -248,7 +248,7 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "grave_wasp", "name": "Grave Wasp", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
-		"attack": 4, "health": 3, "keywords": [Keywords.PIERCE, Keywords.DECAY],
+		"attack": 4, "health": 3, "creature_type": "Wasp", "keywords": [Keywords.PIERCE, Keywords.DECAY],
 		"effects": [{"trigger": "on_death", "effect_id": "draw_card", "params": {"count": 1}}],
 		"text": "Pierce. Decay: draw a card.",
 	},
@@ -258,19 +258,19 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "house_fly_scout", "name": "House Fly Scout", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "keywords": [Keywords.FLYING],
+		"attack": 1, "health": 1, "creature_type": "Fly", "keywords": [Keywords.FLYING],
 		"text": "Flying.",
 	},
 	{
 		"id": "dragonfly_duelist", "name": "Dragonfly Duelist", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "keywords": [Keywords.FLYING],
+		"attack": 2, "health": 2, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
 		"text": "Flying.",
 	},
 	{
 		"id": "gnat_swarm", "name": "Gnat Swarm", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "keywords": [Keywords.FLYING, Keywords.STEALTH],
+		"attack": 1, "health": 1, "creature_type": "Gnat", "keywords": [Keywords.FLYING, Keywords.STEALTH],
 		"text": "Flying. Stealth.",
 	},
 	{
@@ -282,7 +282,7 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "butterfly_dancer", "name": "Butterfly Dancer", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
-		"attack": 2, "health": 3, "keywords": [Keywords.FLYING],
+		"attack": 2, "health": 3, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"effects": [{"trigger": "on_play", "effect_id": "draw_card", "params": {"count": 1}}],
 		"text": "Flying. On Play: draw a card.",
 	},
@@ -295,7 +295,7 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "dragonfly_ace", "name": "Dragonfly Ace", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
-		"attack": 5, "health": 4, "keywords": [Keywords.FLYING, Keywords.SWIFT],
+		"attack": 5, "health": 4, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING, Keywords.SWIFT],
 		"text": "Flying. Swift.",
 	},
 	{
@@ -313,7 +313,7 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "monarch_caterpillar", "name": "Monarch Butterfly", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
-		"attack": 4, "health": 3, "keywords": [Keywords.FLYING],
+		"attack": 4, "health": 3, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"ambush": {
 			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 2},
 			"flip_trigger": "paid", "flip_cost": 2,
@@ -323,7 +323,7 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "moth_of_shadows", "name": "Moth of Shadows", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 3, "health": 2, "keywords": [Keywords.STEALTH],
+		"attack": 3, "health": 2, "creature_type": "Moth", "keywords": [Keywords.STEALTH],
 		"text": "Stealth.",
 	},
 ]
@@ -333,16 +333,16 @@ const TOKENS: Array[Dictionary] = [
 	{
 		"id": "termite_worker_token", "name": "Termite Worker", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "keywords": [Keywords.GUARD],
+		"attack": 1, "health": 1, "creature_type": "Termite", "keywords": [Keywords.GUARD],
 	},
 	{
 		"id": "ladybug_guard_token", "name": "Ladybug", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "keywords": [Keywords.GUARD],
+		"attack": 1, "health": 1, "creature_type": "Ladybug", "keywords": [Keywords.GUARD],
 	},
 	{
 		"id": "cicada_swarm_token", "name": "Cicada Swarm", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "keywords": [],
+		"attack": 1, "health": 1, "creature_type": "Cicada", "keywords": [],
 	},
 ]

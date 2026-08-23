@@ -16,19 +16,33 @@ const COLORLESS_COLOR := Color(0.55, 0.55, 0.50)
 const HUMAN := 0
 const AI := 1
 
+## Effect ids that need a chosen creature target rather than an auto-pick,
+## and which side of the board is legal to click for each (§ user request:
+## targeted effects should let the player choose, not silently pick for
+## them). AIPlayer is unaffected — it never supplies target_instance_id, so
+## EffectResolver's auto-pick heuristic still drives the bot.
+const TARGETING_EFFECT_SIDES := {
+	"buff_friendly": "friendly",
+	"damage_creature": "enemy",
+	"bounce_creature": "enemy",
+}
+
 var _deck_select: VBoxContainer
 var _match_view: HBoxContainer
 var _match_root: VBoxContainer
 var _log_display: RichTextLabel
 var _opponent_board: HBoxContainer
+var _opponent_hive: HBoxContainer
 var _opponent_info: Label
 var _player_board: HBoxContainer
+var _player_hive: HBoxContainer
 var _player_hand: HBoxContainer
 var _player_info: Label
 var _status_label: Label
 var _hero_power_btn: Button
 var _ultimate_btn: Button
 var _end_turn_btn: Button
+var _cancel_btn: Button
 var _block_popup: PanelContainer
 var _block_popup_box: VBoxContainer
 var _game_over_popup: PanelContainer
@@ -36,6 +50,8 @@ var _game_over_label: Label
 
 var _selected_hand_index := -1
 var _selected_attacker_id := -1
+var _pending_target_side := "" # "" / "friendly" / "enemy" — set while awaiting a click to target a hand card or Hero Power/Ultimate
+var _pending_power_kind := "" # "" / "hero" / "ultimate"
 var _busy := false # true while the AI or an awaited attack is resolving
 
 func _ready() -> void:
@@ -102,6 +118,8 @@ func _build_match_view() -> void:
 
 	_opponent_info = Label.new()
 	_match_root.add_child(_opponent_info)
+	_opponent_hive = _make_scrolling_row(100)
+	_match_root.add_child(_opponent_hive.get_parent())
 	_opponent_board = _make_scrolling_row()
 	_match_root.add_child(_opponent_board.get_parent())
 
@@ -121,9 +139,16 @@ func _build_match_view() -> void:
 	_end_turn_btn.text = "End Turn"
 	_end_turn_btn.pressed.connect(_on_end_turn_pressed)
 	mid.add_child(_end_turn_btn)
+	_cancel_btn = Button.new()
+	_cancel_btn.text = "Cancel"
+	_cancel_btn.visible = false
+	_cancel_btn.pressed.connect(_on_cancel_pressed)
+	mid.add_child(_cancel_btn)
 
 	_player_board = _make_scrolling_row()
 	_match_root.add_child(_player_board.get_parent())
+	_player_hive = _make_scrolling_row(100)
+	_match_root.add_child(_player_hive.get_parent())
 	_player_info = Label.new()
 	_match_root.add_child(_player_info)
 	_player_hand = _make_scrolling_row()
@@ -163,9 +188,9 @@ func _on_log_entry(text: String, kind: String) -> void:
 			color = "#55ddff"
 	_log_display.append_text("[color=%s]%s[/color]\n" % [color, text.replace("[", "(").replace("]", ")")])
 
-func _make_scrolling_row() -> HBoxContainer:
+func _make_scrolling_row(height: int = 200) -> HBoxContainer:
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 200)
+	scroll.custom_minimum_size = Vector2(0, height)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var row := HBoxContainer.new()
@@ -244,6 +269,9 @@ func _on_game_ended(winner_id: int) -> void:
 func _on_hero_power_pressed() -> void:
 	if _busy or GameState.active_player_index != HUMAN:
 		return
+	var player := GameState.players[HUMAN]
+	if _begin_targeting_if_needed(player.leader.data.hero_power_effects, "hero"):
+		return
 	if not TurnManager.use_hero_power(HUMAN):
 		_status_label.text = "Can't use Hero Power right now."
 	_refresh()
@@ -251,16 +279,52 @@ func _on_hero_power_pressed() -> void:
 func _on_ultimate_pressed() -> void:
 	if _busy or GameState.active_player_index != HUMAN:
 		return
+	var player := GameState.players[HUMAN]
+	if _begin_targeting_if_needed(player.leader.data.ultimate_effects, "ultimate"):
+		return
 	if not TurnManager.use_ultimate(HUMAN):
 		_status_label.text = "Can't use Ultimate right now."
 	_refresh()
 
+## If `effects` needs a creature target and a legal one exists, enters
+## target-selection mode and returns true (caller should stop here). If a
+## target is needed but none exist, returns false so the caller proceeds
+## unTargeted (EffectResolver's auto-pick will find nothing and skip it).
+func _begin_targeting_if_needed(effects: Array[Dictionary], power_kind: String) -> bool:
+	var side := _required_target_side_for_effects(effects)
+	if side == "":
+		return false
+	var pool := GameState.players[HUMAN].board if side == "friendly" else GameState.players[AI].board
+	if not pool.any(func(c: CardInstance) -> bool: return c.is_alive()):
+		return false
+	_pending_power_kind = power_kind
+	_pending_target_side = side
+	_status_label.text = "Choose %s creature to target." % ("a friendly" if side == "friendly" else "an enemy")
+	_refresh()
+	return true
+
+func _required_target_side_for_effects(effects: Array[Dictionary]) -> String:
+	for e: Dictionary in effects:
+		if TARGETING_EFFECT_SIDES.has(e.get("effect_id", "")):
+			return TARGETING_EFFECT_SIDES[e.get("effect_id", "")]
+	return ""
+
 func _on_end_turn_pressed() -> void:
 	if _busy or GameState.active_player_index != HUMAN:
 		return
+	_clear_selection()
+	TurnManager.end_turn()
+
+func _on_cancel_pressed() -> void:
+	_clear_selection()
+	_status_label.text = ""
+	_refresh()
+
+func _clear_selection() -> void:
 	_selected_hand_index = -1
 	_selected_attacker_id = -1
-	TurnManager.end_turn()
+	_pending_target_side = ""
+	_pending_power_kind = ""
 
 func _on_hand_card_pressed(index: int) -> void:
 	if _busy or GameState.active_player_index != HUMAN:
@@ -269,21 +333,53 @@ func _on_hand_card_pressed(index: int) -> void:
 	if index < 0 or index >= player.hand.size():
 		return
 	var card: CardInstance = player.hand[index]
+
 	if card.data.card_type == CardTypes.GEAR:
 		if player.board.is_empty():
 			_status_label.text = "No friendly creature to equip Gear to."
 			return
 		_selected_hand_index = index
 		_selected_attacker_id = -1
+		_pending_target_side = "friendly"
 		_status_label.text = "Choose a friendly creature to equip %s to." % card.display_name()
 		_refresh()
 		return
+
+	var side := _required_target_side(card)
+	if side != "":
+		var pool := player.board if side == "friendly" else GameState.players[AI].board
+		if pool.any(func(c: CardInstance) -> bool: return c.is_alive()):
+			_selected_hand_index = index
+			_selected_attacker_id = -1
+			_pending_target_side = side
+			_status_label.text = "Choose %s creature to target with %s." % [("a friendly" if side == "friendly" else "an enemy"), card.display_name()]
+			_refresh()
+			return
+
 	if TurnManager.play_card(HUMAN, index):
 		_status_label.text = ""
 	else:
 		_status_label.text = "Can't play that right now (cost or Legend Rule)."
-	_selected_hand_index = -1
+	_clear_selection()
 	_refresh()
+
+## Which side of the board (if any) a hand card's on-play/on-cast effects
+## need a creature target from.
+func _required_target_side(card: CardInstance) -> String:
+	var effects: Array[Dictionary] = []
+	var trigger := ""
+	if card.data is CreatureData:
+		effects = (card.data as CreatureData).effects
+		trigger = "on_play"
+	elif card.data is AbilityData:
+		effects = (card.data as AbilityData).effects
+		trigger = "on_cast"
+	else:
+		return ""
+	for e: Dictionary in effects:
+		if e.get("trigger", "") == trigger and TARGETING_EFFECT_SIDES.has(e.get("effect_id", "")):
+			return TARGETING_EFFECT_SIDES[e.get("effect_id", "")]
+	return ""
 
 func _on_flip_ambush_pressed(instance_id: int) -> void:
 	if _busy or GameState.active_player_index != HUMAN:
@@ -296,13 +392,20 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 		return
 	var player := GameState.players[HUMAN]
 
-	if _selected_hand_index != -1:
-		if is_friendly:
-			if TurnManager.play_card(HUMAN, _selected_hand_index, instance.instance_id):
-				_status_label.text = ""
-			else:
-				_status_label.text = "Couldn't equip Gear there."
-		_selected_hand_index = -1
+	if _selected_hand_index != -1 or _pending_power_kind != "":
+		var wants_friendly := _pending_target_side == "friendly"
+		if is_friendly != wants_friendly:
+			_status_label.text = "Choose %s creature." % ("a friendly" if wants_friendly else "an enemy")
+			return
+		var ok := false
+		if _pending_power_kind == "hero":
+			ok = TurnManager.use_hero_power(HUMAN, instance.instance_id)
+		elif _pending_power_kind == "ultimate":
+			ok = TurnManager.use_ultimate(HUMAN, instance.instance_id)
+		else:
+			ok = TurnManager.play_card(HUMAN, _selected_hand_index, instance.instance_id)
+		_status_label.text = "" if ok else "Couldn't target that."
+		_clear_selection()
 		_refresh()
 		return
 
@@ -362,14 +465,18 @@ func _refresh() -> void:
 
 	_render_row(_opponent_board, ai.board, false)
 	_render_row(_player_board, human.board, true)
+	_render_hive_row(_opponent_hive, ai.hive_zone)
+	_render_hive_row(_player_hive, human.hive_zone)
 	_render_hand()
 
 	var can_act := GameState.active_player_index == HUMAN and not _busy and not GameState.is_over
-	_hero_power_btn.disabled = not can_act or human.leader.hero_power_used_this_turn or human.leader.data.hero_power_cost > human.current_larva
+	var targeting := _selected_hand_index != -1 or _pending_power_kind != ""
+	_hero_power_btn.disabled = not can_act or targeting or human.leader.hero_power_used_this_turn or human.leader.data.hero_power_cost > human.current_larva
 	_hero_power_btn.text = "Hero Power (%d): %s" % [human.leader.data.hero_power_cost, human.leader.data.hero_power_text]
-	_ultimate_btn.disabled = not can_act or human.leader.ultimate_used or human.leader.data.ultimate_cost > human.current_larva
+	_ultimate_btn.disabled = not can_act or targeting or human.leader.ultimate_used or human.leader.data.ultimate_cost > human.current_larva
 	_ultimate_btn.text = "Ultimate (%d): %s" % [human.leader.data.ultimate_cost, human.leader.data.ultimate_text]
-	_end_turn_btn.disabled = not can_act
+	_end_turn_btn.disabled = not can_act or targeting
+	_cancel_btn.visible = targeting or _selected_attacker_id != -1
 
 func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool) -> void:
 	for child in row.get_children():
@@ -382,6 +489,23 @@ func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool)
 		leader_btn.custom_minimum_size = Vector2(100, 60)
 		leader_btn.pressed.connect(_on_enemy_leader_pressed)
 		row.add_child(leader_btn)
+
+func _render_hive_row(row: HBoxContainer, hive_zone: Array[CardInstance]) -> void:
+	for child in row.get_children():
+		child.queue_free()
+	for c: CardInstance in hive_zone:
+		row.add_child(_make_hive_widget(c))
+	row.get_parent().visible = not hive_zone.is_empty()
+
+func _make_hive_widget(c: CardInstance) -> Control:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(160, 90)
+	var lines := [c.display_name()]
+	if c.data.text != "":
+		lines.append(_wrap_text(c.data.text))
+	btn.text = "\n".join(lines)
+	btn.modulate = _card_color(c.data)
+	return btn
 
 func _render_hand() -> void:
 	for child in _player_hand.get_children():
@@ -423,6 +547,9 @@ func _creature_text(c: CardInstance) -> String:
 		lines.append("Poison x%d" % c.poison_counters)
 	if c.data.text != "":
 		lines.append(_wrap_text(c.data.text))
+	if not c.attached_gear.is_empty():
+		var gear_names := c.attached_gear.map(func(g: CardInstance) -> String: return g.display_name())
+		lines.append("Gear: " + ", ".join(gear_names))
 	if not c.is_alive():
 		lines.append("(dead)")
 	return "\n".join(lines)

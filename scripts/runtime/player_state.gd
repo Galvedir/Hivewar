@@ -13,7 +13,6 @@ var health: int = 30
 var max_larva: int = 0     # permanent max, capped at 10 (§2)
 var current_larva: int = 0 # can exceed max_larva for the turn via temporary bonuses
 var temp_larva_bonus: int = 0
-var poison_counters: int = 0 # Poison can target the Leader too (§6)
 
 var deck: Array[CardInstance] = []
 var hand: Array[CardInstance] = []

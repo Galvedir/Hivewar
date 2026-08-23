@@ -79,12 +79,10 @@ func fire_start_of_turn(player: PlayerState, opponent: PlayerState) -> void:
 			_resolve_list(cd.effects, "start_of_turn", _ctx(player, opponent, c))
 
 ## Called by TurnManager while ending `player`'s turn, before the active
-## player switches. Resolves Poison damage (§6) then fires end_of_turn
-## card effects.
+## player switches. Resolves Poison damage (creatures only — Leaders are
+## immune) then fires end_of_turn card effects.
 func fire_end_of_turn(player: PlayerState, opponent: PlayerState) -> void:
 	for p: PlayerState in [player, opponent]:
-		if p.poison_counters > 0:
-			GameState.damage_player(p.player_id, p.poison_counters, "Poison")
 		for c: CardInstance in p.board:
 			if c.is_alive() and c.poison_counters > 0:
 				GameState.damage_creature(c, c.poison_counters, "Poison")

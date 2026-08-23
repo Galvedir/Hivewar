@@ -97,15 +97,13 @@ func resolve_attack(attacker: CardInstance, target, attacker_player: PlayerState
 	GameState.cleanup_dead(attacker_player.player_id)
 	GameState.cleanup_dead(defender_player.player_id)
 
+## Poison never applies to Leaders (house rule override of the original
+## §6 draft, which had it hitting Leaders too) — it's a creature-only
+## damage-over-time tool.
 func _hit_leader(attacker: CardInstance, attacker_player: PlayerState, defender_player: PlayerState, amount: int) -> void:
 	GameState.damage_player(defender_player.player_id, amount, attacker.display_name())
 	if attacker.has_keyword(Keywords.LIFESTEAL):
 		GameState.heal_player(attacker_player.player_id, amount, attacker.display_name() + "'s Lifesteal")
-	if attacker.has_keyword(Keywords.POISON):
-		defender_player.poison_counters += 1
-		GameLog.log("%s's Leader is poisoned by %s (now %d Poison counters)." % [
-			defender_player.leader.data.card_name, attacker.display_name(), defender_player.poison_counters
-		], "combat")
 	EffectResolver.fire_on_damage_dealt(attacker, defender_player.player_id, amount)
 
 ## Creature-vs-creature combat, both directions simultaneously (no first

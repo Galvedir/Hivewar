@@ -21,8 +21,8 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "honeybee_sentinel", "name": "Honeybee Sentinel", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 3, "creature_type": "Bee", "keywords": [Keywords.GUARD, Keywords.COLONY],
-		"text": "Guard. Colony (other Bees get +0/+1 while this is in play).",
+		"attack": 2, "health": 3, "creature_type": "Bee", "keywords": [Keywords.COLONY],
+		"text": "Colony (other Bees get +0/+1 while this is in play).",
 	},
 	{
 		"id": "ladybug_healer", "name": "Ladybug Healer", "type": "Creature",
@@ -97,8 +97,8 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "meadow_honeybee", "name": "Meadow Honeybee", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "creature_type": "Bee", "keywords": [Keywords.GUARD],
-		"text": "Guard.",
+		"attack": 1, "health": 2, "creature_type": "Bee", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "worker_ant_line", "name": "Worker Ant Line", "type": "Creature",
@@ -109,8 +109,8 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "ladybug_sentry", "name": "Ladybug Sentry", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "creature_type": "Ladybug", "keywords": [Keywords.GUARD],
-		"text": "Guard.",
+		"attack": 2, "health": 3, "creature_type": "Ladybug", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "pollen_moth", "name": "Pollen Moth", "type": "Creature",
@@ -141,9 +141,9 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "sanctuary_moth", "name": "Sanctuary Moth", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "creature_type": "Moth", "keywords": [Keywords.GUARD],
+		"attack": 2, "health": 3, "creature_type": "Moth", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 2, "target": "self"}}],
-		"text": "Guard. On Play: restore 2 health to your Leader.",
+		"text": "On Play: restore 2 health to your Leader.",
 	},
 	{
 		"id": "ant_phalanx", "name": "Ant Phalanx", "type": "Creature",
@@ -218,6 +218,13 @@ const WHITE: Array[Dictionary] = [
 		"attack": 7, "health": 12, "creature_type": "Beetle", "keywords": [Keywords.GUARD, Keywords.COLONY],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 6, "target": "self"}}],
 		"text": "Guard. Colony (other Beetles get +0/+1 while this is in play). On Play: restore 6 health to your Leader.",
+	},
+	{
+		"id": "vigil_keeper", "name": "Vigil Keeper", "type": "Creature",
+		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
+		"attack": 2, "health": 4, "creature_type": "Bee", "keywords": [Keywords.GUARD],
+		"effects": [{"trigger": "start_of_turn", "effect_id": "heal_leader", "params": {"amount": 1, "target": "self"}}],
+		"text": "Guard. At the start of your turn, restore 1 health to your Leader.",
 	},
 ]
 
@@ -422,6 +429,13 @@ const GREEN: Array[Dictionary] = [
 		"text": "Trample.",
 	},
 	{
+		"id": "sunfed_colossus", "name": "Sunfed Colossus", "type": "Creature",
+		"cost": 5, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.RARE,
+		"attack": 6, "health": 6, "creature_type": "Beetle", "keywords": [Keywords.TRAMPLE],
+		"effects": [{"trigger": "start_of_turn", "effect_id": "gain_larva", "params": {"amount": 1}}],
+		"text": "Trample. At the start of your turn, gain 1 extra Larva this turn.",
+	},
+	{
 		"id": "house_centipede", "name": "House Centipede", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 2, "creature_type": "Centipede", "keywords": [],
@@ -515,8 +529,8 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "venomous_recluse", "name": "Venomous Recluse", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "creature_type": "Spider", "keywords": [Keywords.POISON],
-		"text": "Poison.",
+		"attack": 1, "health": 2, "creature_type": "Spider", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "grave_beetle", "name": "Grave Beetle", "type": "Creature",
@@ -528,8 +542,8 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "pit_viper_centipede", "name": "Pit Viper Centipede", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 1, "creature_type": "Centipede", "keywords": [Keywords.POISON],
-		"text": "Poison.",
+		"attack": 2, "health": 2, "creature_type": "Centipede", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "carrion_fly", "name": "Carrion Fly", "type": "Creature",
@@ -541,8 +555,9 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "widow_hatchling", "name": "Widow Hatchling", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 2, "creature_type": "Spider", "keywords": [Keywords.POISON],
-		"text": "Poison.",
+		"attack": 1, "health": 2, "creature_type": "Spider", "keywords": [],
+		"effects": [{"trigger": "on_play", "effect_id": "damage_creature", "params": {"amount": 1}}],
+		"text": "On Play: deal 1 damage to the strongest enemy creature.",
 	},
 	{
 		"id": "bone_wasp", "name": "Bone Wasp", "type": "Creature",
@@ -553,14 +568,14 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "plague_scorpion", "name": "Plague Scorpion", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 3, "creature_type": "Scorpion", "keywords": [Keywords.POISON],
-		"text": "Poison.",
+		"attack": 3, "health": 3, "creature_type": "Scorpion", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "toxic_swarm_locust", "name": "Toxic Swarm Locust", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "creature_type": "Locust", "keywords": [Keywords.POISON],
-		"text": "Poison.",
+		"attack": 2, "health": 3, "creature_type": "Locust", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "necrotic_beetle", "name": "Necrotic Beetle", "type": "Creature",
@@ -664,20 +679,27 @@ const BLACK: Array[Dictionary] = [
 	{
 		"id": "glassy_wing_moth", "name": "Glassy Wing Moth", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "creature_type": "Moth", "keywords": [Keywords.POISON],
-		"text": "Poison.",
+		"attack": 2, "health": 3, "creature_type": "Moth", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "fog_moth", "name": "Fog Moth", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 3, "creature_type": "Moth", "keywords": [Keywords.STEALTH],
-		"text": "Stealth.",
+		"attack": 1, "health": 4, "creature_type": "Moth", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "veil_moth", "name": "Veil Moth", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 3, "creature_type": "Moth", "keywords": [Keywords.STEALTH],
 		"text": "Stealth.",
+	},
+	{
+		"id": "nightshade_widow", "name": "Nightshade Widow", "type": "Creature",
+		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
+		"attack": 3, "health": 4, "creature_type": "Spider", "keywords": [Keywords.POISON],
+		"effects": [{"trigger": "on_damage_taken", "effect_id": "damage_creature", "params": {"amount": 1}}],
+		"text": "Poison. Whenever this creature is dealt combat damage, deal 1 damage to the strongest enemy creature.",
 	},
 ]
 
@@ -691,8 +713,8 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "dragonfly_duelist", "name": "Dragonfly Duelist", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
-		"text": "Flying.",
+		"attack": 2, "health": 3, "creature_type": "Dragonfly", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "gnat_swarm", "name": "Gnat Swarm", "type": "Creature",
@@ -723,7 +745,8 @@ const BLUE: Array[Dictionary] = [
 		"id": "dragonfly_ace", "name": "Dragonfly Ace", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
 		"attack": 5, "health": 4, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING, Keywords.SWIFT],
-		"text": "Flying. Swift.",
+		"effects": [{"trigger": "on_attack", "effect_id": "draw_card", "params": {"count": 1}}],
+		"text": "Flying. Swift. On Attack: draw a card.",
 	},
 	{
 		"id": "spider_silk_net", "name": "Spider Silk Net", "type": "Gear",
@@ -770,14 +793,14 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "pond_skimmer", "name": "Pond Skimmer", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "creature_type": "Water Strider", "keywords": [Keywords.FLYING],
-		"text": "Flying.",
+		"attack": 1, "health": 2, "creature_type": "Water Strider", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "mayfly_drifter", "name": "Mayfly Drifter", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 2, "creature_type": "Mayfly", "keywords": [Keywords.FLYING],
-		"text": "Flying.",
+		"attack": 1, "health": 3, "creature_type": "Mayfly", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "whisper_gnat", "name": "Whisper Gnat", "type": "Creature",
@@ -788,8 +811,8 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "swift_dragonlet", "name": "Swift Wingling", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 1, "creature_type": "Butterfly", "keywords": [Keywords.FLYING, Keywords.SWIFT],
-		"text": "Flying. Swift.",
+		"attack": 2, "health": 1, "creature_type": "Butterfly", "keywords": [Keywords.SWIFT],
+		"text": "Swift.",
 	},
 	{
 		"id": "azure_damselfly", "name": "Azure Damselfly", "type": "Creature",
@@ -801,21 +824,22 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "current_rider_dragonfly", "name": "Current Rider Butterfly", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 3, "health": 3, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
-		"text": "Flying.",
+		"attack": 3, "health": 4, "creature_type": "Butterfly", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "cloudmind_butterfly", "name": "Cloudmind Butterfly", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
-		"attack": 3, "health": 4, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
+		"attack": 3, "health": 5, "creature_type": "Butterfly", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "scry", "params": {}}],
-		"text": "Flying. On Play: scry (look at the top card of your library).",
+		"text": "On Play: scry (look at the top card of your library).",
 	},
 	{
 		"id": "tempest_dragonfly", "name": "Tempest Dragonfly", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
-		"attack": 4, "health": 3, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING, Keywords.SWIFT],
-		"text": "Flying. Swift.",
+		"attack": 4, "health": 3, "creature_type": "Dragonfly", "keywords": [Keywords.SWIFT],
+		"effects": [{"trigger": "on_attack", "effect_id": "scry", "params": {}}],
+		"text": "Swift. On Attack: scry (look at the top card of your library).",
 	},
 	{
 		"id": "monarch_ascendant", "name": "Monarch Ascendant", "type": "Creature",
@@ -892,8 +916,18 @@ const BLUE: Array[Dictionary] = [
 		"id": "sovereign_of_storms", "name": "Sovereign of Storms", "type": "Creature",
 		"cost": 9, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
 		"attack": 8, "health": 8, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
-		"effects": [{"trigger": "on_play", "effect_id": "draw_card", "params": {"count": 3}}],
-		"text": "Flying. On Play: draw 3 cards.",
+		"effects": [
+			{"trigger": "on_play", "effect_id": "draw_card", "params": {"count": 3}},
+			{"trigger": "on_damage_taken", "effect_id": "damage_creature", "params": {"amount": 2}},
+		],
+		"text": "Flying. On Play: draw 3 cards. Whenever this creature is dealt combat damage, deal 2 damage to the strongest enemy creature.",
+	},
+	{
+		"id": "storm_petrel", "name": "Storm Petrel", "type": "Creature",
+		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
+		"attack": 2, "health": 2, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
+		"effects": [{"trigger": "on_attack", "effect_id": "scry", "params": {}}],
+		"text": "Flying. On Attack: scry (look at the top card of your library).",
 	},
 ]
 
@@ -925,20 +959,20 @@ const RED: Array[Dictionary] = [
 	{
 		"id": "deer_fly_harasser", "name": "Deer Fly Harasser", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 1, "creature_type": "Deer Fly", "keywords": [Keywords.SWIFT],
-		"text": "Swift.",
+		"attack": 2, "health": 2, "creature_type": "Deer Fly", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "bed_bug_swarm", "name": "Bed Bug Swarm", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 1, "creature_type": "Bed Bug", "keywords": [Keywords.SWIFT],
-		"text": "Swift.",
+		"attack": 2, "health": 2, "creature_type": "Bed Bug", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "horsefly_raider", "name": "Horsefly Raider", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "creature_type": "Horsefly", "keywords": [Keywords.LIFESTEAL],
-		"text": "Lifesteal.",
+		"attack": 2, "health": 3, "creature_type": "Horsefly", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "assassin_bug", "name": "Assassin Bug", "type": "Creature",
@@ -949,8 +983,8 @@ const RED: Array[Dictionary] = [
 	{
 		"id": "midge_cloud", "name": "Midge Cloud", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 2, "creature_type": "Midge", "keywords": [Keywords.SWIFT],
-		"text": "Swift.",
+		"attack": 2, "health": 3, "creature_type": "Midge", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "hornet_skirmisher", "name": "Hornet Skirmisher", "type": "Creature",
@@ -962,8 +996,8 @@ const RED: Array[Dictionary] = [
 	{
 		"id": "robber_fly", "name": "Robber Fly", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
-		"attack": 3, "health": 2, "creature_type": "Robber Fly", "keywords": [Keywords.LIFESTEAL],
-		"text": "Lifesteal.",
+		"attack": 3, "health": 3, "creature_type": "Robber Fly", "keywords": [],
+		"text": "",
 	},
 	{
 		"id": "botfly_harrier", "name": "Botfly Harrier", "type": "Creature",
@@ -1113,6 +1147,13 @@ const RED: Array[Dictionary] = [
 		"attack": 10, "health": 6, "creature_type": "Tick", "keywords": [Keywords.SWIFT, Keywords.LIFESTEAL],
 		"effects": [{"trigger": "on_play", "effect_id": "damage_leader", "params": {"amount": 4, "target": "enemy"}}],
 		"text": "Swift. Lifesteal. On Play: deal 4 damage to the enemy Leader.",
+	},
+	{
+		"id": "assassin_vein_striker", "name": "Assassin's Vein Striker", "type": "Creature",
+		"cost": 4, "kingdoms": [Kingdoms.RED], "rarity": Rarities.RARE,
+		"attack": 4, "health": 2, "creature_type": "Assassin Bug", "keywords": [Keywords.SWIFT],
+		"effects": [{"trigger": "on_attack", "effect_id": "damage_leader", "params": {"amount": 1, "target": "enemy"}}],
+		"text": "Swift. On Attack: deal 1 damage to the enemy Leader, even if this attack is blocked.",
 	},
 ]
 

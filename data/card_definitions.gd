@@ -334,15 +334,18 @@ const TOKENS: Array[Dictionary] = [
 		"id": "termite_worker_token", "name": "Termite Worker", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Termite", "keywords": [Keywords.GUARD],
+		"text": "Guard.",
 	},
 	{
 		"id": "ladybug_guard_token", "name": "Ladybug", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Ladybug", "keywords": [Keywords.GUARD],
+		"text": "Guard.",
 	},
 	{
 		"id": "cicada_swarm_token", "name": "Cicada Swarm", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Cicada", "keywords": [],
+		"text": "",
 	},
 ]

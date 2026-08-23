@@ -7,6 +7,9 @@ extends Control
 
 signal closed
 
+const HERO_POWER_COLOR := "#8fd0ff"
+const ULTIMATE_COLOR := "#ffcc33"
+
 var _leader_id := ""
 var _cards := {} # card_id (String) -> count (int)
 var _editing_name := "" # name of the saved deck being edited, "" if unsaved/new
@@ -16,6 +19,7 @@ var _rarity_filter := "ALL"
 var _search_filter := ""
 
 var _leader_option: OptionButton
+var _leader_info_label: RichTextLabel
 var _name_edit: LineEdit
 var _kingdom_option: OptionButton
 var _rarity_option: OptionButton
@@ -64,6 +68,13 @@ func _build_ui() -> void:
 	save_btn.text = "Save Deck"
 	save_btn.pressed.connect(_on_save_pressed)
 	top.add_child(save_btn)
+
+	_leader_info_label = RichTextLabel.new()
+	_leader_info_label.bbcode_enabled = true
+	_leader_info_label.fit_content = true
+	_leader_info_label.scroll_active = false
+	_leader_info_label.custom_minimum_size = Vector2(0, 70)
+	root.add_child(_leader_info_label)
 
 	_status_label = Label.new()
 	root.add_child(_status_label)
@@ -147,6 +158,7 @@ func _new_deck() -> void:
 func _on_leader_selected(index: int) -> void:
 	var leaders := CardDatabase.all_leaders()
 	_leader_id = leaders[index - 1].id if index > 0 else ""
+	_refresh_leader_info()
 	_refresh_browser() # costs are Leader-relative (§4), so the browser needs to re-render
 	_refresh_deck_list()
 
@@ -217,7 +229,22 @@ func _remove_card(card_id: String) -> void:
 
 ## --- Rendering --------------------------------------------------------------
 
+func _refresh_leader_info() -> void:
+	if _leader_id == "":
+		_leader_info_label.text = "[i]No Leader chosen yet.[/i]"
+		return
+	var leader: LeaderData = CardDatabase.get_leader(_leader_id)
+	if leader == null:
+		_leader_info_label.text = "[i]Unknown Leader.[/i]"
+		return
+	_leader_info_label.text = "[b]%s[/b]  (%s, %d health)\n[color=%s]Hero Power (%d): %s[/color]\n[color=%s]Ultimate (%d): %s[/color]" % [
+		leader.card_name, CardRenderUtil.kingdom_label(leader), leader.starting_health,
+		HERO_POWER_COLOR, leader.hero_power_cost, leader.hero_power_text,
+		ULTIMATE_COLOR, leader.ultimate_cost, leader.ultimate_text,
+	]
+
 func _refresh() -> void:
+	_refresh_leader_info()
 	_refresh_browser()
 	_refresh_deck_list()
 	_refresh_saved_decks()

@@ -20,7 +20,7 @@ func _ready() -> void:
 	p0.board.append(venom_striker)
 	var weak_target := CardDatabase.create_instance("wasp_striker", 1) # 1/1
 	p1.board.append(weak_target)
-	CombatResolver.resolve_attack(venom_striker, weak_target, p0, p1, null)
+	CombatResolver.resolve_attack(venom_striker, weak_target, p0, p1)
 	_check(not weak_target.is_alive(), "Venomstrike kills a creature outright even with 1 attack vs more health")
 
 	# Tough enough that 1 attack damage alone would never kill it — isolates
@@ -29,7 +29,7 @@ func _ready() -> void:
 	chitin_target.runtime_keywords.append(Keywords.CHITIN)
 	p1.board.append(chitin_target)
 	venom_striker.has_attacked_this_turn = false
-	CombatResolver.resolve_attack(venom_striker, chitin_target, p0, p1, null)
+	CombatResolver.resolve_attack(venom_striker, chitin_target, p0, p1)
 	_check(chitin_target.is_alive(), "Chitin grants immunity to Venomstrike (creature survives combat damage)")
 
 	# --- Exhaustion: an attacked creature can't be chosen as an optional blocker ---
@@ -174,6 +174,111 @@ func _ready() -> void:
 	GameState.attach_gear(barbed_stinger, sick_creature)
 	_check(sick_creature.has_keyword(Keywords.SWIFT), "Barbed Stinger grants Swift on equip")
 	_check(CombatResolver.can_attack(sick_creature), "Swift granted via Gear lifts summoning sickness immediately, even on a creature played this turn")
+
+	# --- Flying bypasses Guard unless the Guard also has Flying/Reach (§ user request) ---
+	p0.board.clear()
+	p1.board.clear()
+	var ground_guard := CardDatabase.create_instance("worker_termite", 1) # Guard, no Flying
+	p1.board.append(ground_guard)
+	var flying_attacker := CardDatabase.create_instance("house_fly_scout", 0) # Flying
+	var ground_attacker := CardDatabase.create_instance("chigger_pest", 0) # no Flying
+	_check(CombatResolver.is_legal_leader_target(flying_attacker, p1), "A Flying attacker can target the Leader over a ground-only Guard")
+	_check(CombatResolver.forced_guard_target(flying_attacker, p1).is_empty(), "A ground-only Guard doesn't force-redirect a Flying attacker")
+	_check(not CombatResolver.is_legal_leader_target(ground_attacker, p1), "A non-Flying attacker is still stopped by a ground Guard")
+	_check(CombatResolver.forced_guard_target(ground_attacker, p1) == [ground_guard], "A ground Guard still force-redirects a non-Flying attacker")
+	var flying_guard := CardDatabase.create_instance("dragonfly_duelist", 1)
+	flying_guard.runtime_keywords.append(Keywords.GUARD)
+	flying_guard.runtime_keywords.append(Keywords.FLYING)
+	p1.board.append(flying_guard)
+	_check(not CombatResolver.is_legal_leader_target(flying_attacker, p1), "A Flying Guard still stops a Flying attacker")
+	var matching := CombatResolver.forced_guard_target(flying_attacker, p1)
+	_check(matching.size() == 1 and matching[0] == flying_guard, "Only the Flying Guard (not the ground one) is offered as the forced redirect against a Flying attacker")
+
+	# --- Gang-blocking: MTG-style ordered damage across multiple blockers (§ user request) ---
+	p0.board.clear()
+	p1.board.clear()
+	var raider := CardDatabase.create_instance("robber_fly", 0) # 3/3 vanilla now, but we'll set stats explicitly
+	raider.current_attack = 6
+	raider.max_health = 6
+	p0.board.append(raider)
+	var weak_blocker := CardDatabase.create_instance("worker_termite", 1)
+	weak_blocker.current_attack = 1
+	weak_blocker.max_health = 2 # dies to the first 2 of the attacker's 6 damage
+	var tough_blocker := CardDatabase.create_instance("queens_guardian_beetle", 1)
+	tough_blocker.current_attack = 2
+	tough_blocker.max_health = 5 # takes the remaining 4, survives
+	p1.board.append(weak_blocker)
+	p1.board.append(tough_blocker)
+	CombatResolver.resolve_attack(raider, "leader", p0, p1, [weak_blocker, tough_blocker])
+	_check(not weak_blocker.is_alive(), "Gang-block: lethal is assigned to the weaker (lower current-health) blocker first")
+	_check(tough_blocker.is_alive() and tough_blocker.current_health() == 1, "Gang-block: leftover damage (4) spills to the second blocker after the first dies (5 health - 4 = 1 left)")
+	_check(raider.current_health() == raider.max_health - 3, "Gang-block: the attacker takes the SUM of every blocker's attack (1+2=3), not just one")
+
+	# --- Gang-block + Trample: undelivered excess carries through to the Leader ---
+	p0.board.clear()
+	p1.board.clear()
+	var trampler := CardDatabase.create_instance("rhinoceros_beetle", 0)
+	trampler.runtime_keywords.append(Keywords.TRAMPLE)
+	trampler.current_attack = 10
+	trampler.max_health = 10
+	p0.board.append(trampler)
+	var chump1 := CardDatabase.create_instance("worker_termite", 1)
+	chump1.current_attack = 0
+	chump1.max_health = 2
+	var chump2 := CardDatabase.create_instance("meadow_honeybee", 1)
+	chump2.current_attack = 0
+	chump2.max_health = 3
+	p1.board.append(chump1)
+	p1.board.append(chump2)
+	var p1_health_before := p1.health
+	CombatResolver.resolve_attack(trampler, "leader", p0, p1, [chump1, chump2])
+	_check(not chump1.is_alive() and not chump2.is_alive(), "Gang-block + Trample: both blockers die (2+3=5 of the attacker's 10 damage)")
+	_check(p1.health == p1_health_before - 5, "Gang-block + Trample: the remaining 5 damage (10 - 2 - 3) carries through to the Leader once every blocker is dead")
+
+	# --- New effect_ids: destroy_creature (ignores Chitin), heal_creature_full ---
+	p0.board.clear()
+	p1.board.clear()
+	var chitin_victim := CardDatabase.create_instance("queens_guardian_beetle", 1)
+	chitin_victim.runtime_keywords.append(Keywords.CHITIN)
+	p1.board.append(chitin_victim)
+	EffectResolver.resolve_effect_list([{"effect_id": "destroy_creature", "params": {}}], p0, p1, chitin_victim.instance_id)
+	_check(not chitin_victim.is_alive(), "destroy_creature kills its target even through Chitin (it's not Poison/Venomstrike)")
+
+	var hurt_ally := CardDatabase.create_instance("queens_guardian_beetle", 0)
+	hurt_ally.damage_marked = hurt_ally.max_health - 1
+	p0.board.append(hurt_ally)
+	EffectResolver.resolve_effect_list([{"effect_id": "heal_creature_full", "params": {}}], p0, p1, hurt_ally.instance_id)
+	_check(hurt_ally.damage_marked == 0, "heal_creature_full clears all damage regardless of amount")
+
+	# --- flip_ambush_instant (Mira's Ultimate) bypasses the printed flip_trigger ---
+	var hidden := CardDatabase.create_instance("monarch_caterpillar", 0)
+	hidden.enter_play_face_down()
+	p0.board.append(hidden)
+	_check(hidden.is_face_down, "A freshly-played Morph creature starts face-down")
+	EffectResolver.resolve_effect_list([{"effect_id": "flip_ambush_instant", "params": {}}], p0, p1, hidden.instance_id)
+	_check(not hidden.is_face_down, "flip_ambush_instant flips a paid-trigger Morph creature immediately, without paying its Larva cost")
+
+	# --- return_from_graveyard_to_play (Sister Wren's new Ultimate) ------------
+	p0.graveyard.clear()
+	var g1 := CardDatabase.create_instance("worker_termite", 0)
+	var g2 := CardDatabase.create_instance("meadow_honeybee", 0)
+	p0.graveyard.append(g1)
+	p0.graveyard.append(g2)
+	var p0_board_before_return := p0.board.size()
+	EffectResolver.resolve_effect_list([{"effect_id": "return_from_graveyard_to_play", "params": {"count": 3}}], p0, p1)
+	_check(p0.board.size() == p0_board_before_return + 2, "return_from_graveyard_to_play returns every available creature (2, even though 3 were requested)")
+	_check(p0.graveyard.is_empty(), "return_from_graveyard_to_play empties the graveyard of the creatures it reclaimed")
+
+	# --- buff_friendly_per_larva_spent (Ashen Cricket's X-cost Ultimate) -------
+	var x_target := CardDatabase.create_instance("worker_termite", 0)
+	p0.board.append(x_target)
+	var x_atk := x_target.current_attack
+	var x_hp := x_target.max_health
+	EffectResolver.resolve_effect_list(
+		[{"effect_id": "buff_friendly_per_larva_spent", "params": {"attack_per_larva": 1, "health_per_larva": 1}}],
+		p0, p1, x_target.instance_id, 4
+	)
+	_check(x_target.current_attack == x_atk + 4 and x_target.max_health == x_hp + 4, "buff_friendly_per_larva_spent scales by ctx.larva_spent (4 Larva -> +4/+4)")
 
 	print("")
 	if _failures == 0:

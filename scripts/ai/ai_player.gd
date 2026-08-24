@@ -80,19 +80,22 @@ static func _choose_attack_target(attacker: CardInstance, opponent: PlayerState)
 
 ## Defender-side decision when the AI is being attacked and an optional
 ## block is available (§7). Blocks favorably when possible, chump-blocks
-## only to prevent lethal, otherwise takes the hit.
-static func choose_block(defender: PlayerState, attacker: CardInstance, options: Array[CardInstance]) -> CardInstance:
+## only to prevent lethal, otherwise takes the hit. Returns 0 or 1 blockers
+## — gang-blocking with multiple creatures (§ user request) is a real
+## strategic choice the AI doesn't attempt; only a human defender does it,
+## via the UI's multi-select block popup.
+static func choose_block(defender: PlayerState, attacker: CardInstance, options: Array[CardInstance]) -> Array[CardInstance]:
 	var best: CardInstance = null
 	for c: CardInstance in options:
 		var trades_favorably := c.current_attack >= attacker.current_health() and c.current_health() > attacker.current_attack
 		if trades_favorably and (best == null or c.current_attack > best.current_attack):
 			best = c
 	if best != null:
-		return best
+		return [best]
 	if attacker.current_attack >= defender.health:
 		var weakest: CardInstance = options[0]
 		for c: CardInstance in options:
 			if c.current_health() < weakest.current_health():
 				weakest = c
-		return weakest
-	return null
+		return [weakest]
+	return []

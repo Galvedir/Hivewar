@@ -23,12 +23,23 @@ func can_attack(attacker: CardInstance) -> bool:
 		return true
 	return attacker.true_data != null and attacker.true_data.ambush.get("flip_trigger", "") == "on_attack"
 
-## Leader is not a legal target while the defender controls a Guard, unless
-## the attacker has Pierce (§7).
+## Guards that actually stop `attacker` from reaching the Leader (§ user
+## request): a Flying attacker soars over a ground-bound Guard entirely —
+## only a Guard that itself has Flying or Reach can still force the
+## redirect against a Flying attacker. A non-Flying attacker is stopped by
+## any Guard as before.
+func _matching_guards(attacker: CardInstance, defender_player: PlayerState) -> Array[CardInstance]:
+	var guards := defender_player.guards()
+	if attacker.has_keyword(Keywords.FLYING):
+		return guards.filter(func(g: CardInstance) -> bool: return g.has_keyword(Keywords.FLYING) or g.has_keyword(Keywords.REACH))
+	return guards
+
+## Leader is not a legal target while the defender controls a Guard that
+## actually stops this attacker, unless the attacker has Pierce (§7).
 func is_legal_leader_target(attacker: CardInstance, defender_player: PlayerState) -> bool:
 	if attacker.has_keyword(Keywords.PIERCE):
 		return true
-	return not defender_player.has_guard()
+	return _matching_guards(attacker, defender_player).is_empty()
 
 ## A ground creature without Reach can't choose an enemy Flyer as its direct
 ## target; Stealth creatures can't be chosen unless the attacker has Keen
@@ -43,13 +54,14 @@ func is_legal_creature_target(attacker: CardInstance, target: CardInstance) -> b
 		return false
 	return true
 
-## If the defender controls a Guard, an attack on the Leader must be
-## redirected to a Guard creature — defender's choice among their Guards.
-## Returns null if no redirect is required (no Guard present, or Pierce).
+## If the defender controls a Guard that stops this attacker (see
+## _matching_guards), an attack on the Leader must be redirected to one of
+## those Guards — defender's choice among them. Empty if no redirect is
+## required (no matching Guard, or Pierce).
 func forced_guard_target(attacker: CardInstance, defender_player: PlayerState) -> Array[CardInstance]:
 	if attacker.has_keyword(Keywords.PIERCE):
 		return []
-	return defender_player.guards()
+	return _matching_guards(attacker, defender_player)
 
 ## Legal optional blockers when the attacker targets the Leader directly and
 ## the defender has no Guard. Empty if Pierce (unblockable) or the attacker
@@ -70,26 +82,39 @@ func legal_block_options(attacker: CardInstance, defender_player: PlayerState) -
 
 ## Resolves a fully-decided attack: `target` is either the String "leader"
 ## or a CardInstance (a direct creature-vs-creature duel, or the Guard
-## defender chose to redirect to). `block_choice` is the creature the
-## defender opted to intercept with, already validated against
-## legal_block_options — pass null for no block / not applicable.
-func resolve_attack(attacker: CardInstance, target, attacker_player: PlayerState, defender_player: PlayerState, block_choice: CardInstance = null) -> void:
+## defender chose to redirect to). `block_choices` are the creature(s) the
+## defender opted to intercept with (§ user request — gang-blocking),
+## already validated against legal_block_options — pass [] for no block /
+## not applicable. Only the optional-block path (attacker targeting the
+## Leader directly) supports more than one; the forced-Guard-redirect path
+## always resolves as a single direct duel via the `target` branch below.
+func resolve_attack(attacker: CardInstance, target, attacker_player: PlayerState, defender_player: PlayerState, block_choices: Array[CardInstance] = []) -> void:
 	if attacker.is_face_down and attacker.true_data != null and attacker.true_data.ambush.get("flip_trigger", "") == "on_attack":
 		attacker.flip_face_up()
 		GameLog.log("%s's hidden creature reveals itself as it attacks — it's %s (%d/%d)!" % [
 			attacker_player.leader.data.card_name, attacker.display_name(), attacker.current_attack, attacker.current_health()
 		], "combat")
+		EffectResolver.refresh_colony_bonuses(attacker_player)
+		EffectResolver.fire_on_flip(attacker, attacker_player, defender_player)
 
 	attacker.has_attacked_this_turn = true
 	EffectResolver.fire_on_attack(attacker, attacker_player, defender_player)
 
-	if block_choice != null:
+	if block_choices.size() == 1:
+		var block_choice := block_choices[0]
 		GameLog.log("%s attacks %s's Leader with %s (%d/%d) — blocked by %s (%d/%d)!" % [
 			attacker_player.leader.data.card_name, defender_player.leader.data.card_name, attacker.display_name(),
 			attacker.current_attack, attacker.current_health(), block_choice.display_name(),
 			block_choice.current_attack, block_choice.current_health()
 		], "combat")
 		_fight(attacker, block_choice, attacker_player, defender_player)
+	elif block_choices.size() > 1:
+		var names := block_choices.map(func(b: CardInstance) -> String: return "%s (%d/%d)" % [b.display_name(), b.current_attack, b.current_health()])
+		GameLog.log("%s attacks %s's Leader with %s (%d/%d) — gang-blocked by %s!" % [
+			attacker_player.leader.data.card_name, defender_player.leader.data.card_name, attacker.display_name(),
+			attacker.current_attack, attacker.current_health(), ", ".join(names)
+		], "combat")
+		_fight_multi(attacker, block_choices, attacker_player, defender_player)
 	elif target is String:
 		GameLog.log("%s attacks %s's Leader with %s (%d/%d)." % [
 			attacker_player.leader.data.card_name, defender_player.leader.data.card_name,
@@ -161,3 +186,67 @@ func _fight(attacker: CardInstance, defender: CardInstance, attacker_player: Pla
 					attacker.display_name(), excess, defender_player.leader.data.card_name
 				], "combat")
 				_hit_leader(attacker, attacker_player, defender_player, excess)
+
+## Multi-blocker ("gang-block", § user request) combat: `blockers` (2+)
+## simultaneously intercept a single Leader-targeted attack. MTG-style
+## ordered damage: the attacker's total combat damage is assigned across
+## `blockers` in ascending current-health order — lethal to the first
+## before any spills to the next — while every blocker deals its own full
+## attack damage back to the attacker (summed, not split; each blocker
+## connects unconditionally regardless of assignment order). There's no
+## interactive "attacker orders blockers" UI — the attacker here is always
+## either the AI, or a human who already implicitly chose an order by
+## picking a target creature, so ascending health is a fine deterministic
+## default. Trample carries undelivered excess through to the Leader, same
+## condition as the single-blocker case (only if no other Guard remains).
+func _fight_multi(attacker: CardInstance, blockers: Array[CardInstance], attacker_player: PlayerState, defender_player: PlayerState) -> void:
+	var ordered := blockers.duplicate()
+	ordered.sort_custom(func(a: CardInstance, b: CardInstance) -> bool: return a.current_health() < b.current_health())
+
+	var total_dmg_to_attacker := 0
+	for blocker: CardInstance in ordered:
+		total_dmg_to_attacker += blocker.current_attack
+	GameState.damage_creature(attacker, total_dmg_to_attacker, "%d blocker(s)" % ordered.size())
+
+	var remaining: int = attacker.current_attack
+	for blocker: CardInstance in ordered:
+		if remaining <= 0:
+			break
+		var portion: int = min(remaining, blocker.current_health())
+		remaining -= portion
+		GameState.damage_creature(blocker, portion, attacker.display_name())
+
+		if attacker.has_keyword(Keywords.POISON) and not blocker.has_keyword(Keywords.CHITIN):
+			blocker.poison_counters += 1
+			GameLog.log("%s is poisoned by %s (now %d Poison counters)." % [blocker.display_name(), attacker.display_name(), blocker.poison_counters], "combat")
+		if attacker.has_keyword(Keywords.VENOMSTRIKE) and not blocker.has_keyword(Keywords.CHITIN) and blocker.is_alive():
+			blocker.damage_marked = blocker.max_health
+			GameLog.log("%s's Venomstrike kills %s instantly!" % [attacker.display_name(), blocker.display_name()], "combat")
+
+		EffectResolver.fire_on_damage_taken(blocker, attacker, portion)
+
+	for blocker: CardInstance in ordered:
+		if blocker.has_keyword(Keywords.LIFESTEAL):
+			GameState.heal_player(defender_player.player_id, blocker.current_attack, blocker.display_name() + "'s Lifesteal")
+		if blocker.has_keyword(Keywords.POISON) and not attacker.has_keyword(Keywords.CHITIN):
+			attacker.poison_counters += 1
+			GameLog.log("%s is poisoned by %s (now %d Poison counters)." % [attacker.display_name(), blocker.display_name(), attacker.poison_counters], "combat")
+		if blocker.has_keyword(Keywords.VENOMSTRIKE) and not attacker.has_keyword(Keywords.CHITIN) and attacker.is_alive():
+			attacker.damage_marked = attacker.max_health
+			GameLog.log("%s's Venomstrike kills %s instantly!" % [blocker.display_name(), attacker.display_name()], "combat")
+
+	var dmg_to_blockers: int = attacker.current_attack - remaining
+	if attacker.has_keyword(Keywords.LIFESTEAL) and dmg_to_blockers > 0:
+		GameState.heal_player(attacker_player.player_id, dmg_to_blockers, attacker.display_name() + "'s Lifesteal")
+
+	EffectResolver.fire_on_damage_taken(attacker, attacker, total_dmg_to_attacker)
+
+	if attacker.has_keyword(Keywords.TRAMPLE) and remaining > 0:
+		var guards := defender_player.guards()
+		for blocker: CardInstance in ordered:
+			guards.erase(blocker)
+		if guards.is_empty():
+			GameLog.log("%s's excess damage (%d) tramples through to %s's Leader!" % [
+				attacker.display_name(), remaining, defender_player.leader.data.card_name
+			], "combat")
+			_hit_leader(attacker, attacker_player, defender_player, remaining)

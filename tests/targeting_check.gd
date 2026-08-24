@@ -91,7 +91,7 @@ func _ready() -> void:
 	ai.board.append(poison_bug)
 	poison_bug.summoning_sick = false
 	var health_before := human.health
-	CombatResolver.resolve_attack(poison_bug, "leader", ai, human, null)
+	CombatResolver.resolve_attack(poison_bug, "leader", ai, human)
 	_check(human.health == health_before - poison_bug.current_attack, "Poison attacker still deals its normal damage to the Leader")
 	EffectResolver.fire_end_of_turn(human, ai)
 	_check(human.health == health_before - poison_bug.current_attack, "Leader takes no extra damage from Poison at end of turn (Leaders are immune)")

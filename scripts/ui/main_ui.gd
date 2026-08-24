@@ -48,6 +48,8 @@ var _end_turn_btn: Button
 var _cancel_btn: Button
 var _block_popup: PanelContainer
 var _block_popup_box: VBoxContainer
+var _attack_confirm_popup: PanelContainer
+var _attack_confirm_label: Label
 var _legend_popup: PanelContainer
 var _legend_popup_box: VBoxContainer
 var _game_over_popup: PanelContainer
@@ -55,6 +57,7 @@ var _game_over_label: Label
 
 var _selected_hand_index := -1
 var _selected_attacker_id := -1
+var _pending_attack_target = null # null / "leader" / CardInstance — awaiting the attack-confirm popup
 var _pending_target_side := "" # "" / "friendly" / "enemy" — set while awaiting a click to target a hand card or Hero Power/Ultimate
 var _pending_power_kind := "" # "" / "hero" / "ultimate"
 var _busy := false # true while the AI or an awaited attack is resolving
@@ -338,6 +341,7 @@ func _build_match_view() -> void:
 
 	_build_log_panel()
 	_build_block_popup()
+	_build_attack_confirm_popup()
 	_build_legend_popup()
 	_build_discard_popup()
 	_build_game_over_popup()
@@ -389,6 +393,29 @@ func _build_block_popup() -> void:
 	add_child(_block_popup)
 	_block_popup_box = VBoxContainer.new()
 	_block_popup.add_child(_block_popup_box)
+
+## Brief "Confirm this attack?" step (§ user request) between choosing a
+## target and the attack actually resolving — one attack at a time, not a
+## bulk declare-then-confirm phase.
+func _build_attack_confirm_popup() -> void:
+	_attack_confirm_popup = PanelContainer.new()
+	_attack_confirm_popup.visible = false
+	_attack_confirm_popup.set_anchors_preset(Control.PRESET_CENTER)
+	add_child(_attack_confirm_popup)
+	var box := VBoxContainer.new()
+	_attack_confirm_popup.add_child(box)
+	_attack_confirm_label = Label.new()
+	box.add_child(_attack_confirm_label)
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var yes_btn := Button.new()
+	yes_btn.text = "Attack"
+	yes_btn.pressed.connect(_on_attack_confirm_yes)
+	row.add_child(yes_btn)
+	var no_btn := Button.new()
+	no_btn.text = "Cancel"
+	no_btn.pressed.connect(_on_attack_confirm_no)
+	row.add_child(no_btn)
 
 func _build_legend_popup() -> void:
 	_legend_popup = PanelContainer.new()
@@ -478,26 +505,49 @@ func _on_turn_started(player_id: int) -> void:
 		_busy = false
 		_refresh()
 
+## Gang-blocking (§ user request): any number of legal blockers can be
+## toggled on before confirming, instead of picking exactly one. Each
+## option is a toggle button rather than an instant-submit button so
+## multiple can be selected before the choice is locked in.
+var _pending_block_selection: Array[CardInstance] = []
+
 func _on_block_requested(attacker: CardInstance, legal_blockers: Array[CardInstance]) -> void:
+	_pending_block_selection.clear()
 	for child in _block_popup_box.get_children():
 		child.queue_free()
 	var label := Label.new()
-	label.text = "%s is attacking your Leader. Block?" % attacker.display_name()
+	label.text = "%s is attacking your Leader. Choose any number of blockers." % attacker.display_name()
 	_block_popup_box.add_child(label)
 	for c: CardInstance in legal_blockers:
 		var btn := Button.new()
+		btn.toggle_mode = true
 		btn.text = "Block with %s (%d/%d)" % [c.display_name(), c.current_attack, c.current_health()]
-		btn.pressed.connect(_on_block_choice.bind(c))
+		btn.toggled.connect(_on_block_toggle.bind(c))
 		_block_popup_box.add_child(btn)
+	var confirm := Button.new()
+	confirm.text = "Confirm Block"
+	confirm.pressed.connect(_on_block_confirm)
+	_block_popup_box.add_child(confirm)
 	var skip := Button.new()
 	skip.text = "Take the damage"
-	skip.pressed.connect(_on_block_choice.bind(null))
+	skip.pressed.connect(_on_block_skip)
 	_block_popup_box.add_child(skip)
 	_block_popup.visible = true
 
-func _on_block_choice(choice) -> void:
+func _on_block_toggle(pressed: bool, c: CardInstance) -> void:
+	if pressed:
+		if not _pending_block_selection.has(c):
+			_pending_block_selection.append(c)
+	else:
+		_pending_block_selection.erase(c)
+
+func _on_block_confirm() -> void:
 	_block_popup.visible = false
-	TurnManager.submit_block_choice(choice)
+	TurnManager.submit_block_choices(_pending_block_selection.duplicate())
+
+func _on_block_skip() -> void:
+	_block_popup.visible = false
+	TurnManager.submit_block_choices([])
 
 func _on_legend_rule_requested(new_card: CardInstance, existing_copies: Array[CardInstance]) -> void:
 	for child in _legend_popup_box.get_children():
@@ -693,12 +743,7 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 	if attacker == null or not CombatResolver.is_legal_creature_target(attacker, instance):
 		_status_label.text = "Illegal target."
 		return
-	_busy = true
-	_refresh()
-	await TurnManager.declare_attack(HUMAN, _selected_attacker_id, instance)
-	_selected_attacker_id = -1
-	_busy = false
-	_refresh()
+	_show_attack_confirm(instance)
 
 func _on_enemy_leader_pressed() -> void:
 	if _busy or GameState.active_player_index != HUMAN or _selected_attacker_id == -1:
@@ -706,13 +751,37 @@ func _on_enemy_leader_pressed() -> void:
 	var player := GameState.players[HUMAN]
 	var attacker := player.find_on_board(_selected_attacker_id)
 	if attacker == null or not CombatResolver.is_legal_leader_target(attacker, GameState.players[AI]):
-		_status_label.text = "Leader isn't a legal target (Guard in the way?)."
+		_status_label.text = "Leader isn't a legal target (Guard in the way? Flying attackers ignore ground-only Guards)."
 		return
+	_show_attack_confirm("leader")
+
+## Brief "Confirm this attack?" step (§ user request, like Arena) between
+## choosing a target and the attack actually resolving.
+func _show_attack_confirm(target) -> void:
+	_pending_attack_target = target
+	if target is String:
+		_attack_confirm_label.text = "Attack the enemy Leader?"
+	else:
+		var t: CardInstance = target
+		_attack_confirm_label.text = "Attack %s (%d/%d)?" % [t.display_name(), t.current_attack, t.current_health()]
+	_attack_confirm_popup.visible = true
+
+func _on_attack_confirm_yes() -> void:
+	_attack_confirm_popup.visible = false
+	var target = _pending_attack_target
+	_pending_attack_target = null
 	_busy = true
 	_refresh()
-	await TurnManager.declare_attack(HUMAN, _selected_attacker_id, "leader")
+	await TurnManager.declare_attack(HUMAN, _selected_attacker_id, target)
 	_selected_attacker_id = -1
 	_busy = false
+	_refresh()
+
+func _on_attack_confirm_no() -> void:
+	_attack_confirm_popup.visible = false
+	_pending_attack_target = null
+	# The attacker stays selected so the player can pick a different target,
+	# or hit Cancel to deselect entirely.
 	_refresh()
 
 ## --- Rendering -----------------------------------------------------------

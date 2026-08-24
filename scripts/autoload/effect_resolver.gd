@@ -7,8 +7,8 @@ extends Node
 ## flip checks (§8) and applying Hive static stat bonuses (§5) at the
 ## moment a qualifying creature or Hive card enters play.
 
-func _ctx(player: PlayerState, opponent: PlayerState, source: CardInstance, target_instance_id: int = -1) -> Dictionary:
-	return {"player": player, "opponent": opponent, "source": source, "target_instance_id": target_instance_id}
+func _ctx(player: PlayerState, opponent: PlayerState, source: CardInstance, target_instance_id: int = -1, larva_spent: int = -1) -> Dictionary:
+	return {"player": player, "opponent": opponent, "source": source, "target_instance_id": target_instance_id, "larva_spent": larva_spent}
 
 func _resolve_list(effects: Array[Dictionary], trigger: String, ctx: Dictionary) -> void:
 	for e: Dictionary in effects:
@@ -19,9 +19,11 @@ func _resolve_list(effects: Array[Dictionary], trigger: String, ctx: Dictionary)
 
 ## Resolves every entry in `effects` unconditionally (no trigger filter) —
 ## used for Leader Hero Power / Ultimate effect lists, which only ever
-## contain effects meant to fire immediately on activation.
-func resolve_effect_list(effects: Array[Dictionary], player: PlayerState, opponent: PlayerState, target_instance_id: int = -1) -> void:
-	var ctx := _ctx(player, opponent, null, target_instance_id)
+## contain effects meant to fire immediately on activation. `larva_spent`
+## carries how much Larva a variable-cost Ultimate (§ user request — Ashen
+## Cricket's X-cost) was actually paid for, for effects that scale by it.
+func resolve_effect_list(effects: Array[Dictionary], player: PlayerState, opponent: PlayerState, target_instance_id: int = -1, larva_spent: int = -1) -> void:
+	var ctx := _ctx(player, opponent, null, target_instance_id, larva_spent)
 	for e: Dictionary in effects:
 		_resolve_effect(e.get("effect_id", ""), e.get("params", {}), ctx)
 	GameState.cleanup_dead(player.player_id)
@@ -54,6 +56,18 @@ func fire_on_death(instance: CardInstance, player: PlayerState, opponent: Player
 		var other := GameState.get_opponent(beneficiary_id)
 		_resolve_effect(ge.get("effect_id", ""), ge.get("params", {}), _ctx(beneficiary, other, instance))
 
+## Fires a newly-revealed Morph (Ambush) creature's TRUE on_play effects at
+## the moment it flips face up. While hidden, a creature's visible `data` is
+## a blank generic CreatureData with no effects — so on_play never actually
+## fires for a Morph creature when it first enters play face-down; this
+## fires it once, at reveal, instead. Called from every flip site (paid,
+## conditional, on_damage_taken, on_attack, and Mira's instant-morph
+## Ultimate) right after CardInstance.flip_face_up().
+func fire_on_flip(instance: CardInstance, player: PlayerState, opponent: PlayerState) -> void:
+	if instance.true_data == null:
+		return
+	_resolve_list(instance.true_data.effects, "on_play", _ctx(player, opponent, instance))
+
 func fire_on_attack(instance: CardInstance, player: PlayerState, opponent: PlayerState) -> void:
 	var cd := instance.creature_data()
 	if cd != null:
@@ -83,6 +97,7 @@ func fire_start_of_turn(player: PlayerState, opponent: PlayerState) -> void:
 				GameLog.log("%s's hidden creature stirs and flips face up — it's %s (%d/%d)!" % [
 					player.leader.data.card_name, c.display_name(), c.current_attack, c.current_health()
 				], "combat")
+				fire_on_flip(c, player, opponent)
 	refresh_colony_bonuses(player)
 	for c: CardInstance in player.board:
 		var cd := c.creature_data()
@@ -116,12 +131,14 @@ func _check_damage_taken_flip(instance: CardInstance) -> void:
 			instance.display_name(), instance.current_attack, instance.current_health()
 		], "combat")
 		refresh_colony_bonuses(GameState.get_player(instance.owner_id))
+		fire_on_flip(instance, GameState.get_player(instance.owner_id), GameState.get_opponent(instance.owner_id))
 
 ## Manual/paid activation (§8) — called by TurnManager.flip_ambush_paid after
 ## the Larva cost has already been deducted by the caller.
-func flip_paid(instance: CardInstance) -> void:
+func flip_paid(instance: CardInstance, player: PlayerState, opponent: PlayerState) -> void:
 	instance.flip_face_up()
-	refresh_colony_bonuses(GameState.get_player(instance.owner_id))
+	refresh_colony_bonuses(player)
+	fire_on_flip(instance, player, opponent)
 
 ## --- Hive static stat bonuses (§5) ----------------------------------------
 
@@ -297,6 +314,19 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 			var target := _pick_target(ctx, opponent.board, "strongest")
 			if target != null:
 				GameState.damage_creature(target, int(params.get("amount", 0)), source_label)
+		"destroy_creature":
+			# Unconditional removal (Spider Web) — unlike Venomstrike, this
+			# isn't combat damage, so Chitin's Poison/Venomstrike immunity
+			# doesn't apply to it; nothing survives a destroy effect.
+			var target := _pick_target(ctx, opponent.board, "strongest")
+			if target != null:
+				target.damage_marked = target.max_health
+				GameLog.log("%s destroys %s (from %s)." % [player.leader.data.card_name, target.display_name(), source_label])
+		"heal_creature_full":
+			var target := _pick_target(ctx, player.board, "weakest")
+			if target != null:
+				target.damage_marked = 0
+				GameLog.log("%s restores %s to full health (from %s)." % [player.leader.data.card_name, target.display_name(), source_label])
 		"bounce_creature":
 			var target := _pick_target(ctx, opponent.board, "strongest")
 			if target != null:
@@ -350,6 +380,52 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 				player.graveyard.erase(reclaimed)
 				player.hand.append(reclaimed)
 				GameLog.log("%s returns %s from the graveyard to hand (from %s)." % [player.leader.data.card_name, reclaimed.display_name(), source_label])
+		"return_from_graveyard_to_play":
+			# Sister Wren's Ultimate: straight to the board, not hand — picks
+			# up to `count` of the most-recently-died creature cards (fewer if
+			# the graveyard doesn't have that many), each entering play for
+			# real (Hive bonuses, on_play, summoning sickness) like any other.
+			var count := int(params.get("count", 1))
+			var returned := 0
+			for i in range(count):
+				var candidates := player.graveyard.filter(func(c: CardInstance) -> bool: return c.data is CreatureData)
+				if candidates.is_empty():
+					break
+				var reclaimed: CardInstance = candidates[candidates.size() - 1]
+				player.graveyard.erase(reclaimed)
+				player.board.append(reclaimed)
+				apply_hive_bonuses_on_enter(reclaimed, player)
+				fire_on_play(reclaimed, player, opponent)
+				returned += 1
+			if returned > 0:
+				GameLog.log("%s returns %d creature(s) from the graveyard straight to play (from %s)." % [player.leader.data.card_name, returned, source_label])
+		"flip_ambush_instant":
+			# Mira's Ultimate: instantly flips a friendly face-down Morph
+			# creature, bypassing whatever its printed flip_trigger normally
+			# requires (paid / conditional / on_attack).
+			var target := _pick_target(ctx, player.board, "weakest")
+			if target != null and target.is_face_down and target.true_data != null:
+				target.flip_face_up()
+				refresh_colony_bonuses(player)
+				fire_on_flip(target, player, opponent)
+				GameLog.log("%s instantly morphs %s — it's %s (%d/%d)! (from %s)" % [
+					player.leader.data.card_name, target.display_name(), target.display_name(), target.current_attack, target.current_health(), source_label
+				])
+		"buff_friendly_per_larva_spent":
+			# Ashen Cricket's X-cost Ultimate: scales by however much Larva was
+			# actually spent (ctx.larva_spent), set by TurnManager.use_ultimate
+			# for a variable-cost Ultimate — not the same as the printed
+			# per-use params on a fixed-cost effect.
+			var spent: int = ctx.get("larva_spent", -1)
+			if spent <= 0:
+				return
+			var target := _pick_target(ctx, player.board, "weakest")
+			if target != null:
+				var atk := int(params.get("attack_per_larva", 0)) * spent
+				var hp := int(params.get("health_per_larva", 0)) * spent
+				target.current_attack += atk
+				target.max_health += hp
+				GameLog.log("%s gets +%d/+%d from %s (%d Larva spent)." % [target.display_name(), atk, hp, source_label, spent])
 		"scry":
 			# Simplified v1 scry: peek the top card, auto-bottom it if it would
 			# cost an off-Kingdom surcharge (§4), else keep it on top. No

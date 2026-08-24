@@ -13,7 +13,7 @@ func _ready() -> void:
 	add_child(main)
 	# Blue has zero Guard creatures, guaranteeing the optional block-prompt
 	# path (§7) triggers whenever the AI attacks the human's Leader — this
-	# exercises TurnManager.block_decision_requested / submit_block_choice,
+	# exercises TurnManager.block_decision_requested / submit_block_choices,
 	# which the other automated tests never touch (AI-vs-AI never blocks
 	# optionally; it only ever hits the forced-Guard or Pierce paths).
 	TurnManager.block_decision_requested.connect(func(attacker: CardInstance, options: Array[CardInstance]) -> void:
@@ -21,7 +21,8 @@ func _ready() -> void:
 		# call_deferred simulates a real player's click landing on a later
 		# frame (after _request_human_block's `await` has started listening),
 		# not synchronously inside this same emit() call.
-		TurnManager.call_deferred("submit_block_choice", null))
+		var empty_choices: Array[CardInstance] = []
+		TurnManager.call_deferred("submit_block_choices", empty_choices))
 	main._on_deck_chosen("blue_skyswarm")
 
 	var safety := 0
@@ -35,7 +36,11 @@ func _ready() -> void:
 			for c: CardInstance in human.board.duplicate():
 				if CombatResolver.can_attack(c):
 					main._on_board_creature_pressed(c, true)
-					await main._on_enemy_leader_pressed()
+					# Attacking now opens a "Confirm this attack?" popup (§ user
+					# request) instead of resolving immediately — simulate
+					# clicking through it, same as a real player would.
+					main._on_enemy_leader_pressed()
+					await main._on_attack_confirm_yes()
 			main._on_end_turn_pressed()
 		else:
 			# It's the AI's turn (or its coroutine is suspended waiting on a

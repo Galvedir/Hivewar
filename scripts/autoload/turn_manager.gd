@@ -16,7 +16,7 @@ signal block_decision_made
 signal legend_rule_decision_requested(new_card: CardInstance, existing_copies: Array[CardInstance])
 signal legend_rule_decision_made
 
-var _pending_block_choice: CardInstance = null
+var _pending_block_choices: Array[CardInstance] = []
 var _pending_legend_keep: CardInstance = null
 
 func start_game(deck_ids: Array[String], starting_player_index: int = 0) -> void:
@@ -222,7 +222,7 @@ func flip_ambush_paid(player_index: int, board_instance_id: int) -> bool:
 	if cost > player.current_larva:
 		return false
 	player.current_larva -= cost
-	EffectResolver.flip_paid(c)
+	EffectResolver.flip_paid(c, player, GameState.get_opponent(player_index))
 	GameLog.log("%s pays %d Larva to flip their hidden creature face up — it's %s (%d/%d)!" % [
 		_actor(player), cost, c.display_name(), c.current_attack, c.current_health()
 	], "combat")
@@ -246,27 +246,31 @@ func declare_attack(attacker_player_index: int, attacker_instance_id: int, targe
 		if not CombatResolver.is_legal_leader_target(attacker, opponent):
 			return
 		var options := CombatResolver.legal_block_options(attacker, opponent)
-		var block_choice: CardInstance = null
+		var block_choices: Array[CardInstance] = []
 		if not options.is_empty():
 			if opponent.is_ai:
-				block_choice = AIPlayer.choose_block(opponent, attacker, options)
+				block_choices = AIPlayer.choose_block(opponent, attacker, options)
 			else:
-				block_choice = await _request_human_block(attacker, options)
-		CombatResolver.resolve_attack(attacker, "leader", player, opponent, block_choice)
+				block_choices = await _request_human_block(attacker, options)
+		CombatResolver.resolve_attack(attacker, "leader", player, opponent, block_choices)
 	else:
 		var creature_target: CardInstance = target
 		if not CombatResolver.is_legal_creature_target(attacker, creature_target):
 			return
-		CombatResolver.resolve_attack(attacker, creature_target, player, opponent, null)
+		CombatResolver.resolve_attack(attacker, creature_target, player, opponent, [])
 
 	attack_resolved.emit(attacker_instance_id)
 
-func _request_human_block(attacker: CardInstance, options: Array[CardInstance]) -> CardInstance:
+## Awaits the human defender's choice of zero or more blockers (§ user
+## request — gang-blocking lets more than one creature intercept the same
+## attack; see CombatResolver._fight_multi for how the damage resolves).
+func _request_human_block(attacker: CardInstance, options: Array[CardInstance]) -> Array[CardInstance]:
 	block_decision_requested.emit(attacker, options)
 	await block_decision_made
-	return _pending_block_choice
+	return _pending_block_choices
 
-## Called by the UI once the human defender has chosen (or declined) a block.
-func submit_block_choice(choice: CardInstance) -> void:
-	_pending_block_choice = choice
+## Called by the UI once the human defender has chosen (or declined) zero or
+## more blockers.
+func submit_block_choices(choices: Array[CardInstance]) -> void:
+	_pending_block_choices = choices
 	block_decision_made.emit()

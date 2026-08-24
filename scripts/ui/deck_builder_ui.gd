@@ -15,15 +15,19 @@ var _leader_id := ""
 var _cards := {} # card_id (String) -> count (int)
 var _editing_name := "" # name of the saved deck being edited, "" if unsaved/new
 
-var _kingdom_filter := "ALL"
-var _rarity_filter := "ALL"
+## Multi-select filters (§ user request): empty means "no restriction on
+## this dimension", not "match nothing" — same convention across all three.
+var _kingdom_filters: Array[String] = []
+var _rarity_filters: Array[String] = []
+var _type_filters: Array[String] = []
 var _search_filter := ""
 
 var _leader_option: OptionButton
 var _leader_info_label: RichTextLabel
 var _name_edit: LineEdit
-var _kingdom_option: OptionButton
-var _rarity_option: OptionButton
+var _kingdom_menu: MenuButton
+var _rarity_menu: MenuButton
+var _type_menu: MenuButton
 var _browser_grid: GridContainer
 var _deck_list_box: VBoxContainer
 var _deck_size_label: Label
@@ -96,19 +100,14 @@ func _build_ui() -> void:
 
 	var filters := HBoxContainer.new()
 	browser_col.add_child(filters)
-	_kingdom_option = OptionButton.new()
-	_kingdom_option.add_item("All Kingdoms")
-	for k in Kingdoms.ALL + [Kingdoms.COLORLESS]:
-		_kingdom_option.add_item(k)
-	_kingdom_option.item_selected.connect(_on_kingdom_filter_selected)
-	filters.add_child(_kingdom_option)
+	_kingdom_menu = _build_multi_filter_menu("Kingdom", Kingdoms.ALL + [Kingdoms.COLORLESS], _kingdom_filters)
+	filters.add_child(_kingdom_menu)
 
-	_rarity_option = OptionButton.new()
-	_rarity_option.add_item("All Rarities")
-	for r in [Rarities.COMMON, Rarities.UNCOMMON, Rarities.RARE, Rarities.LEGENDARY]:
-		_rarity_option.add_item(r)
-	_rarity_option.item_selected.connect(_on_rarity_filter_selected)
-	filters.add_child(_rarity_option)
+	_rarity_menu = _build_multi_filter_menu("Rarity", [Rarities.COMMON, Rarities.UNCOMMON, Rarities.RARE, Rarities.LEGENDARY], _rarity_filters)
+	filters.add_child(_rarity_menu)
+
+	_type_menu = _build_multi_filter_menu("Type", [CardTypes.CREATURE, CardTypes.ABILITY, CardTypes.GEAR, CardTypes.HIVE], _type_filters)
+	filters.add_child(_type_menu)
 
 	var search_edit := LineEdit.new()
 	search_edit.placeholder_text = "Search name..."
@@ -147,6 +146,32 @@ func _build_ui() -> void:
 	_saved_decks_box = VBoxContainer.new()
 	saved_scroll.add_child(_saved_decks_box)
 
+## Builds a dropdown that lets the player check any number of `options`
+## (§ user request — deck-builder filters used to be single-select only).
+## `target` is the Array this menu's checked state stays in sync with;
+## the label updates to reflect how many are currently selected.
+func _build_multi_filter_menu(label: String, options: Array, target: Array) -> MenuButton:
+	var menu_btn := MenuButton.new()
+	menu_btn.text = label
+	var popup := menu_btn.get_popup()
+	popup.hide_on_checkable_item_selection = false
+	for i in range(options.size()):
+		popup.add_check_item(str(options[i]), i)
+	popup.id_pressed.connect(_on_multi_filter_toggled.bind(menu_btn, options, target, label))
+	return menu_btn
+
+func _on_multi_filter_toggled(id: int, menu_btn: MenuButton, options: Array, target: Array, label: String) -> void:
+	var popup := menu_btn.get_popup()
+	var value = options[id]
+	var was_checked := popup.is_item_checked(id)
+	popup.set_item_checked(id, not was_checked)
+	if was_checked:
+		target.erase(value)
+	else:
+		target.append(value)
+	menu_btn.text = label if target.is_empty() else "%s (%d)" % [label, target.size()]
+	_refresh_browser()
+
 ## Called by the host whenever this screen becomes visible, in case saved
 ## decks changed elsewhere (e.g. deleted from the Play menu).
 func refresh_on_show() -> void:
@@ -167,14 +192,6 @@ func _on_leader_selected(index: int) -> void:
 	_refresh_leader_info()
 	_refresh_browser() # costs are Leader-relative (§4), so the browser needs to re-render
 	_refresh_deck_list()
-
-func _on_kingdom_filter_selected(index: int) -> void:
-	_kingdom_filter = "ALL" if index == 0 else _kingdom_option.get_item_text(index)
-	_refresh_browser()
-
-func _on_rarity_filter_selected(index: int) -> void:
-	_rarity_filter = "ALL" if index == 0 else _rarity_option.get_item_text(index)
-	_refresh_browser()
 
 func _on_search_changed(text: String) -> void:
 	_search_filter = text.to_lower()
@@ -260,13 +277,18 @@ func _refresh_browser() -> void:
 		child.queue_free()
 	var leader_data: LeaderData = CardDatabase.get_leader(_leader_id) if _leader_id != "" else null
 	for card: CardData in CardDatabase.all_cards():
-		if _kingdom_filter != "ALL":
-			if _kingdom_filter == Kingdoms.COLORLESS:
-				if not card.kingdoms.is_empty():
-					continue
-			elif not card.kingdoms.has(_kingdom_filter):
+		if not _kingdom_filters.is_empty():
+			var matches_kingdom := false
+			for kf: String in _kingdom_filters:
+				if kf == Kingdoms.COLORLESS:
+					matches_kingdom = matches_kingdom or card.kingdoms.is_empty()
+				else:
+					matches_kingdom = matches_kingdom or card.kingdoms.has(kf)
+			if not matches_kingdom:
 				continue
-		if _rarity_filter != "ALL" and card.rarity != _rarity_filter:
+		if not _rarity_filters.is_empty() and not _rarity_filters.has(card.rarity):
+			continue
+		if not _type_filters.is_empty() and not _type_filters.has(card.card_type):
 			continue
 		if _search_filter != "" and not card.card_name.to_lower().contains(_search_filter):
 			continue

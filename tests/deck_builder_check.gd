@@ -67,6 +67,33 @@ func _ready() -> void:
 	var errors := DeckStorage.validate("x", db._leader_id, db._cards)
 	_check(not errors.is_empty(), "Validation rejects a 4-card deck (needs 40-60)")
 
+	# --- Deck builder filters are multi-select (§ user request) -------------
+	db._new_deck()
+	await get_tree().process_frame
+	var baseline_count := db._browser_grid.get_child_count()
+	var kingdom_options: Array = Kingdoms.ALL + [Kingdoms.COLORLESS]
+	db._on_multi_filter_toggled(0, db._kingdom_menu, kingdom_options, db._kingdom_filters, "Kingdom") # White
+	await get_tree().process_frame
+	var white_count := db._browser_grid.get_child_count()
+	db._on_multi_filter_toggled(2, db._kingdom_menu, kingdom_options, db._kingdom_filters, "Kingdom") # Black
+	await get_tree().process_frame
+	var white_and_black_count := db._browser_grid.get_child_count()
+	_check(db._kingdom_filters.size() == 2, "Selecting a second Kingdom filter adds to the selection instead of replacing it")
+	_check(white_count > 0 and white_count < baseline_count, "Filtering to one Kingdom narrows the browser below the unfiltered count")
+	_check(white_and_black_count > white_count, "Selecting a second Kingdom OR's it in, showing MORE cards than just the first one")
+	db._on_multi_filter_toggled(0, db._kingdom_menu, kingdom_options, db._kingdom_filters, "Kingdom")
+	db._on_multi_filter_toggled(2, db._kingdom_menu, kingdom_options, db._kingdom_filters, "Kingdom")
+	await get_tree().process_frame
+	_check(db._kingdom_filters.is_empty() and db._browser_grid.get_child_count() == baseline_count, "Toggling both Kingdom filters back off clears the filter entirely")
+
+	var type_options: Array = [CardTypes.CREATURE, CardTypes.ABILITY, CardTypes.GEAR, CardTypes.HIVE]
+	db._on_multi_filter_toggled(2, db._type_menu, type_options, db._type_filters, "Type") # Gear
+	await get_tree().process_frame
+	var gear_count := db._browser_grid.get_child_count()
+	_check(gear_count > 0 and gear_count < baseline_count, "The new card-type filter (§ user request) narrows the browser to just Gear")
+	db._on_multi_filter_toggled(2, db._type_menu, type_options, db._type_filters, "Type")
+	await get_tree().process_frame
+
 	# --- Max-copy enforcement ------------------------------------------------
 	db._new_deck()
 	db._leader_id = "queen_amara"

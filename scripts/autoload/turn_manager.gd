@@ -191,20 +191,30 @@ func use_hero_power(player_index: int, target_instance_id: int = -1) -> bool:
 	EffectResolver.resolve_effect_list(player.leader.data.hero_power_effects, player, opponent, target_instance_id)
 	return true
 
-func use_ultimate(player_index: int, target_instance_id: int = -1) -> bool:
+## `larva_to_spend` only matters for a variable-cost ("X") Ultimate (§ user
+## request — Ashen Cricket): the player chooses how much to spend, at least
+## ultimate_cost and at most their current Larva; ignored for a normal
+## fixed-cost Ultimate. The amount actually paid is passed through as
+## ctx.larva_spent for effects that scale by it.
+func use_ultimate(player_index: int, target_instance_id: int = -1, larva_to_spend: int = -1) -> bool:
 	if GameState.is_over:
 		return false
 	var player := GameState.players[player_index]
 	var opponent := GameState.get_opponent(player_index)
 	if player.leader.ultimate_used:
 		return false
+	var variable := player.leader.data.ultimate_variable_cost
 	var cost := player.leader.data.ultimate_cost
+	if variable:
+		if larva_to_spend < cost:
+			return false
+		cost = larva_to_spend
 	if cost > player.current_larva:
 		return false
 	player.current_larva -= cost
 	player.leader.ultimate_used = true
 	GameLog.log("%s unleashes their Ultimate (%d Larva): %s" % [_actor(player), cost, player.leader.data.ultimate_text], "combat")
-	EffectResolver.resolve_effect_list(player.leader.data.ultimate_effects, player, opponent, target_instance_id)
+	EffectResolver.resolve_effect_list(player.leader.data.ultimate_effects, player, opponent, target_instance_id, cost if variable else -1)
 	return true
 
 ## Ambush's "paid" flip trigger (§8) — flips a face-down creature the

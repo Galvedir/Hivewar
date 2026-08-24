@@ -83,7 +83,7 @@ const WHITE: Array[Dictionary] = [
 			"face_down": {"name": "Unidentified Larva", "attack": 0, "health": 1},
 			"flip_trigger": "paid", "flip_cost": 2,
 		},
-		"text": "Ambush (Pay 2: flip face up). Flips into a 3/4 Guard, Lifesteal.",
+		"text": "Morph (Pay 2: flip face up). Flips into a 3/4 Guard, Lifesteal.",
 	},
 	{
 		"id": "royal_jelly", "name": "Royal Jelly", "type": "Ability",
@@ -93,6 +93,12 @@ const WHITE: Array[Dictionary] = [
 			{"trigger": "on_cast", "effect_id": "buff_friendly", "params": {"attack": 1, "health": 1}},
 		],
 		"text": "Restore 4 health to your Leader. Give a friendly creature +1/+1.",
+	},
+	{
+		"id": "honeycomb", "name": "Honeycomb", "type": "Ability",
+		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
+		"effects": [{"trigger": "on_cast", "effect_id": "heal_creature_full", "params": {}}],
+		"text": "Restore target friendly creature to full health.",
 	},
 	{
 		"id": "meadow_honeybee", "name": "Meadow Honeybee", "type": "Creature",
@@ -303,7 +309,7 @@ const GREEN: Array[Dictionary] = [
 			"face_down": {"name": "Dormant Grub", "attack": 0, "health": 2},
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
 		},
-		"text": "Ambush (flips at the start of your next turn). Flips into a 6/6 Trample.",
+		"text": "Morph (flips at the start of your next turn). Flips into a 6/6 Trample.",
 	},
 	{
 		"id": "sapling_weevil", "name": "Sapling Weevil", "type": "Creature",
@@ -483,7 +489,7 @@ const BLACK: Array[Dictionary] = [
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
 		},
 		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "cicada_swarm_token", "count": 2}}],
-		"text": "Ambush (flips at the start of your next turn). Decay: summon two 1/1 Cicada Swarm tokens.",
+		"text": "Morph (flips at the start of your next turn). Decay: summon two 1/1 Cicada Swarm tokens.",
 	},
 	{
 		"id": "venom_lash", "name": "Venom Lash", "type": "Ability",
@@ -599,7 +605,7 @@ const BLACK: Array[Dictionary] = [
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
 		},
 		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "cicada_swarm_token", "count": 1}}],
-		"text": "Ambush (flips at the start of your next turn). Decay: summon a 1/1 Cicada Swarm token.",
+		"text": "Morph (flips at the start of your next turn). Decay: summon a 1/1 Cicada Swarm token.",
 	},
 	{
 		"id": "widow_matriarchs_brood", "name": "Widow Matriarch's Brood", "type": "Creature",
@@ -635,6 +641,12 @@ const BLACK: Array[Dictionary] = [
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 5}}],
 		"text": "Deal 5 damage to target enemy creature.",
+	},
+	{
+		"id": "spider_web", "name": "Spider Web", "type": "Ability",
+		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
+		"effects": [{"trigger": "on_cast", "effect_id": "destroy_creature", "params": {}}],
+		"text": "Destroy target enemy creature.",
 	},
 	{
 		"id": "grim_harvest", "name": "Grim Harvest", "type": "Ability",
@@ -674,7 +686,7 @@ const BLACK: Array[Dictionary] = [
 		"id": "moth_of_shadows", "name": "Moth of Shadows", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 2, "creature_type": "Moth", "keywords": [Keywords.STEALTH],
-		"text": "Stealth.",
+		"text": "Camouflage.",
 	},
 	{
 		"id": "glassy_wing_moth", "name": "Glassy Wing Moth", "type": "Creature",
@@ -692,7 +704,7 @@ const BLACK: Array[Dictionary] = [
 		"id": "veil_moth", "name": "Veil Moth", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 3, "creature_type": "Moth", "keywords": [Keywords.STEALTH],
-		"text": "Stealth.",
+		"text": "Camouflage.",
 	},
 	{
 		"id": "nightshade_widow", "name": "Nightshade Widow", "type": "Creature",
@@ -720,7 +732,7 @@ const BLUE: Array[Dictionary] = [
 		"id": "gnat_swarm", "name": "Gnat Swarm", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Gnat", "keywords": [Keywords.FLYING, Keywords.STEALTH],
-		"text": "Flying. Stealth.",
+		"text": "Flying. Camouflage.",
 	},
 	{
 		"id": "mayfly_seer", "name": "Mayfly Seer", "type": "Ability",
@@ -732,8 +744,12 @@ const BLUE: Array[Dictionary] = [
 		"id": "butterfly_dancer", "name": "Butterfly Dancer", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 3, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
+		"ambush": {
+			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 2},
+			"flip_trigger": "paid", "flip_cost": 2,
+		},
 		"effects": [{"trigger": "on_play", "effect_id": "draw_card", "params": {"count": 1}}],
-		"text": "Flying. On Play: draw a card.",
+		"text": "Morph (Pay 2: flip face up). Flips into a 2/3 Flying, draw a card.",
 	},
 	{
 		"id": "gust_of_wind", "name": "Gust of Wind", "type": "Ability",
@@ -768,7 +784,7 @@ const BLUE: Array[Dictionary] = [
 			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 2},
 			"flip_trigger": "paid", "flip_cost": 2,
 		},
-		"text": "Ambush (Pay 2: flip face up). Flips into a 4/3 Flying.",
+		"text": "Morph (Pay 2: flip face up). Flips into a 4/3 Flying.",
 	},
 	{
 		"id": "painted_caterpillar", "name": "Painted Lady Ascendant", "type": "Creature",
@@ -778,7 +794,7 @@ const BLUE: Array[Dictionary] = [
 			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 3},
 			"flip_trigger": "paid", "flip_cost": 2,
 		},
-		"text": "Ambush (Pay 2: flip face up). Flips into a 5/4 Flying.",
+		"text": "Morph (Pay 2: flip face up). Flips into a 5/4 Flying.",
 	},
 	{
 		"id": "admiral_larva", "name": "Red Admiral Butterfly", "type": "Creature",
@@ -788,7 +804,7 @@ const BLUE: Array[Dictionary] = [
 			"face_down": {"name": "Dormant Larva", "attack": 0, "health": 2},
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
 		},
-		"text": "Ambush (flips at the start of your next turn). Flips into a 4/4 Flying, Swift.",
+		"text": "Morph (flips at the start of your next turn). Flips into a 4/4 Flying, Swift.",
 	},
 	{
 		"id": "pond_skimmer", "name": "Pond Skimmer", "type": "Creature",
@@ -806,7 +822,7 @@ const BLUE: Array[Dictionary] = [
 		"id": "whisper_gnat", "name": "Whisper Gnat", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Gnat", "keywords": [Keywords.STEALTH],
-		"text": "Stealth.",
+		"text": "Camouflage.",
 	},
 	{
 		"id": "swift_dragonlet", "name": "Swift Wingling", "type": "Creature",
@@ -825,14 +841,22 @@ const BLUE: Array[Dictionary] = [
 		"id": "current_rider_dragonfly", "name": "Current Rider Butterfly", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 4, "creature_type": "Butterfly", "keywords": [],
-		"text": "",
+		"ambush": {
+			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 3},
+			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
+		},
+		"text": "Morph (flips at the start of your next turn). Flips into a 3/4.",
 	},
 	{
 		"id": "cloudmind_butterfly", "name": "Cloudmind Butterfly", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 3, "health": 5, "creature_type": "Butterfly", "keywords": [],
+		"ambush": {
+			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 3},
+			"flip_trigger": "paid", "flip_cost": 2,
+		},
 		"effects": [{"trigger": "on_play", "effect_id": "scry", "params": {}}],
-		"text": "On Play: scry (look at the top card of your library).",
+		"text": "Morph (Pay 2: flip face up). Flips into a 3/5, scry (look at the top card of your library).",
 	},
 	{
 		"id": "tempest_dragonfly", "name": "Tempest Dragonfly", "type": "Creature",
@@ -845,8 +869,12 @@ const BLUE: Array[Dictionary] = [
 		"id": "monarch_ascendant", "name": "Monarch Ascendant", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"attack": 5, "health": 5, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
+		"ambush": {
+			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 4},
+			"flip_trigger": "paid", "flip_cost": 3,
+		},
 		"effects": [{"trigger": "on_play", "effect_id": "bounce_creature", "params": {}}],
-		"text": "Flying. On Play: return target enemy creature to its owner's hand.",
+		"text": "Morph (Pay 3: flip face up). Flips into a 5/5 Flying, returning the strongest enemy creature to its owner's hand (no target choice at reveal).",
 	},
 	{
 		"id": "skywhisper_matriarch", "name": "Skywhisper Matriarch", "type": "Creature",
@@ -883,7 +911,7 @@ const BLUE: Array[Dictionary] = [
 		"id": "windswept_veil", "name": "Windswept Veil", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "buff_friendly", "params": {"attack": 0, "health": 0, "keyword": Keywords.STEALTH}}],
-		"text": "Give a friendly creature Stealth.",
+		"text": "Give a friendly creature Camouflage.",
 	},
 	{
 		"id": "storm_surge", "name": "Storm Surge", "type": "Ability",
@@ -904,7 +932,7 @@ const BLUE: Array[Dictionary] = [
 		"id": "veil_of_mist", "name": "Veil of Mist", "type": "Hive",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.STEALTH, "health": 1}],
-		"text": "Your Stealth creatures have +0/+1.",
+		"text": "Your Camouflage creatures have +0/+1.",
 	},
 	{
 		"id": "windswept_reach", "name": "Windswept Reach", "type": "Hive",
@@ -1174,7 +1202,7 @@ const COLORLESS: Array[Dictionary] = [
 		"id": "wandering_silverfish", "name": "Wandering Silverfish", "type": "Creature",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.UNCOMMON,
 		"attack": 1, "health": 1, "creature_type": "Silverfish", "keywords": [Keywords.STEALTH],
-		"text": "Stealth.",
+		"text": "Camouflage.",
 	},
 	{
 		"id": "field_grasshopper", "name": "Field Grasshopper", "type": "Creature",
@@ -1330,7 +1358,7 @@ const HYBRID: Array[Dictionary] = [
 		"id": "shadow_widow", "name": "Shadow Widow", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLACK, Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 3, "health": 2, "creature_type": "Spider", "keywords": [Keywords.POISON, Keywords.STEALTH],
-		"text": "Poison. Stealth.",
+		"text": "Poison. Camouflage.",
 	},
 	{
 		"id": "thorned_guardian_beetle", "name": "Thorned Guardian Beetle", "type": "Creature",

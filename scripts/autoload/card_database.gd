@@ -60,6 +60,7 @@ func _load_leaders() -> void:
 		leader.ultimate_cost = def.get("ultimate_cost", 6)
 		leader.ultimate_text = def.get("ultimate_text", "")
 		leader.ultimate_effects = _dict_array(def.get("ultimate_effects", []))
+		leader.ultimate_variable_cost = def.get("ultimate_variable_cost", false)
 		_leaders[leader.id] = leader
 
 func _build_card(def: Dictionary) -> CardData:

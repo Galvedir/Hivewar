@@ -15,7 +15,7 @@ Each player commands a Leader (sets starting health, grants a Hero Power and a o
 Every card belongs to one or two Kingdoms, or none (Colorless). Your Leader's Kingdom(s) never restrict what you can put in your deck, but a card that shares none of your Leader's Kingdoms costs +2 Larva to play. Colorless cards and cards matching at least one of your Leader's Kingdoms cost their printed amount.
 
 [b]Combat[/b]
-A creature can't attack the turn it enters play, unless it has Swift. Each attack targets either the enemy Leader or a specific enemy creature directly — no permission needed for creature-vs-creature attacks. If the defender controls a Guard creature, the Leader can't be targeted at all (unless the attacker has Pierce) — you must attack a Guard instead. If there's no Guard, the defender may optionally intercept a Leader-targeted attack with one creature (Flying attackers can only be intercepted by Flying or Reach creatures). A creature that has attacked this turn is Exhausted and can't be chosen as an optional blocker until its controller's next turn — though it can still be forced to fight as someone's Guard.
+A creature can't attack the turn it enters play, unless it has Swift. Attacking asks you to confirm before it resolves. Each attack targets either the enemy Leader or a specific enemy creature directly — no permission needed for creature-vs-creature attacks. If the defender controls a Guard creature, the Leader can't be targeted at all (unless the attacker has Pierce) — you must attack a Guard instead, though a Flying attacker ignores any Guard that doesn't itself have Flying or Reach. If there's no Guard standing in the way, the defender may optionally intercept a Leader-targeted attack with any number of creatures (Flying attackers can only be intercepted by Flying or Reach creatures) — when more than one blocks, the attacker's damage is assigned lethal-first in order of the blockers' current health, while every blocker still deals its own full damage back. A creature that has attacked this turn is Exhausted and can't be chosen as an optional blocker until its controller's next turn — though it can still be forced to fight as someone's Guard.
 
 [b]Legend Rule[/b]
 You may run up to 4 copies of a Legendary card, but only one copy of a given Legendary name may be in play on your side at a time — playing a second prompts you to choose which one to keep.
@@ -25,7 +25,7 @@ If you ever try to draw from an empty deck, you lose instantly.
 """
 
 const KEYWORDS_TEXT := """
-[b]Guard[/b] — While you control a Guard creature, your Leader can't be attacked directly; attackers must target a Guard instead (your choice which, if you have several), unless the attacker has Pierce.
+[b]Guard[/b] — While you control a Guard creature, your Leader can't be attacked directly; attackers must target a Guard instead (your choice which, if you have several), unless the attacker has Pierce — or is Flying and none of your Guards have Flying or Reach, in which case it ignores your Guards entirely.
 
 [b]Flying[/b] — Can attack ground or flying targets freely. A ground creature without Reach can't choose a Flying creature as its direct target, nor block one.
 
@@ -41,9 +41,9 @@ const KEYWORDS_TEXT := """
 
 [b]Swift[/b] — Can attack the turn it's played, ignoring summoning sickness.
 
-[b]Stealth[/b] — Can't be targeted, attacked, or blocked until something with Keen Sight is involved.
+[b]Camouflage[/b] — Can't be targeted, attacked, or blocked until something with Keen Sight is involved.
 
-[b]Keen Sight[/b] — Can target, attack, and block Stealth creatures as if they weren't Stealthed.
+[b]Keen Sight[/b] — Can target, attack, and block Camouflaged creatures as if they weren't Camouflaged.
 
 [b]Decay[/b] — Triggers an effect when this creature dies.
 
@@ -51,7 +51,7 @@ const KEYWORDS_TEXT := """
 
 [b]Trample[/b] — Excess combat damage beyond what's needed to kill its target carries through to the Leader (or the next Guard, if any).
 
-[b]Ambush[/b] — Printed as a two-sided card: a weak, generic face-down side that's what gets played and what the opponent sees, and a true face-up side that's revealed later. How it flips varies by card: on attacking, for a Larva cost paid any time on your turn, or automatically under a stated condition (like at the start of your next turn).
+[b]Morph[/b] — Printed as a two-sided card: a weak, generic face-down side that's what gets played and what the opponent sees, and a true face-up side that's revealed later. How it flips varies by card: on attacking, for a Larva cost paid any time on your turn, or automatically under a stated condition (like at the start of your next turn).
 
 [b]Exhausted[/b] — A creature that attacked this turn. Can't be chosen as an optional blocker, but can still be forced to fight as a Guard.
 

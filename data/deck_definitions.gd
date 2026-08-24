@@ -87,7 +87,8 @@ const WHITE_HIVE_GUARDIANS := {
 	"termite_colony": 1,
 	"golden_reliquary": 1,
 	"wax_moth_larva": 1,
-} # 35 cards — mixes Guard bodies with vanilla/Colony creatures, so
+	"honeycomb": 1,
+} # 36 cards — mixes Guard bodies with vanilla/Colony creatures, so
   # Protective Ward (grants Guard) and the anthems are meaningful upgrades
   # rather than redundant with a keyword every creature already has.
 
@@ -141,7 +142,8 @@ const BLACK_VENOM_BROODMOTHER := {
 	"ossuary_of_the_fallen": 1,
 	"universal_vigor": 1,
 	"call_the_swarm": 1,
-} # 41 cards — half the Poison creatures went vanilla, so Venom Fangs
+	"spider_web": 1,
+} # 42 cards — half the Poison creatures went vanilla, so Venom Fangs
   # (grants Poison) and Chitin Plague's anthem now upgrade bodies that
   # didn't already have it, instead of stacking on ones that did.
 

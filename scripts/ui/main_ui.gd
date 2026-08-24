@@ -19,6 +19,10 @@ const TARGETING_EFFECT_SIDES := {
 	"bounce_creature": "enemy",
 	"shuffle_into_library": "enemy",
 	"grant_decay_to_enemy": "enemy",
+	"destroy_creature": "enemy",
+	"heal_creature_full": "friendly",
+	"flip_ambush_instant": "friendly",
+	"buff_friendly_per_larva_spent": "friendly",
 }
 
 var _deck_select: VBoxContainer
@@ -50,6 +54,8 @@ var _block_popup: PanelContainer
 var _block_popup_box: VBoxContainer
 var _attack_confirm_popup: PanelContainer
 var _attack_confirm_label: Label
+var _x_cost_popup: PanelContainer
+var _x_cost_spinbox: SpinBox
 var _legend_popup: PanelContainer
 var _legend_popup_box: VBoxContainer
 var _game_over_popup: PanelContainer
@@ -58,6 +64,7 @@ var _game_over_label: Label
 var _selected_hand_index := -1
 var _selected_attacker_id := -1
 var _pending_attack_target = null # null / "leader" / CardInstance — awaiting the attack-confirm popup
+var _pending_ultimate_larva_spend := -1 # set while an X-cost Ultimate's amount has been chosen and is awaiting a target (or is ready to fire if untargeted)
 var _pending_target_side := "" # "" / "friendly" / "enemy" — set while awaiting a click to target a hand card or Hero Power/Ultimate
 var _pending_power_kind := "" # "" / "hero" / "ultimate"
 var _busy := false # true while the AI or an awaited attack is resolving
@@ -342,6 +349,7 @@ func _build_match_view() -> void:
 	_build_log_panel()
 	_build_block_popup()
 	_build_attack_confirm_popup()
+	_build_x_cost_popup()
 	_build_legend_popup()
 	_build_discard_popup()
 	_build_game_over_popup()
@@ -416,6 +424,33 @@ func _build_attack_confirm_popup() -> void:
 	no_btn.text = "Cancel"
 	no_btn.pressed.connect(_on_attack_confirm_no)
 	row.add_child(no_btn)
+
+## X-cost Ultimate amount picker (§ user request — Ashen Cricket): shown
+## before targeting, letting the player choose how much Larva to spend
+## (at least the Leader's ultimate_cost, at most their current total).
+func _build_x_cost_popup() -> void:
+	_x_cost_popup = PanelContainer.new()
+	_x_cost_popup.visible = false
+	_x_cost_popup.set_anchors_preset(Control.PRESET_CENTER)
+	add_child(_x_cost_popup)
+	var box := VBoxContainer.new()
+	_x_cost_popup.add_child(box)
+	var label := Label.new()
+	label.text = "Choose how much Larva to spend:"
+	box.add_child(label)
+	_x_cost_spinbox = SpinBox.new()
+	_x_cost_spinbox.step = 1
+	box.add_child(_x_cost_spinbox)
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var confirm := Button.new()
+	confirm.text = "Confirm"
+	confirm.pressed.connect(_on_x_cost_confirm)
+	row.add_child(confirm)
+	var cancel := Button.new()
+	cancel.text = "Cancel"
+	cancel.pressed.connect(_on_x_cost_cancel)
+	row.add_child(cancel)
 
 func _build_legend_popup() -> void:
 	_legend_popup = PanelContainer.new()
@@ -591,11 +626,36 @@ func _on_ultimate_pressed() -> void:
 	if _busy or GameState.active_player_index != HUMAN:
 		return
 	var player := GameState.players[HUMAN]
+	if player.leader.data.ultimate_variable_cost:
+		var min_spend := player.leader.data.ultimate_cost
+		_x_cost_spinbox.min_value = min_spend
+		_x_cost_spinbox.max_value = max(min_spend, player.current_larva)
+		_x_cost_spinbox.value = min_spend
+		_x_cost_popup.visible = true
+		return
 	if _begin_targeting_if_needed(player.leader.data.ultimate_effects, "ultimate"):
 		return
 	if not TurnManager.use_ultimate(HUMAN):
 		_status_label.text = "Can't use Ultimate right now."
 	_refresh()
+
+func _on_x_cost_confirm() -> void:
+	_x_cost_popup.visible = false
+	var player := GameState.players[HUMAN]
+	var amount := int(_x_cost_spinbox.value)
+	if amount > player.current_larva:
+		_status_label.text = "Not enough Larva."
+		return
+	_pending_ultimate_larva_spend = amount
+	if _begin_targeting_if_needed(player.leader.data.ultimate_effects, "ultimate"):
+		return
+	var ok := TurnManager.use_ultimate(HUMAN, -1, amount)
+	_pending_ultimate_larva_spend = -1
+	_status_label.text = "" if ok else "Can't use Ultimate right now."
+	_refresh()
+
+func _on_x_cost_cancel() -> void:
+	_x_cost_popup.visible = false
 
 ## If `effects` needs a creature target and a legal one exists, enters
 ## target-selection mode and returns true (caller should stop here). If a
@@ -636,6 +696,7 @@ func _clear_selection() -> void:
 	_selected_attacker_id = -1
 	_pending_target_side = ""
 	_pending_power_kind = ""
+	_pending_ultimate_larva_spend = -1
 
 func _on_hand_card_pressed(index: int) -> void:
 	if _busy or GameState.active_player_index != HUMAN:
@@ -684,7 +745,15 @@ func _required_target_side(card: CardInstance) -> String:
 	var effects: Array[Dictionary] = []
 	var trigger := ""
 	if card.data is CreatureData:
-		effects = (card.data as CreatureData).effects
+		var cd := card.data as CreatureData
+		# A Morph (Ambush) creature's on_play effects don't fire when played —
+		# it enters face-down with blank data, and they fire later at reveal
+		# instead (EffectResolver.fire_on_flip), which is never an interactive
+		# player action. Prompting for a target here would be immediately
+		# discarded and silently replaced by an auto-pick at flip time.
+		if cd.is_ambush():
+			return ""
+		effects = cd.effects
 		trigger = "on_play"
 	elif card.data is AbilityData:
 		effects = (card.data as AbilityData).effects
@@ -718,7 +787,7 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 		if _pending_power_kind == "hero":
 			ok = TurnManager.use_hero_power(HUMAN, instance.instance_id)
 		elif _pending_power_kind == "ultimate":
-			ok = TurnManager.use_ultimate(HUMAN, instance.instance_id)
+			ok = TurnManager.use_ultimate(HUMAN, instance.instance_id, _pending_ultimate_larva_spend)
 		else:
 			ok = await TurnManager.play_card(HUMAN, _selected_hand_index, instance.instance_id)
 		_busy = false

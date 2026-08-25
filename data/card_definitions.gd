@@ -45,13 +45,13 @@ const WHITE: Array[Dictionary] = [
 		"text": "On Play: summon two 1/1 Termite Worker tokens with Guard.",
 	},
 	{
-		"id": "queens_guardian_beetle", "name": "Queen's Guardian Beetle", "type": "Creature",
+		"id": "queens_guardian_beetle", "name": "Aroun, The Hive Squatter", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
 		"attack": 4, "health": 6, "creature_type": "Beetle", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
 		"text": "Guard. Lifesteal.",
 	},
 	{
-		"id": "hive_blessing", "name": "Hive Blessing", "type": "Ability",
+		"id": "hive_blessing", "name": "Hiveworks", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "heal_leader", "params": {"amount": 5, "target": "self"}}],
 		"text": "Restore 5 health to your Leader.",
@@ -76,7 +76,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "Your Guard creatures have +0/+1.",
 	},
 	{
-		"id": "wax_moth_larva", "name": "Honeycomb Sentinel", "type": "Creature",
+		"id": "wax_moth_larva", "name": "Nella, The Wax Moth", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
 		"attack": 3, "health": 4, "creature_type": "Moth", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
 		"ambush": {
@@ -119,7 +119,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "pollen_moth", "name": "Pollen Moth", "type": "Creature",
+		"id": "pollen_moth", "name": "Bee Moth Larvae", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Moth", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 1, "target": "self"}}],
@@ -132,20 +132,20 @@ const WHITE: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "shield_beetle", "name": "Shield Beetle", "type": "Creature",
+		"id": "shield_beetle", "name": "Small Hive Beetle", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 5, "creature_type": "Beetle", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
 	},
 	{
-		"id": "hive_healer_bee", "name": "Hive Healer Bee", "type": "Creature",
+		"id": "hive_healer_bee", "name": "Nurse Bee", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 3, "creature_type": "Bee", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 3, "target": "self"}}],
 		"text": "On Play: restore 3 health to your Leader.",
 	},
 	{
-		"id": "sanctuary_moth", "name": "Sanctuary Moth", "type": "Creature",
+		"id": "sanctuary_moth", "name": "Bee Moth Infiltrator", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
 		"attack": 2, "health": 3, "creature_type": "Moth", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 2, "target": "self"}}],
@@ -190,7 +190,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "Restore 3 health to your Leader.",
 	},
 	{
-		"id": "fortify", "name": "Fortify", "type": "Ability",
+		"id": "fortify", "name": "Pheromones", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "buff_friendly", "params": {"attack": 0, "health": 3, "keyword": Keywords.GUARD}}],
 		"text": "Give a friendly creature +0/+3 and Guard.",
@@ -233,7 +233,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "Guard. Colony (other Wasps get +0/+1 while this is in play). On Play: restore 6 health to your Leader.",
 	},
 	{
-		"id": "vigil_keeper", "name": "Vigil Keeper", "type": "Creature",
+		"id": "vigil_keeper", "name": "Royal Nurse", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 4, "creature_type": "Bee", "keywords": [Keywords.GUARD],
 		"effects": [{"trigger": "start_of_turn", "effect_id": "heal_leader", "params": {"amount": 1, "target": "self"}}],
@@ -1352,7 +1352,7 @@ const COLORLESS: Array[Dictionary] = [
 
 const HYBRID: Array[Dictionary] = [
 	{
-		"id": "armored_hornet", "name": "Armored Hornet", "type": "Creature",
+		"id": "armored_hornet", "name": "Northern Giant Hornet", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE, Kingdoms.RED], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 3, "creature_type": "Hornet", "keywords": [Keywords.GUARD, Keywords.SWIFT],
 		"text": "Guard. Swift.",
@@ -1364,7 +1364,7 @@ const HYBRID: Array[Dictionary] = [
 		"text": "Venomstrike. Swift.",
 	},
 	{
-		"id": "skyguard_dragonfly", "name": "Skyguard Dragonfly", "type": "Creature",
+		"id": "skyguard_dragonfly", "name": "Green Darner Scout", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.WHITE, Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 3, "health": 3, "creature_type": "Dragonfly", "keywords": [Keywords.GUARD, Keywords.FLYING],
 		"text": "Guard. Flying.",

@@ -130,6 +130,7 @@ const BLACK_VENOM_BROODMOTHER := {
 	"grave_beetle": 2,
 	"carrion_fly": 2,
 	"cicada_nymph": 1,
+	"night_caller": 2,
 	"grave_wasp": 2,
 	"necrotic_beetle": 1,
 	"black_widow_matriarch": 1,
@@ -144,7 +145,7 @@ const BLACK_VENOM_BROODMOTHER := {
 	"universal_vigor": 1,
 	"call_the_swarm": 1,
 	"spider_web": 1,
-} # 42 cards — half the Poison creatures went vanilla, so Venom Fangs
+} # 44 cards — half the Poison creatures went vanilla, so Venom Fangs
   # (grants Poison) and Chitin Plague's anthem now upgrade bodies that
   # didn't already have it, instead of stacking on ones that did.
 

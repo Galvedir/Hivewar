@@ -488,15 +488,15 @@ const BLACK: Array[Dictionary] = [
 		"text": "Poison.",
 	},
 	{
-		"id": "cicada_nymph", "name": "Cicada Brood Riser", "type": "Creature",
+		"id": "cicada_nymph", "name": "Black Witch Moth", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
-		"attack": 4, "health": 3, "creature_type": "Cicada", "keywords": [Keywords.DECAY],
+		"attack": 4, "health": 3, "creature_type": "Moth", "keywords": [Keywords.DECAY],
 		"ambush": {
 			"face_down": {"name": "Buried Nymph", "attack": 0, "health": 2},
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
 		},
-		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "cicada_swarm_token", "count": 2}}],
-		"text": "Morph (flips at the start of your next turn). Decay: summon two 1/1 Cicada Swarm tokens.",
+		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "metamorphae_sprite_token", "count": 2}}],
+		"text": "Morph (flips at the start of your next turn). Decay: summon two 1/1 Metamorphae creatures with Flying.",
 	},
 	{
 		"id": "venom_lash", "name": "Venom Lash", "type": "Ability",
@@ -564,6 +564,12 @@ const BLACK: Array[Dictionary] = [
 		"attack": 1, "health": 1, "creature_type": "Fly", "keywords": [Keywords.DECAY],
 		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "cicada_swarm_token", "count": 1}}],
 		"text": "Decay: summon a 1/1 Cicada Swarm token.",
+	},
+	{
+		"id": "night_caller", "name": "Night Caller", "type": "Creature",
+		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
+		"attack": 1, "health": 4, "creature_type": "Cicada", "keywords": [Keywords.GUARD],
+		"text": "Guard.",
 	},
 	{
 		"id": "widow_hatchling", "name": "Widow Hatchling", "type": "Creature",
@@ -1382,8 +1388,8 @@ const HYBRID: Array[Dictionary] = [
 		"text": "Guard. Trample.",
 	},
 	{
-		"id": "venom_wing_moth", "name": "Venom Wing Moth", "type": "Creature",
-		"cost": 3, "kingdoms": [Kingdoms.BLACK, Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
+		"id": "venom_wing_moth", "name": "Lanomia, The Silkworm", "type": "Creature",
+		"cost": 3, "kingdoms": [Kingdoms.BLACK, Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"attack": 2, "health": 2, "creature_type": "Moth", "keywords": [Keywords.VENOMSTRIKE, Keywords.FLYING],
 		"text": "Venomstrike. Flying.",
 	},

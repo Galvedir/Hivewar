@@ -25,9 +25,9 @@ const WHITE: Array[Dictionary] = [
 		"text": "Colony (other Bees get +0/+1 while this is in play).",
 	},
 	{
-		"id": "ladybug_healer", "name": "Ladybug Healer", "type": "Creature",
+		"id": "ladybug_healer", "name": "Paper Wasp Nurse", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 2, "creature_type": "Ladybug", "keywords": [],
+		"attack": 1, "health": 2, "creature_type": "Wasp", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 2, "target": "self"}}],
 		"text": "On Play: restore 2 health to your Leader.",
 	},
@@ -63,11 +63,11 @@ const WHITE: Array[Dictionary] = [
 		"text": "Equipped creature gains Guard.",
 	},
 	{
-		"id": "ladybug_swarm_queen", "name": "Ladybug Swarm Queen", "type": "Creature",
+		"id": "ladybug_swarm_queen", "name": "Paper Wasp Queen", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.LEGENDARY,
-		"attack": 4, "health": 5, "creature_type": "Ladybug", "keywords": [Keywords.COLONY],
+		"attack": 4, "health": 5, "creature_type": "Wasp", "keywords": [Keywords.COLONY],
 		"effects": [{"trigger": "on_play", "effect_id": "summon_token", "params": {"token_id": "ladybug_guard_token", "count": 2}}],
-		"text": "Colony (other Ladybugs get +0/+1 while this is in play). On Play: summon two 1/1 Ladybug tokens with Guard.",
+		"text": "Colony (other Wasps get +0/+1 while this is in play). On Play: summon two 1/1 Wasp Worker tokens with Guard.",
 	},
 	{
 		"id": "termite_colony", "name": "Termite Colony", "type": "Hive",
@@ -113,9 +113,9 @@ const WHITE: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "ladybug_sentry", "name": "Ladybug Sentry", "type": "Creature",
+		"id": "ladybug_sentry", "name": "Yellowjacket Sentry", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 3, "creature_type": "Ladybug", "keywords": [],
+		"attack": 2, "health": 3, "creature_type": "Wasp", "keywords": [],
 		"text": "",
 	},
 	{
@@ -158,9 +158,9 @@ const WHITE: Array[Dictionary] = [
 		"text": "Guard.",
 	},
 	{
-		"id": "lifebloom_ladybug", "name": "Lifebloom Ladybug", "type": "Creature",
+		"id": "lifebloom_ladybug", "name": "Hornet Matriarch", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
-		"attack": 3, "health": 4, "creature_type": "Ladybug", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
+		"attack": 3, "health": 4, "creature_type": "Wasp", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
 		"text": "Guard. Lifesteal.",
 	},
 	{
@@ -171,9 +171,16 @@ const WHITE: Array[Dictionary] = [
 		"text": "Guard. Colony (other Termites get +0/+1 while this is in play). On Play: summon a 1/1 Termite Worker token with Guard.",
 	},
 	{
+		"id": "elder_termite_king", "name": "Elder Termite King", "type": "Creature",
+		"cost": 7, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.LEGENDARY,
+		"attack": 6, "health": 9, "creature_type": "Termite", "keywords": [Keywords.GUARD, Keywords.COLONY],
+		"effects": [{"trigger": "on_play", "effect_id": "summon_token", "params": {"token_id": "termite_worker_token", "count": 2}}],
+		"text": "Guard. Colony (other Termites get +0/+1 while this is in play). On Play: summon two 1/1 Termite Worker tokens with Guard.",
+	},
+	{
 		"id": "radiant_hive_guardian", "name": "Radiant Hive Guardian", "type": "Creature",
 		"cost": 6, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.LEGENDARY,
-		"attack": 6, "health": 8, "creature_type": "Beetle", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
+		"attack": 6, "health": 8, "creature_type": "Wasp", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
 		"text": "Guard. Lifesteal.",
 	},
 	{
@@ -189,7 +196,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "Give a friendly creature +0/+3 and Guard.",
 	},
 	{
-		"id": "colony_call", "name": "Colony Call", "type": "Ability",
+		"id": "colony_call", "name": "Nuptial Flight", "type": "Ability",
 		"cost": 4, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
 		"effects": [{"trigger": "on_cast", "effect_id": "summon_token", "params": {"token_id": "termite_worker_token", "count": 3}}],
 		"text": "Summon three 1/1 Termite Worker tokens with Guard.",
@@ -207,13 +214,13 @@ const WHITE: Array[Dictionary] = [
 		"text": "Equipped creature gets +1/+1 and Lifesteal.",
 	},
 	{
-		"id": "sanctum_of_the_hive", "name": "Sanctum of the Hive", "type": "Hive",
+		"id": "sanctum_of_the_hive", "name": "Hive Droneport", "type": "Hive",
 		"cost": 4, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.GUARD, "attack": 1}],
 		"text": "Your Guard creatures have +1/+0.",
 	},
 	{
-		"id": "golden_reliquary", "name": "Golden Reliquary", "type": "Hive",
+		"id": "golden_reliquary", "name": "Social Hour", "type": "Hive",
 		"cost": 4, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.RARE,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.LIFESTEAL, "attack": 1}],
 		"text": "Your Lifesteal creatures have +1/+0.",
@@ -221,9 +228,9 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "undying_swarm_mother", "name": "The Undying Swarm Mother", "type": "Creature",
 		"cost": 9, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.LEGENDARY,
-		"attack": 7, "health": 12, "creature_type": "Beetle", "keywords": [Keywords.GUARD, Keywords.COLONY],
+		"attack": 7, "health": 12, "creature_type": "Wasp", "keywords": [Keywords.GUARD, Keywords.COLONY],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 6, "target": "self"}}],
-		"text": "Guard. Colony (other Beetles get +0/+1 while this is in play). On Play: restore 6 health to your Leader.",
+		"text": "Guard. Colony (other Wasps get +0/+1 while this is in play). On Play: restore 6 health to your Leader.",
 	},
 	{
 		"id": "vigil_keeper", "name": "Vigil Keeper", "type": "Creature",
@@ -266,7 +273,7 @@ const GREEN: Array[Dictionary] = [
 		"text": "Trample.",
 	},
 	{
-		"id": "pillbug_titan", "name": "Pillbug Titan", "type": "Creature",
+		"id": "pillbug_titan", "name": "Iso of the Pod", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.RARE,
 		"attack": 6, "health": 7, "creature_type": "Pillbug", "keywords": [Keywords.TRAMPLE],
 		"text": "Trample.",
@@ -507,7 +514,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Your Leader takes 2 damage. Draw 2 cards.",
 	},
 	{
-		"id": "black_widow_matriarch", "name": "Black Widow Matriarch", "type": "Creature",
+		"id": "black_widow_matriarch", "name": "The Widowmaker", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.LEGENDARY,
 		"attack": 5, "health": 4, "creature_type": "Spider", "keywords": [Keywords.POISON, Keywords.DECAY],
 		"effects": [{"trigger": "on_death", "effect_id": "damage_creature", "params": {"amount": 4}}],
@@ -597,15 +604,15 @@ const BLACK: Array[Dictionary] = [
 		"text": "Venomstrike.",
 	},
 	{
-		"id": "gravehatch_riser", "name": "Gravehatch Riser", "type": "Creature",
+		"id": "gravehatch_riser", "name": "Luna Moth", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
-		"attack": 5, "health": 4, "creature_type": "Cicada", "keywords": [Keywords.DECAY],
+		"attack": 5, "health": 4, "creature_type": "Moth", "keywords": [Keywords.DECAY],
 		"ambush": {
 			"face_down": {"name": "Buried Larva", "attack": 0, "health": 2},
 			"flip_trigger": "conditional", "flip_condition": {"type": "start_of_next_turn"},
 		},
-		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "cicada_swarm_token", "count": 1}}],
-		"text": "Morph (flips at the start of your next turn). Decay: summon a 1/1 Cicada Swarm token.",
+		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "metamorphae_sprite_token", "count": 1}}],
+		"text": "Morph (flips at the start of your next turn). Decay: summon a 1/1 Metamorphae creature with Flying.",
 	},
 	{
 		"id": "widow_matriarchs_brood", "name": "Widow Matriarch's Brood", "type": "Creature",
@@ -676,7 +683,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Your Decay creatures have +0/+1.",
 	},
 	{
-		"id": "widow_empress", "name": "The Widow Empress", "type": "Creature",
+		"id": "widow_empress", "name": "Femme Fatale, Widow Empress", "type": "Creature",
 		"cost": 9, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.LEGENDARY,
 		"attack": 7, "health": 8, "creature_type": "Spider", "keywords": [Keywords.VENOMSTRIKE, Keywords.DECAY],
 		"effects": [{"trigger": "on_death", "effect_id": "damage_creature", "params": {"amount": 5}}],
@@ -879,9 +886,13 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "skywhisper_matriarch", "name": "Skywhisper Matriarch", "type": "Creature",
 		"cost": 6, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
-		"attack": 6, "health": 6, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
+		"attack": 6, "health": 6, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
+		"ambush": {
+			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 4},
+			"flip_trigger": "paid", "flip_cost": 3,
+		},
 		"effects": [{"trigger": "on_play", "effect_id": "draw_card", "params": {"count": 2}}],
-		"text": "Flying. On Play: draw 2 cards.",
+		"text": "Morph (Pay 3: flip face up). Flips into a 6/6 Flying, draw 2 cards.",
 	},
 	{
 		"id": "gale_step", "name": "Gale Step", "type": "Ability",
@@ -943,12 +954,16 @@ const BLUE: Array[Dictionary] = [
 	{
 		"id": "sovereign_of_storms", "name": "Sovereign of Storms", "type": "Creature",
 		"cost": 9, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
-		"attack": 8, "health": 8, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
+		"attack": 8, "health": 8, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
+		"ambush": {
+			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 5},
+			"flip_trigger": "paid", "flip_cost": 4,
+		},
 		"effects": [
 			{"trigger": "on_play", "effect_id": "draw_card", "params": {"count": 3}},
 			{"trigger": "on_damage_taken", "effect_id": "damage_creature", "params": {"amount": 2}},
 		],
-		"text": "Flying. On Play: draw 3 cards. Whenever this creature is dealt combat damage, deal 2 damage to the strongest enemy creature.",
+		"text": "Morph (Pay 4: flip face up). Flips into an 8/8 Flying, draw 3 cards. Whenever this creature is dealt combat damage, deal 2 damage to the strongest enemy creature.",
 	},
 	{
 		"id": "storm_petrel", "name": "Storm Petrel", "type": "Creature",
@@ -979,7 +994,7 @@ const RED: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "blood_tick", "name": "Blood Tick", "type": "Creature",
+		"id": "blood_tick", "name": "Nymphal Tick", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Tick", "keywords": [Keywords.LIFESTEAL],
 		"text": "Lifesteal.",
@@ -991,7 +1006,7 @@ const RED: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "bed_bug_swarm", "name": "Bed Bug Swarm", "type": "Creature",
+		"id": "bed_bug_swarm", "name": "Bed Bug", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
 		"attack": 2, "health": 2, "creature_type": "Bed Bug", "keywords": [],
 		"text": "",
@@ -1079,7 +1094,7 @@ const RED: Array[Dictionary] = [
 		"text": "Swift. On Play: summon two 1/1 Hornet tokens with Swift.",
 	},
 	{
-		"id": "bloodhunt_alpha", "name": "Bloodhunt Alpha", "type": "Creature",
+		"id": "bloodhunt_alpha", "name": "Alpha Gal", "type": "Creature",
 		"cost": 6, "kingdoms": [Kingdoms.RED], "rarity": Rarities.LEGENDARY,
 		"attack": 6, "health": 6, "creature_type": "Tick", "keywords": [Keywords.SWIFT, Keywords.LIFESTEAL],
 		"effects": [{"trigger": "on_play", "effect_id": "damage_leader", "params": {"amount": 3, "target": "enemy"}}],
@@ -1170,7 +1185,7 @@ const RED: Array[Dictionary] = [
 		"text": "Your Lifesteal creatures have +0/+1.",
 	},
 	{
-		"id": "apex_bloodhunter", "name": "Apex Bloodhunter", "type": "Creature",
+		"id": "apex_bloodhunter", "name": "Yomma, Alphagal Carrier", "type": "Creature",
 		"cost": 9, "kingdoms": [Kingdoms.RED], "rarity": Rarities.LEGENDARY,
 		"attack": 10, "health": 6, "creature_type": "Tick", "keywords": [Keywords.SWIFT, Keywords.LIFESTEAL],
 		"effects": [{"trigger": "on_play", "effect_id": "damage_leader", "params": {"amount": 4, "target": "enemy"}}],
@@ -1316,7 +1331,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "Give a friendly creature +2/+2. Works the same no matter what Kingdom it is.",
 	},
 	{
-		"id": "broodmother_of_the_feeders", "name": "Broodmother of the Feeders", "type": "Creature",
+		"id": "broodmother_of_the_feeders", "name": "Eddie, The Roach King", "type": "Creature",
 		"cost": 8, "kingdoms": [], "rarity": Rarities.LEGENDARY,
 		"attack": 9, "health": 9, "creature_type": "Roach", "keywords": [],
 		"text": "No allegiance, no weakness, no ceiling either.",
@@ -1392,17 +1407,17 @@ const HYBRID: Array[Dictionary] = [
 		"text": "Flying. Swift.",
 	},
 	{
-		"id": "verdant_widow", "name": "Verdant Widow", "type": "Creature",
+		"id": "verdant_widow", "name": "Jordanc, Ruler of the Hourglass Log", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.GREEN, Kingdoms.BLACK], "rarity": Rarities.RARE,
 		"attack": 4, "health": 4, "creature_type": "Spider", "keywords": [Keywords.VENOMSTRIKE, Keywords.TRAMPLE],
 		"text": "Venomstrike. Trample.",
 	},
 	{
-		"id": "twilight_swarm_queen", "name": "Twilight Swarm Queen", "type": "Creature",
+		"id": "twilight_swarm_queen", "name": "Twilight Darner, The Sky Breeder", "type": "Creature",
 		"cost": 6, "kingdoms": [Kingdoms.BLUE, Kingdoms.GREEN], "rarity": Rarities.LEGENDARY,
 		"attack": 5, "health": 5, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING, Keywords.TRAMPLE],
-		"effects": [{"trigger": "on_play", "effect_id": "summon_token", "params": {"token_id": "cicada_swarm_token", "count": 2}}],
-		"text": "Flying. Trample. On Play: summon two 1/1 Cicada Swarm tokens.",
+		"effects": [{"trigger": "on_play", "effect_id": "summon_token", "params": {"token_id": "dragonfly_nymph_token", "count": 2}}],
+		"text": "Flying. Trample. On Play: summon two 1/2 Metamorphae Dragonfly Nymphs with Flying.",
 	},
 ]
 
@@ -1415,9 +1430,9 @@ const TOKENS: Array[Dictionary] = [
 		"text": "Guard.",
 	},
 	{
-		"id": "ladybug_guard_token", "name": "Ladybug", "type": "Creature",
+		"id": "ladybug_guard_token", "name": "Wasp Worker", "type": "Creature",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
-		"attack": 1, "health": 1, "creature_type": "Ladybug", "keywords": [Keywords.GUARD],
+		"attack": 1, "health": 1, "creature_type": "Wasp", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
 	},
 	{
@@ -1455,5 +1470,17 @@ const TOKENS: Array[Dictionary] = [
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Botfly", "keywords": [Keywords.LIFESTEAL],
 		"text": "Lifesteal.",
+	},
+	{
+		"id": "dragonfly_nymph_token", "name": "Dragonfly Nymph", "type": "Creature",
+		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON, "is_token": true,
+		"attack": 1, "health": 2, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
+		"text": "Flying.",
+	},
+	{
+		"id": "metamorphae_sprite_token", "name": "Metamorphae Sprite", "type": "Creature",
+		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON, "is_token": true,
+		"attack": 1, "health": 1, "creature_type": "Sprite", "keywords": [Keywords.FLYING],
+		"text": "Flying.",
 	},
 ]

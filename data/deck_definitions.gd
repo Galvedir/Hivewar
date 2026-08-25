@@ -80,6 +80,7 @@ const WHITE_HIVE_GUARDIANS := {
 	"ladybug_swarm_queen": 1,
 	"radiant_hive_guardian": 1,
 	"undying_swarm_mother": 1,
+	"elder_termite_king": 1,
 	"hive_blessing": 2,
 	"royal_jelly": 2,
 	"protective_ward": 2,
@@ -88,7 +89,7 @@ const WHITE_HIVE_GUARDIANS := {
 	"golden_reliquary": 1,
 	"wax_moth_larva": 1,
 	"honeycomb": 1,
-} # 36 cards — mixes Guard bodies with vanilla/Colony creatures, so
+} # 37 cards — mixes Guard bodies with vanilla/Colony creatures, so
   # Protective Ward (grants Guard) and the anthems are meaningful upgrades
   # rather than redundant with a keyword every creature already has.
 

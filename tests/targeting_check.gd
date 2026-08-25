@@ -66,8 +66,8 @@ func _ready() -> void:
 	# Legend Rule: a second copy of a Legendary must prompt the human, not auto-discard.
 	_put_in_hand(human, "ladybug_swarm_queen")
 	main._on_hand_card_pressed(_hand_index(human, "ladybug_swarm_queen"))
-	var first_queens := human.board.filter(func(c: CardInstance) -> bool: return c.data.card_name == "Ladybug Swarm Queen")
-	_check(first_queens.size() == 1, "First Ladybug Swarm Queen enters play without a Legend Rule prompt")
+	var first_queens := human.board.filter(func(c: CardInstance) -> bool: return c.data.card_name == "Paper Wasp Queen")
+	_check(first_queens.size() == 1, "First Paper Wasp Queen enters play without a Legend Rule prompt")
 	var first_queen: CardInstance = first_queens[0]
 
 	_put_in_hand(human, "ladybug_swarm_queen")
@@ -83,7 +83,7 @@ func _ready() -> void:
 		safety += 1
 	_check(legend_prompted[0], "Playing a second Legendary prompts the human for a choice")
 	_check(human.board.has(first_queen), "Choosing to keep the existing copy leaves the original instance in play")
-	_check(human.board.filter(func(c: CardInstance) -> bool: return c.data.card_name == "Ladybug Swarm Queen").size() == 1, "Exactly one Ladybug Swarm Queen remains in play")
+	_check(human.board.filter(func(c: CardInstance) -> bool: return c.data.card_name == "Paper Wasp Queen").size() == 1, "Exactly one Paper Wasp Queen remains in play")
 	_check(human.graveyard.size() == gy_before + 1, "The new copy went to the graveyard instead of replacing the kept one")
 
 	# Leaders must be immune to Poison (Poison creature attacking the Leader directly).

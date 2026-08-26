@@ -204,7 +204,7 @@ func _ready() -> void:
 	DeckStorage.save_deck(TEST_DECK_NAME, "queen_amara", custom_cards)
 	_check(custom_total >= 40 and custom_total <= 60, "Custom deck for the play test is itself legal (%d cards)" % custom_total)
 
-	main._on_deck_chosen(TEST_DECK_NAME)
+	await main._on_deck_chosen(TEST_DECK_NAME) # starting a match now shows a brief loading beat (§ user request) first
 	var human := GameState.players[0]
 	_check(human.leader.data.id == "queen_amara", "Starting a match with a custom deck by name sets the right Leader")
 	_check(human.deck.size() + human.hand.size() == custom_total, "Custom deck's full card count is in play (deck + opening hand)")

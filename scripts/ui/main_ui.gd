@@ -25,7 +25,7 @@ const TARGETING_EFFECT_SIDES := {
 	"buff_friendly_per_larva_spent": "friendly",
 }
 
-var _deck_select: VBoxContainer
+var _deck_select: Control # plain Control wrapper (not a layout container) so a full-screen background image can sit behind the actual VBox content as a separate layer
 var _saved_decks_menu_box: VBoxContainer
 var _deck_builder: DeckBuilderUI
 var _collection: CollectionUI
@@ -69,6 +69,9 @@ var _pending_target_side := "" # "" / "friendly" / "enemy" — set while awaitin
 var _pending_power_kind := "" # "" / "hero" / "ultimate"
 var _busy := false # true while the AI or an awaited attack is resolving
 
+var _menu_music_player: AudioStreamPlayer
+var _sfx_player: AudioStreamPlayer
+
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
 	_build_deck_select()
@@ -97,6 +100,7 @@ func _ready() -> void:
 	GameState.game_ended.connect(_on_game_ended)
 	GameLog.entry_added.connect(_on_log_entry)
 
+	_setup_menu_audio()
 	_show_splash_screen()
 
 ## --- Deck select ------------------------------------------------------------
@@ -104,6 +108,94 @@ func _ready() -> void:
 const LOGO_PATH := "res://art/branding/logo.png"
 const SPLASH_PATH := "res://art/branding/title_screen.png"
 const SPLASH_DURATION := 2.5
+const MENU_MUSIC_PATH := "res://music/main_menu_music.mp3"
+const BUTTON_CLICK_SFX_PATH := "res://music/button_press.mp3"
+const LOADING_SPRITE_PATH := "res://art/branding/loading/loading-sprite.png"
+const LOADING_SPRITE_COLS := 4
+const LOADING_SPRITE_ROWS := 4
+const LOADING_SPRITE_FPS := 8.0
+const LOADING_SCREEN_DURATION := 1.0
+
+## Main-menu-only audio (§ user request) — no general audio system yet,
+## just background music that plays while the deck-select screen is the
+## active screen, and a click SFX for its buttons. Both fail safe (no
+## AudioStreamPlayer created at all) if the asset isn't present.
+func _setup_menu_audio() -> void:
+	if ResourceLoader.exists(MENU_MUSIC_PATH):
+		_menu_music_player = AudioStreamPlayer.new()
+		var stream: AudioStream = load(MENU_MUSIC_PATH)
+		if stream is AudioStreamMP3:
+			(stream as AudioStreamMP3).loop = true
+		_menu_music_player.stream = stream
+		add_child(_menu_music_player)
+		_menu_music_player.play()
+	if ResourceLoader.exists(BUTTON_CLICK_SFX_PATH):
+		_sfx_player = AudioStreamPlayer.new()
+		_sfx_player.stream = load(BUTTON_CLICK_SFX_PATH)
+		add_child(_sfx_player)
+
+func _play_click_sfx() -> void:
+	if _sfx_player != null:
+		_sfx_player.play()
+
+## Single source of truth for showing/hiding the main menu (§ user
+## request) so the background music starts/stops exactly when the
+## deck-select screen actually becomes the active screen, no matter which
+## of the several code paths (Deck Builder, Collection, Rules, starting a
+## match) is doing the toggling.
+func _set_menu_visible(visible_now: bool) -> void:
+	_deck_select.visible = visible_now
+	if _menu_music_player == null:
+		return
+	if visible_now and not _menu_music_player.playing:
+		_menu_music_player.play()
+	elif not visible_now and _menu_music_player.playing:
+		_menu_music_player.stop()
+
+## Builds a small animated loading-spinner widget from a 4x4 sprite sheet
+## (§ user request), cycling all 16 frames on a Timer. Returns null if the
+## asset isn't present, same fail-safe pattern as the logo/splash/menu-bg.
+func _make_loading_sprite(size: Vector2 = Vector2(80, 80)) -> Control:
+	if not ResourceLoader.exists(LOADING_SPRITE_PATH):
+		return null
+	var sheet: Texture2D = load(LOADING_SPRITE_PATH)
+	var frame_w := sheet.get_width() / LOADING_SPRITE_COLS
+	var frame_h := sheet.get_height() / LOADING_SPRITE_ROWS
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	atlas.region = Rect2(0, 0, frame_w, frame_h)
+
+	var rect := TextureRect.new()
+	rect.texture = atlas
+	rect.custom_minimum_size = size
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var frame_index := [0] # array wrapper — lambdas capture outer locals by value, not reference
+	var frame_timer := Timer.new()
+	frame_timer.wait_time = 1.0 / LOADING_SPRITE_FPS
+	frame_timer.autostart = true
+	frame_timer.timeout.connect(func() -> void:
+		var next: int = (int(frame_index[0]) + 1) % (LOADING_SPRITE_COLS * LOADING_SPRITE_ROWS)
+		frame_index[0] = next
+		var col: int = next % LOADING_SPRITE_COLS
+		var row: int = next / LOADING_SPRITE_COLS
+		atlas.region = Rect2(col * frame_w, row * frame_h, frame_w, frame_h))
+	rect.add_child(frame_timer)
+	return rect
+
+## Anchors `control` to the bottom-right corner of its parent, `size` big,
+## with `margin` px of breathing room from both edges.
+func _anchor_bottom_right(control: Control, size: Vector2, margin: float = 16.0) -> void:
+	control.anchor_left = 1.0
+	control.anchor_top = 1.0
+	control.anchor_right = 1.0
+	control.anchor_bottom = 1.0
+	control.offset_left = -size.x - margin
+	control.offset_top = -size.y - margin
+	control.offset_right = -margin
+	control.offset_bottom = -margin
 
 ## A brief title-screen splash (§ user request) shown once at boot, layered
 ## on top of the deck-select menu that's already built underneath it, before
@@ -128,6 +220,11 @@ func _show_splash_screen() -> void:
 	image.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	LayoutUtil.fill_parent(image)
 	overlay.add_child(image)
+
+	var spinner := _make_loading_sprite()
+	if spinner != null:
+		_anchor_bottom_right(spinner, Vector2(80, 80))
+		overlay.add_child(spinner)
 
 	var dismiss := func() -> void:
 		if is_instance_valid(overlay):
@@ -161,27 +258,51 @@ func _make_title() -> Control:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return title
 
+const MENU_BG_PATH := "res://art/branding/main_menu_bg.png"
+
 func _build_deck_select() -> void:
-	_deck_select = VBoxContainer.new()
+	_deck_select = Control.new()
 	LayoutUtil.fill_parent(_deck_select)
 	add_child(_deck_select)
 
-	_deck_select.add_child(_make_title())
+	# Background image (§ user request), added first so it renders behind
+	# the actual menu content below — a plain Control (not a layout
+	# container) is what makes it possible for the two to coexist as
+	# separate full-rect layers instead of both being forced into a single
+	# vertical stack. Fails safe (no background at all) if the art isn't
+	# present, same pattern as the logo/splash.
+	if ResourceLoader.exists(MENU_BG_PATH):
+		var bg := TextureRect.new()
+		bg.texture = load(MENU_BG_PATH)
+		bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		LayoutUtil.fill_parent(bg)
+		_deck_select.add_child(bg)
+
+	var content := VBoxContainer.new()
+	LayoutUtil.fill_parent(content)
+	_deck_select.add_child(content)
+
+	content.add_child(_make_title())
 
 	var menu_row := HBoxContainer.new()
 	menu_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_deck_select.add_child(menu_row)
+	content.add_child(menu_row)
 	var builder_btn := Button.new()
 	builder_btn.text = "Deck Builder"
 	builder_btn.pressed.connect(_on_open_deck_builder)
+	builder_btn.pressed.connect(_play_click_sfx)
 	menu_row.add_child(builder_btn)
 	var collection_btn := Button.new()
 	collection_btn.text = "Collection"
 	collection_btn.pressed.connect(_on_open_collection)
+	collection_btn.pressed.connect(_play_click_sfx)
 	menu_row.add_child(collection_btn)
 	var rules_btn := Button.new()
 	rules_btn.text = "Rules & Keywords"
 	rules_btn.pressed.connect(_on_open_rules.bind(_deck_select))
+	rules_btn.pressed.connect(_play_click_sfx)
 	menu_row.add_child(rules_btn)
 
 	# The 18 fixed decks (one per Leader) plus any saved decks easily
@@ -190,7 +311,7 @@ func _build_deck_select() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_deck_select.add_child(scroll)
+	content.add_child(scroll)
 
 	var list_box := VBoxContainer.new()
 	list_box.custom_minimum_size = Vector2(420, 0)
@@ -208,6 +329,7 @@ func _build_deck_select() -> void:
 		btn.text = "%s\n(%s)" % [deck_id.replace("_", " ").capitalize(), leader.card_name]
 		btn.custom_minimum_size = Vector2(0, 56)
 		btn.pressed.connect(_on_deck_chosen.bind(deck_id))
+		btn.pressed.connect(_play_click_sfx)
 		list_box.add_child(btn)
 
 	var saved_title := Label.new()
@@ -234,44 +356,71 @@ func _refresh_saved_decks_menu() -> void:
 		btn.text = "%s\n(%s)" % [deck_name, leader.card_name if leader != null else "?"]
 		btn.custom_minimum_size = Vector2(0, 56)
 		btn.pressed.connect(_on_deck_chosen.bind(deck_name))
+		btn.pressed.connect(_play_click_sfx)
 		_saved_decks_menu_box.add_child(btn)
 
 func _on_open_deck_builder() -> void:
-	_deck_select.visible = false
+	_set_menu_visible(false)
 	_deck_builder.refresh_on_show()
 	_deck_builder.visible = true
 
 func _on_deck_builder_closed() -> void:
 	_deck_builder.visible = false
 	_refresh_saved_decks_menu()
-	_deck_select.visible = true
+	_set_menu_visible(true)
 
 func _on_open_collection() -> void:
-	_deck_select.visible = false
+	_set_menu_visible(false)
 	_collection.visible = true
 
 func _on_collection_closed() -> void:
 	_collection.visible = false
-	_deck_select.visible = true
+	_set_menu_visible(true)
 
 ## `from` is whichever screen was open when Rules was requested (the main
 ## menu or the Deck Builder), so closing Rules returns to the right place.
 func _on_open_rules(from: Control) -> void:
 	_rules_return_target = from
-	from.visible = false
+	if from == _deck_select:
+		_set_menu_visible(false)
+	else:
+		from.visible = false
 	_rules_screen.visible = true
 
 func _on_rules_closed() -> void:
 	_rules_screen.visible = false
 	if _rules_return_target != null:
-		_rules_return_target.visible = true
+		if _rules_return_target == _deck_select:
+			_set_menu_visible(true)
+		else:
+			_rules_return_target.visible = true
+
+## Brief loading beat (§ user request) shown while a match is being set up
+## — currently instant work (deck shuffle, opening hands), so this is a
+## deliberate UX pause with the animated sprite in the bottom-right corner,
+## same spot as the splash screen's. No-ops instantly if the sprite asset
+## isn't present.
+func _show_loading_screen() -> void:
+	var spinner := _make_loading_sprite()
+	if spinner == null:
+		return
+	var overlay := ColorRect.new()
+	overlay.color = Color.BLACK
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	LayoutUtil.fill_parent(overlay)
+	add_child(overlay)
+	_anchor_bottom_right(spinner, Vector2(80, 80))
+	overlay.add_child(spinner)
+	await get_tree().create_timer(LOADING_SCREEN_DURATION).timeout
+	overlay.queue_free()
 
 func _on_deck_chosen(deck_id: String) -> void:
 	var ai_pool := DeckDefinitions.all_deck_ids()
 	ai_pool.erase(deck_id)
 	var ai_deck_id: String = ai_pool[randi() % ai_pool.size()] if not ai_pool.is_empty() else deck_id
 
-	_deck_select.visible = false
+	_set_menu_visible(false)
+	await _show_loading_screen()
 	_match_view.visible = true
 	_selected_hand_index = -1
 	_selected_attacker_id = -1
@@ -525,7 +674,7 @@ func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
 	_match_view.visible = false
 	_refresh_saved_decks_menu()
-	_deck_select.visible = true
+	_set_menu_visible(true)
 
 ## --- Signal handlers ---------------------------------------------------------
 

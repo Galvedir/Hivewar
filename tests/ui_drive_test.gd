@@ -23,7 +23,9 @@ func _ready() -> void:
 		# not synchronously inside this same emit() call.
 		var empty_choices: Array[CardInstance] = []
 		TurnManager.call_deferred("submit_block_choices", empty_choices))
-	main._on_deck_chosen("blue_skyswarm")
+	# Starting a match now shows a brief loading beat (§ user request) before
+	# the match actually starts, so this must be awaited.
+	await main._on_deck_chosen("blue_skyswarm")
 
 	var safety := 0
 	while not GameState.is_over and safety < 100:

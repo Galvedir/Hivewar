@@ -22,12 +22,22 @@ var _rarity_filters: Array[String] = []
 var _type_filters: Array[String] = []
 var _search_filter := ""
 
+## Browser sort order (§ user request) and the "My Deck" view toggle, which
+## swaps the browser's source pool from the full card database to just the
+## cards already in `_cards`, so the player can see full card widgets for
+## their current build instead of only the plain-text list on the right.
+enum SortMode { NAME, TYPE, COST_LOW, COST_HIGH }
+var _sort_mode: int = SortMode.NAME
+var _view_deck_only := false
+
 var _leader_option: OptionButton
 var _leader_info_label: RichTextLabel
 var _name_edit: LineEdit
 var _kingdom_menu: MenuButton
 var _rarity_menu: MenuButton
 var _type_menu: MenuButton
+var _sort_option: OptionButton
+var _view_toggle_btn: Button
 var _browser_grid: GridContainer
 var _deck_list_box: VBoxContainer
 var _deck_size_label: Label
@@ -115,6 +125,19 @@ func _build_ui() -> void:
 	search_edit.text_changed.connect(_on_search_changed)
 	filters.add_child(search_edit)
 
+	_sort_option = OptionButton.new()
+	_sort_option.add_item("Sort: Name")
+	_sort_option.add_item("Sort: Creature Type")
+	_sort_option.add_item("Sort: Cost (Low-High)")
+	_sort_option.add_item("Sort: Cost (High-Low)")
+	_sort_option.item_selected.connect(_on_sort_selected)
+	filters.add_child(_sort_option)
+
+	_view_toggle_btn = Button.new()
+	_view_toggle_btn.text = "View: All Cards"
+	_view_toggle_btn.pressed.connect(_on_view_toggle_pressed)
+	filters.add_child(_view_toggle_btn)
+
 	var browser_scroll := ScrollContainer.new()
 	browser_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	browser_col.add_child(browser_scroll)
@@ -184,6 +207,8 @@ func _new_deck() -> void:
 	_name_edit.text = ""
 	_leader_option.selected = 0
 	_status_label.text = ""
+	if _view_deck_only:
+		_on_view_toggle_pressed() # an empty deck has nothing to show in "My Deck" view — fall back to the full pool
 	_refresh()
 
 func _on_leader_selected(index: int) -> void:
@@ -196,6 +221,24 @@ func _on_leader_selected(index: int) -> void:
 func _on_search_changed(text: String) -> void:
 	_search_filter = text.to_lower()
 	_refresh_browser()
+
+func _on_sort_selected(index: int) -> void:
+	_sort_mode = index
+	_refresh_browser()
+
+## Toggles the browser between the full card pool and just the cards
+## already in the current build (§ user request), so the player can see
+## full card widgets for their deck instead of only the plain-text list.
+func _on_view_toggle_pressed() -> void:
+	_view_deck_only = not _view_deck_only
+	_view_toggle_btn.text = "View: My Deck" if _view_deck_only else "View: All Cards"
+	_refresh_browser()
+
+## Sort key for "Sort: Creature Type" — creatures group by their printed
+## type; non-creature cards group by card type (Ability/Gear/Hive) instead,
+## since they have no creature_type of their own.
+func _sort_type_key(card: CardData) -> String:
+	return (card as CreatureData).creature_type if card is CreatureData else card.card_type
 
 func _on_save_pressed() -> void:
 	var deck_name := _name_edit.text.strip_edges()
@@ -241,6 +284,8 @@ func _add_card(card_id: String) -> void:
 		return
 	_cards[card_id] = count + 1
 	_refresh_deck_list()
+	if _view_deck_only:
+		_refresh_browser() # a brand-new card in the deck needs to appear in the "My Deck" view
 
 func _remove_card(card_id: String) -> void:
 	var count := int(_cards.get(card_id, 0))
@@ -249,6 +294,8 @@ func _remove_card(card_id: String) -> void:
 	else:
 		_cards[card_id] = count - 1
 	_refresh_deck_list()
+	if _view_deck_only:
+		_refresh_browser() # dropping a card's last copy needs to remove it from the "My Deck" view
 
 ## --- Rendering --------------------------------------------------------------
 
@@ -276,7 +323,18 @@ func _refresh_browser() -> void:
 	for child in _browser_grid.get_children():
 		child.queue_free()
 	var leader_data: LeaderData = CardDatabase.get_leader(_leader_id) if _leader_id != "" else null
-	for card: CardData in CardDatabase.all_cards():
+
+	var pool: Array = []
+	if _view_deck_only:
+		for card_id: String in _cards.keys():
+			var owned := CardDatabase.get_card(card_id)
+			if owned != null:
+				pool.append(owned)
+	else:
+		pool = CardDatabase.all_cards()
+
+	var candidates: Array[CardData] = []
+	for card: CardData in pool:
 		if not _kingdom_filters.is_empty():
 			var matches_kingdom := false
 			for kf: String in _kingdom_filters:
@@ -292,6 +350,28 @@ func _refresh_browser() -> void:
 			continue
 		if _search_filter != "" and not card.card_name.to_lower().contains(_search_filter):
 			continue
+		candidates.append(card)
+
+	# Sort (§ user request): cost sorts use the Leader-adjusted cost — the
+	# same number actually shown on the card — with name as a tiebreaker so
+	# equal-cost/type cards land in a stable, predictable order.
+	match _sort_mode:
+		SortMode.TYPE:
+			candidates.sort_custom(func(a: CardData, b: CardData) -> bool:
+				var ta := _sort_type_key(a)
+				var tb := _sort_type_key(b)
+				return a.card_name < b.card_name if ta == tb else ta < tb)
+		SortMode.COST_LOW, SortMode.COST_HIGH:
+			candidates.sort_custom(func(a: CardData, b: CardData) -> bool:
+				var ca := CostCalculator.calculate_cost(a, leader_data) if leader_data != null else a.cost
+				var cb := CostCalculator.calculate_cost(b, leader_data) if leader_data != null else b.cost
+				if ca == cb:
+					return a.card_name < b.card_name
+				return ca < cb if _sort_mode == SortMode.COST_LOW else ca > cb)
+		_:
+			candidates.sort_custom(func(a: CardData, b: CardData) -> bool: return a.card_name < b.card_name)
+
+	for card: CardData in candidates:
 		var cost := CostCalculator.calculate_cost(card, leader_data) if leader_data != null else card.cost
 		var surcharged := leader_data != null and not card.matches_kingdom(leader_data.kingdoms)
 		var btn := Button.new()
@@ -306,7 +386,13 @@ func _refresh_deck_list() -> void:
 		child.queue_free()
 	var total := 0
 	var ids: Array = _cards.keys()
-	ids.sort_custom(func(a: String, b: String) -> bool: return CardDatabase.get_card(a).card_name < CardDatabase.get_card(b).card_name)
+	# Cost ascending (§ user request), name as a tiebreaker for equal-cost cards.
+	ids.sort_custom(func(a: String, b: String) -> bool:
+		var ca := CardDatabase.get_card(a)
+		var cb := CardDatabase.get_card(b)
+		if ca.cost != cb.cost:
+			return ca.cost < cb.cost
+		return ca.card_name < cb.card_name)
 	for card_id: String in ids:
 		var count := int(_cards[card_id])
 		total += count

@@ -94,6 +94,66 @@ func _ready() -> void:
 	db._on_multi_filter_toggled(2, db._type_menu, type_options, db._type_filters, "Type")
 	await get_tree().process_frame
 
+	# --- Browser sort modes (§ user request) ---------------------------------
+	db._new_deck()
+	db._leader_id = "queen_amara"
+	db._on_sort_selected(DeckBuilderUI.SortMode.COST_LOW)
+	await get_tree().process_frame
+	var costs_low_to_high: Array[int] = []
+	for i in range(min(20, db._browser_grid.get_child_count())):
+		var btn: Button = db._browser_grid.get_child(i)
+		var cost_line: String = btn.text.split("\n")[1]
+		costs_low_to_high.append(int(cost_line.replace("Cost ", "").split(" ")[0]))
+	var is_ascending := true
+	for i in range(1, costs_low_to_high.size()):
+		if costs_low_to_high[i] < costs_low_to_high[i - 1]:
+			is_ascending = false
+	_check(is_ascending, "Sort: Cost (Low-High) orders the browser by ascending Leader-adjusted cost")
+
+	db._on_sort_selected(DeckBuilderUI.SortMode.COST_HIGH)
+	await get_tree().process_frame
+	var first_high_cost := int(db._browser_grid.get_child(0).text.split("\n")[1].replace("Cost ", "").split(" ")[0])
+	var first_low_cost := costs_low_to_high[0]
+	_check(first_high_cost >= first_low_cost, "Sort: Cost (High-Low) puts the most expensive card first")
+
+	db._on_sort_selected(DeckBuilderUI.SortMode.TYPE)
+	await get_tree().process_frame
+	_check(db._browser_grid.get_child_count() > 0, "Sort: Creature Type doesn't drop any cards, just reorders them")
+	db._on_sort_selected(DeckBuilderUI.SortMode.NAME)
+
+	# --- "My Deck" view toggle (§ user request) ------------------------------
+	db._new_deck()
+	await get_tree().process_frame
+	var full_pool_count := db._browser_grid.get_child_count()
+	db._add_card("worker_termite")
+	db._add_card("blood_tick")
+	db._on_view_toggle_pressed()
+	await get_tree().process_frame
+	_check(db._browser_grid.get_child_count() == 2, "\"View: My Deck\" shows exactly the cards in the current build")
+	db._remove_card("blood_tick")
+	await get_tree().process_frame
+	_check(db._browser_grid.get_child_count() == 1, "Removing a card's last copy drops it from the \"My Deck\" view immediately")
+	db._on_view_toggle_pressed()
+	await get_tree().process_frame
+	_check(db._browser_grid.get_child_count() == full_pool_count, "Toggling back off restores the full pool")
+
+	# --- Deck list is ordered by cost ascending (§ user request) -------------
+	db._new_deck()
+	db._add_card("apex_bloodhunter") # 9 cost
+	db._add_card("worker_termite") # 1 cost
+	db._add_card("blood_tick") # 1 cost
+	await get_tree().process_frame
+	var deck_list_costs: Array[int] = []
+	for row in db._deck_list_box.get_children():
+		var label_text: String = (row.get_child(0) as Label).text
+		var cost_str := label_text.substr(label_text.rfind("(") + 1).trim_suffix(")")
+		deck_list_costs.append(int(cost_str))
+	var deck_list_ascending := true
+	for i in range(1, deck_list_costs.size()):
+		if deck_list_costs[i] < deck_list_costs[i - 1]:
+			deck_list_ascending = false
+	_check(deck_list_costs.size() == 3 and deck_list_ascending, "The deck list panel is ordered by Larva cost ascending")
+
 	# --- Max-copy enforcement ------------------------------------------------
 	db._new_deck()
 	db._leader_id = "queen_amara"

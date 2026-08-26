@@ -21,7 +21,7 @@ static func get_all() -> Array[Dictionary]:
 			],
 		},
 		{
-			"id": "thornback_grael", "name": "Thornback Grael",
+			"id": "thornback_grael", "name": "Grub Cloudforest",
 			"kingdoms": [Kingdoms.GREEN], "starting_health": 30,
 			"text": "Leader of the Wild.",
 			"hero_power_cost": 0,
@@ -32,7 +32,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "buff_friendly", "params": {"attack": 4, "health": 4, "keyword": Keywords.TRAMPLE}}],
 		},
 		{
-			"id": "matriarch_vess", "name": "Matriarch Vess",
+			"id": "matriarch_vess", "name": "Noctura, Vampire Moth",
 			"kingdoms": [Kingdoms.BLACK], "starting_health": 30,
 			"text": "Leader of the Venom.",
 			"hero_power_cost": 2,
@@ -43,7 +43,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "damage_creature", "params": {"amount": 6}}],
 		},
 		{
-			"id": "skywhisper_iyra", "name": "Skywhisper Iyra",
+			"id": "skywhisper_iyra", "name": "Odonata Skydarner",
 			"kingdoms": [Kingdoms.BLUE], "starting_health": 30,
 			"text": "Leader of the Swarm Aloft.",
 			"hero_power_cost": 1,
@@ -68,7 +68,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "buff_friendly", "params": {"attack": 0, "health": 5, "keyword": Keywords.GUARD}}],
 		},
 		{
-			"id": "sister_wren", "name": "Sister Wren, the Beekeeper",
+			"id": "sister_wren", "name": "One, from the Square Mound",
 			"kingdoms": [Kingdoms.WHITE], "starting_health": 30,
 			"text": "Leader of the Hive.",
 			"hero_power_cost": 2,
@@ -79,7 +79,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "return_from_graveyard_to_play", "params": {"count": 3}}],
 		},
 		{
-			"id": "bram_undergrowth", "name": "Bram Undergrowth",
+			"id": "bram_undergrowth", "name": "Dung Cloudforest",
 			"kingdoms": [Kingdoms.GREEN], "starting_health": 30,
 			"text": "Leader of the Wild.",
 			"hero_power_cost": 1,
@@ -90,7 +90,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "buff_friendly", "params": {"attack": 6, "health": 6, "keyword": Keywords.TRAMPLE}}],
 		},
 		{
-			"id": "vera_stagmaw", "name": "Vera Stagmaw",
+			"id": "vera_stagmaw", "name": "Orchid Manta",
 			"kingdoms": [Kingdoms.GREEN], "starting_health": 30,
 			"text": "Leader of the Wild.",
 			"hero_power_cost": 2,
@@ -167,7 +167,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "buff_friendly", "params": {"attack": 4, "health": 4, "keyword": Keywords.LIFESTEAL}}],
 		},
 		{
-			"id": "vex_the_ravenous", "name": "Vex, Master of the Swarm",
+			"id": "vex_the_ravenous", "name": "Infestus, Flea Bloodmother",
 			"kingdoms": [Kingdoms.RED], "starting_health": 30,
 			"text": "Leader of the Bloodhunt.",
 			"hero_power_cost": 1,

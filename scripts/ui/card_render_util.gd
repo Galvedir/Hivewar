@@ -76,18 +76,27 @@ static func apply_full_bleed_art(btn: Button, card_data: CardData) -> Texture2D:
 		btn.modulate = card_color(card_data)
 	return tex
 
+## The number shown in the top-right circle badge: a Leader's starting
+## health (§ user request — Leaders aren't cast for Larva, so their
+## circle shows life total instead) or the printed/effective Larva cost
+## for every other card type.
+static func badge_value(card_data: CardData, cost: int) -> int:
+	if card_data is LeaderData:
+		return (card_data as LeaderData).starting_health
+	return cost
+
 ## Adds the base card face's name (top-left, ellipsized instead of ever
-## overlapping the cost badge) and Larva-cost badge (top-right, a plain
-## circle for now — § user request: "eventually this circle will be
-## replaced with an image") on top of `btn`'s art. Combines
-## apply_full_bleed_art with these two decorations since every card
-## display needs all three together. Returns the resolved art texture (or
-## null) for the caller to pass along to wire_hover_preview.
+## overlapping the cost badge) and top-right circle badge (Larva cost, or
+## a Leader's starting health — see badge_value; a plain circle for now,
+## § user request: "eventually this circle will be replaced with an
+## image") on top of `btn`'s art. Combines apply_full_bleed_art with these
+## two decorations since every card display needs all three together.
+## Returns the resolved art texture (or null) for the caller to pass along
+## to wire_hover_preview.
 static func style_card_face(btn: Button, card_data: CardData, cost: int) -> Texture2D:
 	var tex := apply_full_bleed_art(btn, card_data)
 	add_name_label(btn, card_data.card_name)
-	if card_data.card_type != CardTypes.LEADER:
-		add_cost_badge(btn, cost)
+	add_cost_badge(btn, badge_value(card_data, cost))
 	return tex
 
 ## Semi-transparent bar across the top (a placeholder "nameplate" until

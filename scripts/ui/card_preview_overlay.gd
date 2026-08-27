@@ -135,8 +135,8 @@ func show_for(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: Strin
 	_art.texture = tex
 	_art.visible = tex != null
 	_name_label.text = card_data.card_name
-	_cost_circle.visible = card_data.card_type != CardTypes.LEADER
-	_cost_label.text = str(cost)
+	_cost_circle.visible = true
+	_cost_label.text = str(CardRenderUtil.badge_value(card_data, cost))
 	_text.text = bbcode_text
 	_badge.text = badge_text
 	_badge.visible = badge_text != ""

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ddxuyuqtoynl8"
-path="res://.godot/imported/One_from_the_square_mound_animation.png-b96d2488c46c5de732611324a637e0c2.ctex"
+uid="uid://c0jww3bi1je8r"
+path="res://.godot/imported/One_from_Square_mound_animation.png-092ffcc06167d306034398257627963b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/leaders/One_From_The_Square_Mound/One_from_the_square_mound_animation.png"
-dest_files=["res://.godot/imported/One_from_the_square_mound_animation.png-b96d2488c46c5de732611324a637e0c2.ctex"]
+source_file="res://art/leaders/One_From_The_Square_Mound/One_from_Square_mound_animation.png"
+dest_files=["res://.godot/imported/One_from_Square_mound_animation.png-092ffcc06167d306034398257627963b.ctex"]
 
 [params]
 

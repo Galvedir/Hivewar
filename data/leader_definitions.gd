@@ -207,8 +207,8 @@ static func get_all() -> Array[Dictionary]:
 			"kingdoms": [Kingdoms.RED, Kingdoms.BLACK], "starting_health": 30,
 			"text": "Leader of the Bloodhunt and the Venom.",
 			"hero_power_cost": 2,
-			"hero_power_text": "Deal 2 damage to the enemy Leader.",
-			"hero_power_effects": [{"effect_id": "damage_leader", "params": {"amount": 2, "target": "enemy"}}],
+			"hero_power_text": "Deal 1 damage to the enemy Leader.",
+			"hero_power_effects": [{"effect_id": "damage_leader", "params": {"amount": 1, "target": "enemy"}}],
 			"ultimate_cost": 7,
 			"ultimate_text": "Deal 5 damage to the enemy Leader and 3 damage to target enemy creature.",
 			"ultimate_effects": [

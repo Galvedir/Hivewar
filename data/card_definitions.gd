@@ -69,7 +69,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "Restore 5 health to your Leader.",
 	},
 	{
-		"id": "protective_ward", "name": "Protective Ward", "type": "Gear",
+		"id": "protective_ward", "name": "Drone Pheromone", "type": "Gear",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"grants_keywords": [Keywords.GUARD],
 		"text": "Equipped creature gains Guard.",
@@ -220,7 +220,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "Equipped creature gets +0/+3.",
 	},
 	{
-		"id": "royal_sash", "name": "Royal Sash", "type": "Gear",
+		"id": "royal_sash", "name": "Blood Meal", "type": "Gear",
 		"cost": 3, "kingdoms": [], "rarity": Rarities.RARE,
 		"attack_buff": 1, "health_buff": 1, "grants_keywords": [Keywords.LIFESTEAL],
 		"text": "Equipped creature gets +1/+1 and Lifesteal.",
@@ -436,13 +436,13 @@ const GREEN: Array[Dictionary] = [
 		"text": "Draw a card. Gain 1 extra Larva this turn.",
 	},
 	{
-		"id": "bark_shield", "name": "Bark Shield", "type": "Gear",
+		"id": "bark_shield", "name": "Shell Shield", "type": "Gear",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"health_buff": 2,
 		"text": "Equipped creature gets +0/+2.",
 	},
 	{
-		"id": "serrated_claws", "name": "Serrated Claws", "type": "Gear",
+		"id": "serrated_claws", "name": "Mantis Claws", "type": "Gear",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.RARE,
 		"attack_buff": 2, "grants_keywords": [Keywords.TRAMPLE],
 		"text": "Equipped creature gets +2/+0 and Trample.",
@@ -599,7 +599,7 @@ const BLACK: Array[Dictionary] = [
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Fly", "keywords": [Keywords.DECAY],
 		"effects": [{"trigger": "on_death", "effect_id": "summon_token", "params": {"token_id": "cicada_swarm_token", "count": 1}}],
-		"text": "Decay: summon a 1/1 Cicada Swarm token.",
+		"text": "Decay: summon a 1/1 Sleeping Cicada token.",
 	},
 	{
 		"id": "night_caller", "name": "Night Caller", "type": "Creature",
@@ -988,7 +988,7 @@ const BLUE: Array[Dictionary] = [
 		"text": "Return target enemy creature to its owner's hand. Draw a card.",
 	},
 	{
-		"id": "gossamer_wings", "name": "Gossamer Wings", "type": "Gear",
+		"id": "gossamer_wings", "name": "Chrysalis", "type": "Gear",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"grants_keywords": [Keywords.FLYING],
 		"text": "Equipped creature gains Flying.",
@@ -1233,7 +1233,7 @@ const RED: Array[Dictionary] = [
 		"text": "Equipped creature gets +1/+0 and Swift.",
 	},
 	{
-		"id": "blood_vial", "name": "Blood Vial", "type": "Gear",
+		"id": "blood_vial", "name": "Blood Siphon", "type": "Gear",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1, "grants_keywords": [Keywords.LIFESTEAL],
 		"text": "Equipped creature gets +1/+0 and Lifesteal.",
@@ -1304,7 +1304,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "common_roach", "name": "Common Roach", "type": "Creature",
+		"id": "common_roach", "name": "Roach Scavenger", "type": "Creature",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack": 2, "health": 1, "creature_type": "Roach", "keywords": [],
 		"text": "",
@@ -1328,13 +1328,13 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "armored_beetle_grub", "name": "Armored Beetle Grub", "type": "Creature",
+		"id": "armored_beetle_grub", "name": "June Bug", "type": "Creature",
 		"cost": 3, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack": 2, "health": 5, "creature_type": "Grub", "keywords": [],
 		"text": "",
 	},
 	{
-		"id": "iron_carapace_roach", "name": "Iron Carapace Roach", "type": "Creature",
+		"id": "iron_carapace_roach", "name": "Wood Roach", "type": "Creature",
 		"cost": 4, "kingdoms": [], "rarity": Rarities.RARE,
 		"attack": 3, "health": 6, "creature_type": "Roach", "keywords": [],
 		"text": "",
@@ -1364,7 +1364,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "Deal 2 damage to target enemy creature.",
 	},
 	{
-		"id": "feeders_bounty", "name": "Feeders' Bounty", "type": "Ability",
+		"id": "feeders_bounty", "name": "Hibernate", "type": "Ability",
 		"cost": 3, "kingdoms": [], "rarity": Rarities.UNCOMMON,
 		"effects": [
 			{"trigger": "on_cast", "effect_id": "draw_card", "params": {"count": 1}},
@@ -1373,7 +1373,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "Draw a card. Restore 2 health to your Leader.",
 	},
 	{
-		"id": "sharpened_mandibles", "name": "Sharpened Mandibles", "type": "Gear",
+		"id": "sharpened_mandibles", "name": "Spider Fangs", "type": "Gear",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1,
 		"text": "Equipped creature gets +1/+0.",
@@ -1391,7 +1391,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "Equipped creature gets +1/+2.",
 	},
 	{
-		"id": "feeders_nest", "name": "Feeder's Nest", "type": "Hive",
+		"id": "feeders_nest", "name": "Breeding Grounds", "type": "Hive",
 		"cost": 3, "kingdoms": [], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "token_stat_bonus", "attack": 1, "health": 1}],
 		"text": "Your token creatures have +1/+1.",
@@ -1399,8 +1399,8 @@ const COLORLESS: Array[Dictionary] = [
 	{
 		"id": "call_the_swarm", "name": "Call the Swarm", "type": "Ability",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
-		"effects": [{"trigger": "on_cast", "effect_id": "summon_token", "params": {"token_id": "swarm_larva_token", "count": 2}}],
-		"text": "Summon two 1/1 Swarm Larva tokens.",
+		"effects": [{"trigger": "on_cast", "effect_id": "summon_token", "params": {"token_id": "swarm_locust_token", "count": 2}}],
+		"text": "Summon two 1/1 Swarm Locust tokens.",
 	},
 	{
 		"id": "universal_vigor", "name": "Universal Vigor", "type": "Ability",
@@ -1415,7 +1415,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "No allegiance, no weakness, no ceiling either.",
 	},
 	{
-		"id": "communal_growth", "name": "Communal Growth", "type": "Hive",
+		"id": "communal_growth", "name": "Molting Ground", "type": "Hive",
 		"cost": 6, "kingdoms": [], "rarity": Rarities.RARE,
 		"static_modifiers": [{"type": "all_stat_bonus", "attack": 0, "health": 1}],
 		"text": "All your creatures have +0/+1, no matter their Kingdom.",
@@ -1514,7 +1514,7 @@ const TOKENS: Array[Dictionary] = [
 		"text": "Guard.",
 	},
 	{
-		"id": "cicada_swarm_token", "name": "Cicada Swarm", "type": "Creature",
+		"id": "cicada_swarm_token", "name": "Sleeping Cicada", "type": "Creature",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Cicada", "keywords": [],
 		"text": "",
@@ -1538,9 +1538,9 @@ const TOKENS: Array[Dictionary] = [
 		"text": "Poison.",
 	},
 	{
-		"id": "swarm_larva_token", "name": "Swarm Larva", "type": "Creature",
+		"id": "swarm_locust_token", "name": "Swarm Locust", "type": "Creature",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
-		"attack": 1, "health": 1, "creature_type": "Grub", "keywords": [],
+		"attack": 1, "health": 1, "creature_type": "Locust", "keywords": [],
 		"text": "",
 	},
 	{

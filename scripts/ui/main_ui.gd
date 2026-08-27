@@ -1507,7 +1507,7 @@ func _render_hive_row(row: HBoxContainer, hive_zone: Array[CardInstance]) -> voi
 func _make_hive_widget(c: CardInstance) -> Control:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(160, 90)
-	var tex := CardRenderUtil.apply_full_bleed_art(btn, c.data)
+	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)
 	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, tex, CardRenderUtil.card_full_text(c.data, 0, false, false), "")
 	return btn
 
@@ -1521,7 +1521,7 @@ func _render_hand() -> void:
 		var surcharged := not card.data.matches_kingdom(human.leader.data.kingdoms)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(170, 190)
-		var tex := CardRenderUtil.apply_full_bleed_art(btn, card.data)
+		var tex := CardRenderUtil.style_card_face(btn, card.data, cost)
 		btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > human.current_larva
 		if btn.disabled:
 			btn.modulate *= Color(0.55, 0.55, 0.55)
@@ -1538,7 +1538,7 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(150, 150)
-	var tex := CardRenderUtil.apply_full_bleed_art(btn, c.data)
+	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)
 	if c.is_exhausted():
 		btn.modulate *= Color(0.6, 0.6, 0.6)
 	if c.instance_id == _selected_attacker_id:

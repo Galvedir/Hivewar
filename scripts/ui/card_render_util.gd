@@ -71,6 +71,81 @@ static func apply_full_bleed_art(btn: Button, card_data: CardData) -> Texture2D:
 		btn.modulate = card_color(card_data)
 	return tex
 
+const NAME_BAR_HEIGHT := 22.0
+const COST_BADGE_SIZE := 26.0
+
+## Adds the base card face's name (top-left, ellipsized instead of ever
+## overlapping the cost badge) and Larva-cost badge (top-right, a plain
+## circle for now — § user request: "eventually this circle will be
+## replaced with an image") on top of `btn`'s art. Combines
+## apply_full_bleed_art with these two decorations since every card
+## display needs all three together. Returns the resolved art texture (or
+## null) for the caller to pass along to wire_hover_preview.
+static func style_card_face(btn: Button, card_data: CardData, cost: int) -> Texture2D:
+	var tex := apply_full_bleed_art(btn, card_data)
+	_add_name_label(btn, card_data.card_name)
+	if card_data.card_type != CardTypes.LEADER:
+		_add_cost_badge(btn, cost)
+	return tex
+
+## Semi-transparent bar across the top (a placeholder "nameplate" until
+## real card-frame art exists) holding the printed name. clip_text +
+## OVERRUN_TRIM_ELLIPSIS is what turns an overlong name into "Some Long
+## Na…" instead of overlapping the cost badge (§ user request) — the
+## label's own right edge is anchored to stop short of the badge rather
+## than the ellipsis needing any special-casing for it.
+static func _add_name_label(btn: Control, card_name: String) -> void:
+	var bar := ColorRect.new()
+	bar.color = Color(0, 0, 0, 0.55)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.anchor_right = 1.0
+	bar.offset_bottom = NAME_BAR_HEIGHT
+	btn.add_child(bar)
+
+	var label := Label.new()
+	label.text = card_name
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_font_size_override("font_size", 13)
+	label.clip_text = true
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.anchor_right = 1.0
+	label.offset_left = 4.0
+	label.offset_right = -(COST_BADGE_SIZE + 8.0) # stop short of the cost badge regardless of the widget's actual width
+	label.offset_bottom = NAME_BAR_HEIGHT
+	btn.add_child(label)
+
+## Circular Larva-cost badge, top-right — a flat placeholder shape for now
+## (§ user request: "eventually this circle will be replaced with an
+## image").
+static func _add_cost_badge(btn: Control, cost: int) -> void:
+	var circle := Panel.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.16, 0.92)
+	style.border_color = Color(0.85, 0.8, 0.55)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(int(COST_BADGE_SIZE / 2.0))
+	circle.add_theme_stylebox_override("panel", style)
+	circle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	circle.anchor_left = 1.0
+	circle.anchor_right = 1.0
+	circle.offset_left = -(COST_BADGE_SIZE + 4.0)
+	circle.offset_top = 4.0
+	circle.offset_right = -4.0
+	circle.offset_bottom = 4.0 + COST_BADGE_SIZE
+	btn.add_child(circle)
+
+	var label := Label.new()
+	label.text = str(cost)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_font_size_override("font_size", 14)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	LayoutUtil.fill_parent(label)
+	circle.add_child(label)
+
 ## Adds a bottom-right ATK/DEF badge as a child of `widget` (§ user
 ## request — creature stats show only here on the base card view, and
 ## again only in this same corner on the enlarged hover view).

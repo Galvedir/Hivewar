@@ -117,7 +117,7 @@ func _refresh() -> void:
 		shown += 1
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(150, 160)
-		var tex := CardRenderUtil.apply_full_bleed_art(btn, card)
+		var tex := CardRenderUtil.style_card_face(btn, card, card.cost)
 		btn.focus_mode = Control.FOCUS_NONE # read-only browse — no pressed handler, just not focus-tabbable
 		var badge_text := ""
 		if card is CreatureData:

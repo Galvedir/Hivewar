@@ -384,8 +384,8 @@ func _refresh_browser() -> void:
 		var surcharged := leader_data != null and not card.matches_kingdom(leader_data.kingdoms)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(160, 170)
-		var tex := CardRenderUtil.apply_full_bleed_art(btn, card)
-		btn.set_meta("cost", cost) # display no longer shows cost as text — automated checks read it here instead
+		var tex := CardRenderUtil.style_card_face(btn, card, cost)
+		btn.set_meta("cost", cost) # cost is shown as a badge now, not text — automated checks read it here instead
 		var badge_text := ""
 		if card is CreatureData:
 			var cd := card as CreatureData

@@ -56,25 +56,35 @@ static func wrap_text(text: String, width_chars: int = 22) -> String:
 	return "\n".join(lines)
 
 ## Fills `btn` edge-to-edge with `card_data`'s illustration and clears its
-## text (§ user request — the base card view is art-only). Falls back to a
-## flat kingdom-colored background when no art has been matched yet, so
-## the card stays visually distinct until real art is dropped in. Returns
-## the resolved texture (or null) for the caller to pass along to
-## wire_hover_preview.
+## text (§ user request — the base card view is art-only). Falls back to
+## the card's Kingdom frame background (§ user request — one background
+## image per Kingdom, e.g. Monogyne) when no illustration has been matched
+## yet, or to a flat kingdom-colored tint if that Kingdom has no frame
+## image either, so the card stays visually distinct either way until real
+## art is dropped in. Returns the resolved illustration texture (or null —
+## note this is independent of whether a frame image is now showing) for
+## the caller to pass along to wire_hover_preview.
 static func apply_full_bleed_art(btn: Button, card_data: CardData) -> Texture2D:
 	btn.text = ""
 	var tex := CardDatabase.get_illustration_texture(card_data)
 	if tex != null:
-		var art := TextureRect.new()
-		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		LayoutUtil.fill_parent(art)
-		art.texture = tex
-		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		btn.add_child(art)
+		_add_full_rect_texture(btn, tex)
 	else:
-		btn.modulate = card_color(card_data)
+		var frame_tex := CardDatabase.get_kingdom_frame_texture(card_data)
+		if frame_tex != null:
+			_add_full_rect_texture(btn, frame_tex)
+		else:
+			btn.modulate = card_color(card_data)
 	return tex
+
+static func _add_full_rect_texture(widget: Control, tex: Texture2D) -> void:
+	var rect := TextureRect.new()
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	LayoutUtil.fill_parent(rect)
+	rect.texture = tex
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	widget.add_child(rect)
 
 ## The number shown in the top-right circle badge: a Leader's starting
 ## health (§ user request — Leaders aren't cast for Larva, so their

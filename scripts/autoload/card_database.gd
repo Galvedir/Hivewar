@@ -9,7 +9,8 @@ extends Node
 
 var _cards: Dictionary = {}   # id -> CardData
 var _leaders: Dictionary = {} # id -> LeaderData
-var _texture_cache: Dictionary = {} # illustration_path -> Texture2D
+var _texture_cache: Dictionary = {} # path -> Texture2D
+var _kingdom_frames: Dictionary = {} # Kingdom name -> frame texture path
 
 ## Card and Leader art (§ user request) is dropped in as separate flat
 ## folders and matched to a card purely by name, rather than being wired up
@@ -17,10 +18,12 @@ var _texture_cache: Dictionary = {} # illustration_path -> Texture2D
 ## incrementally during playtesting without any code/data changes per card.
 const CARD_ILLUSTRATIONS_DIR := "res://art/cards/illustrations/"
 const LEADER_ILLUSTRATIONS_DIR := "res://art/leaders/"
+const CARD_FRAMES_DIR := "res://art/cards/frames/"
 
 func _ready() -> void:
 	var card_art := _scan_illustrations(CARD_ILLUSTRATIONS_DIR)
 	var leader_art := _scan_leader_art(LEADER_ILLUSTRATIONS_DIR)
+	_kingdom_frames = _scan_kingdom_frames(CARD_FRAMES_DIR)
 	_load_cards(card_art)
 	_load_leaders(leader_art)
 
@@ -152,6 +155,30 @@ func _scan_leader_folder(sub_path: String) -> Dictionary:
 	dir.list_dir_end()
 	return {"portrait": portrait, "animation": animation}
 
+## Kingdom card-frame backgrounds (§ user request): one image per Kingdom,
+## dropped into art/cards/frames/ as e.g. "Monogyne_Card_background.png" —
+## matched to a Kingdom by checking whether the filename (normalized the
+## same way everything else is) contains that Kingdom's own normalized
+## name, so a future frame just needs the Kingdom's name somewhere in its
+## filename, no fixed naming convention required. Cards whose Kingdom has
+## no matching frame yet fall back to their existing plain-color look.
+func _scan_kingdom_frames(dir_path: String) -> Dictionary:
+	var out := {}
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return out
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	while file_name != "":
+		if not dir.current_is_dir() and _is_image_file(file_name):
+			var normalized := _normalize_name(file_name.get_basename())
+			for kingdom: String in Kingdoms.ALL + [Kingdoms.COLORLESS]:
+				if normalized.contains(_normalize_name(kingdom)):
+					out[kingdom] = dir_path + file_name
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	return out
+
 ## Lowercases, strips punctuation, and drops filler words so filenames and
 ## printed card names compare equal despite cosmetic differences (spaces vs
 ## underscores, a stray comma, an inserted "The").
@@ -169,14 +196,28 @@ func _normalize_name(s: String) -> String:
 ## this project — if no art has been matched for this card yet, or the
 ## matched file no longer exists.
 func get_illustration_texture(card: CardData) -> Texture2D:
-	if card == null or card.illustration_path.is_empty():
+	if card == null:
 		return null
-	if _texture_cache.has(card.illustration_path):
-		return _texture_cache[card.illustration_path]
-	if not ResourceLoader.exists(card.illustration_path):
+	return _load_and_cache(card.illustration_path)
+
+## The card-frame background texture for `card`'s Kingdom (first Kingdom
+## for a Hybrid card, same "first wins" convention CardRenderUtil.
+## card_color already uses). Null for a Colorless card or a Kingdom with
+## no frame image yet.
+func get_kingdom_frame_texture(card: CardData) -> Texture2D:
+	if card == null or card.kingdoms.is_empty():
 		return null
-	var tex: Texture2D = load(card.illustration_path)
-	_texture_cache[card.illustration_path] = tex
+	return _load_and_cache(_kingdom_frames.get(card.kingdoms[0], ""))
+
+func _load_and_cache(path: String) -> Texture2D:
+	if path.is_empty():
+		return null
+	if _texture_cache.has(path):
+		return _texture_cache[path]
+	if not ResourceLoader.exists(path):
+		return null
+	var tex: Texture2D = load(path)
+	_texture_cache[path] = tex
 	return tex
 
 func _build_card(def: Dictionary) -> CardData:

@@ -29,6 +29,7 @@ const LEADER_ANIM_COLS := 4
 const LEADER_ANIM_ROWS := 4
 const LEADER_ANIM_FPS := 8.0
 
+var _frame_rect: TextureRect
 var _art: TextureRect
 var _art_area: Control
 var _anim_rect: TextureRect
@@ -55,6 +56,19 @@ func _ready() -> void:
 	LayoutUtil.fill_parent(bg)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+
+	# Kingdom card-frame background (§ user request): spans the whole card,
+	# behind both the art area and the rules-text area below it — visible
+	# in the rules-text area always (nothing else is drawn there but the
+	# text itself), and in the art area only where/if the portrait doesn't
+	# fully cover it. Hidden entirely for a Kingdom with no frame image yet.
+	_frame_rect = TextureRect.new()
+	_frame_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_frame_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_frame_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_frame_rect.visible = false
+	LayoutUtil.fill_parent(_frame_rect)
+	add_child(_frame_rect)
 
 	_art_area = Control.new()
 	_art_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -132,6 +146,9 @@ func _ready() -> void:
 ## they differ between printed CardData and a live CardInstance's current
 ## stats/status.
 func show_for(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String, anchor_rect: Rect2) -> void:
+	var frame_tex := CardDatabase.get_kingdom_frame_texture(card_data)
+	_frame_rect.texture = frame_tex
+	_frame_rect.visible = frame_tex != null
 	_art.texture = tex
 	_art.visible = tex != null
 	_name_label.text = card_data.card_name

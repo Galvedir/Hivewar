@@ -43,6 +43,7 @@ var _deck_list_box: VBoxContainer
 var _deck_size_label: Label
 var _status_label: Label
 var _saved_decks_box: VBoxContainer
+var _overlay: CardPreviewOverlay
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -59,7 +60,9 @@ func _build_ui() -> void:
 	root.add_child(top)
 	var back_btn := Button.new()
 	back_btn.text = "< Back to Menu"
-	back_btn.pressed.connect(func() -> void: closed.emit())
+	back_btn.pressed.connect(func() -> void:
+		_overlay.hide_preview()
+		closed.emit())
 	top.add_child(back_btn)
 
 	_name_edit = LineEdit.new()
@@ -168,6 +171,11 @@ func _build_ui() -> void:
 	deck_col.add_child(saved_scroll)
 	_saved_decks_box = VBoxContainer.new()
 	saved_scroll.add_child(_saved_decks_box)
+
+	# Added directly to self (a plain Control, not a Container) so its
+	# manually-set global_position isn't fought by a Container layout pass.
+	_overlay = CardPreviewOverlay.new()
+	add_child(_overlay)
 
 ## Builds a dropdown that lets the player check any number of `options`
 ## (§ user request — deck-builder filters used to be single-select only).
@@ -376,8 +384,14 @@ func _refresh_browser() -> void:
 		var surcharged := leader_data != null and not card.matches_kingdom(leader_data.kingdoms)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(160, 170)
-		btn.text = CardRenderUtil.card_summary(card, cost, surcharged)
-		btn.modulate = CardRenderUtil.card_color(card)
+		var tex := CardRenderUtil.apply_full_bleed_art(btn, card)
+		btn.set_meta("cost", cost) # display no longer shows cost as text — automated checks read it here instead
+		var badge_text := ""
+		if card is CreatureData:
+			var cd := card as CreatureData
+			badge_text = "%d/%d" % [cd.attack, cd.health]
+			CardRenderUtil.add_corner_badge(btn, badge_text)
+		CardRenderUtil.wire_hover_preview(btn, _overlay, tex, CardRenderUtil.card_full_text(card, cost, surcharged), badge_text)
 		btn.pressed.connect(_add_card.bind(card.id))
 		_browser_grid.add_child(btn)
 

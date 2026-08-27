@@ -67,6 +67,7 @@ var _legend_popup: PanelContainer
 var _legend_popup_box: VBoxContainer
 var _game_over_popup: PanelContainer
 var _game_over_label: Label
+var _card_preview_overlay: CardPreviewOverlay
 
 var _selected_hand_index := -1
 var _selected_attacker_id := -1
@@ -112,6 +113,11 @@ func _ready() -> void:
 	_build_options_screen()
 	_build_match_view()
 	_match_view.visible = false
+
+	# Added directly to self (a plain Control, not a Container) so its
+	# manually-set global_position isn't fought by a Container layout pass.
+	_card_preview_overlay = CardPreviewOverlay.new()
+	add_child(_card_preview_overlay)
 
 	_deck_builder = DeckBuilderUI.new()
 	_deck_builder.visible = false
@@ -831,6 +837,7 @@ func _show_loading_screen() -> void:
 ## the player returns to the Practice deck-select screen.
 func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
 	_practice_screen.visible = false
+	_card_preview_overlay.hide_preview()
 	await _show_loading_screen()
 	_match_view.visible = true
 	_stop_ambient_music()
@@ -1108,6 +1115,7 @@ func _build_game_over_popup() -> void:
 func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
 	_match_view.visible = false
+	_card_preview_overlay.hide_preview()
 	_resume_ambient_music()
 	_refresh_saved_decks_menu()
 	_practice_screen.visible = true
@@ -1499,12 +1507,9 @@ func _render_hive_row(row: HBoxContainer, hive_zone: Array[CardInstance]) -> voi
 func _make_hive_widget(c: CardInstance) -> Control:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(160, 90)
-	var lines := [c.display_name()]
-	if c.data.text != "":
-		lines.append(_wrap_text(c.data.text))
-	btn.text = "\n".join(lines)
-	btn.modulate = _card_color(c.data)
-	return CardRenderUtil.with_illustration(c.data, btn, 40.0)
+	var tex := CardRenderUtil.apply_full_bleed_art(btn, c.data)
+	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, tex, CardRenderUtil.card_full_text(c.data, 0, false, false), "")
+	return btn
 
 func _render_hand() -> void:
 	for child in _player_hand.get_children():
@@ -1513,35 +1518,39 @@ func _render_hand() -> void:
 	for i in range(human.hand.size()):
 		var card: CardInstance = human.hand[i]
 		var cost := CostCalculator.calculate_cost(card.data, human.leader.data)
+		var surcharged := not card.data.matches_kingdom(human.leader.data.kingdoms)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(170, 190)
-		var surcharged := not card.data.matches_kingdom(human.leader.data.kingdoms)
-		btn.text = _card_text(card, cost, surcharged)
-		btn.modulate = _card_color(card.data)
+		var tex := CardRenderUtil.apply_full_bleed_art(btn, card.data)
 		btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > human.current_larva
+		if btn.disabled:
+			btn.modulate *= Color(0.55, 0.55, 0.55)
+		var badge_text := ""
+		if card.data is CreatureData:
+			var cd := card.data as CreatureData
+			badge_text = "%d/%d" % [cd.attack, cd.health]
+			CardRenderUtil.add_corner_badge(btn, badge_text)
 		btn.pressed.connect(_on_hand_card_pressed.bind(i))
-		_player_hand.add_child(CardRenderUtil.with_illustration(card.data, btn))
+		CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, tex, CardRenderUtil.card_full_text(card.data, cost, surcharged), badge_text)
+		_player_hand.add_child(btn)
 
 func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(150, 150)
-	btn.modulate = _card_color(c.data) * (Color(0.6, 0.6, 0.6) if c.is_exhausted() else Color.WHITE)
+	var tex := CardRenderUtil.apply_full_bleed_art(btn, c.data)
+	if c.is_exhausted():
+		btn.modulate *= Color(0.6, 0.6, 0.6)
+	if c.instance_id == _selected_attacker_id:
+		btn.modulate *= Color(1.3, 1.3, 0.6) # gold tint — the only "selection" cue left now that the base card has no text (§ user request)
 	btn.pressed.connect(_on_board_creature_pressed.bind(c, friendly))
 	box.add_child(btn)
 
-	# A plain Button can't mix text colors, so a click-through RichTextLabel
-	# is overlaid on top of it to render BBCode — this is what lets
-	# temporarily-granted keywords show in a different color from the
-	# card's permanent text (§ user request).
-	var rtl := RichTextLabel.new()
-	rtl.bbcode_enabled = true
-	rtl.fit_content = true
-	rtl.scroll_active = false
-	rtl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	LayoutUtil.fill_parent(rtl)
-	rtl.text = _creature_bbcode(c)
-	btn.add_child(rtl)
+	var badge_text := ""
+	if c.data is CreatureData:
+		badge_text = "%d/%d" % [c.current_attack, c.current_health()]
+		CardRenderUtil.add_corner_badge(btn, badge_text)
+	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, tex, _creature_bbcode(c), badge_text)
 
 	if friendly and c.is_face_down and c.true_data != null and c.true_data.ambush.get("flip_trigger", "") == "paid":
 		var cost := int(c.true_data.ambush.get("flip_cost", 0))
@@ -1550,16 +1559,19 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 		flip_btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > GameState.players[HUMAN].current_larva
 		flip_btn.pressed.connect(_on_flip_ambush_pressed.bind(c.instance_id))
 		box.add_child(flip_btn)
-	return CardRenderUtil.with_illustration(c.data, box, 40.0)
+	return box
 
 const TEMP_KEYWORD_COLOR := "#ffcc33"
 
+## Hover-preview body text for a live board creature (§ user request: the
+## base widget shows only art + the ATK/DEF corner badge — this is
+## everything else, shown only on hover). ATK/DEF is deliberately excluded
+## here since the corner badge already covers it.
 func _creature_bbcode(c: CardInstance) -> String:
 	var lines: Array[String] = [_bbcode_escape(c.display_name())]
 	var cd0 := c.data as CreatureData
 	if cd0 != null and cd0.creature_type != "":
 		lines.append(cd0.creature_type)
-	lines.append("%d/%d" % [c.current_attack, c.current_health()])
 	if c.poison_counters > 0:
 		lines.append("Poison x%d" % c.poison_counters)
 	if c.data.text != "":
@@ -1580,20 +1592,6 @@ func _creature_bbcode(c: CardInstance) -> String:
 func _bbcode_escape(text: String) -> String:
 	return text.replace("[", "(").replace("]", ")")
 
-func _card_text(c: CardInstance, cost: int, surcharged: bool = false) -> String:
-	var cost_line := "Cost %d (+2 off-Kingdom)" % cost if surcharged else "Cost %d" % cost
-	var lines := [c.display_name(), cost_line]
-	if c.data is CreatureData:
-		var cd := c.data as CreatureData
-		if cd.creature_type != "":
-			lines.append(cd.creature_type)
-		lines.append("%d/%d" % [cd.attack, cd.health])
-	else:
-		lines.append(c.data.card_type)
-	if c.data.text != "":
-		lines.append(_wrap_text(c.data.text))
-	return "\n".join(lines)
-
 ## Buttons don't word-wrap their text on their own, so we hand-wrap ability
 ## text at a rough character width to keep it legible on the card widgets.
 func _wrap_text(text: String, width_chars: int = 22) -> String:
@@ -1613,6 +1611,3 @@ func _wrap_text(text: String, width_chars: int = 22) -> String:
 	if current != "":
 		lines.append(current)
 	return "\n".join(lines)
-
-func _card_color(card_data: CardData) -> Color:
-	return CardRenderUtil.card_color(card_data)

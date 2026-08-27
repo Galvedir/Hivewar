@@ -15,6 +15,7 @@ var _kingdom_option: OptionButton
 var _rarity_option: OptionButton
 var _grid: GridContainer
 var _count_label: Label
+var _overlay: CardPreviewOverlay
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -31,7 +32,9 @@ func _build_ui() -> void:
 	root.add_child(top)
 	var back_btn := Button.new()
 	back_btn.text = "< Back to Menu"
-	back_btn.pressed.connect(func() -> void: closed.emit())
+	back_btn.pressed.connect(func() -> void:
+		_overlay.hide_preview()
+		closed.emit())
 	top.add_child(back_btn)
 
 	var title := Label.new()
@@ -73,6 +76,12 @@ func _build_ui() -> void:
 	_grid.add_theme_constant_override("v_separation", 6)
 	scroll.add_child(_grid)
 
+	# Added directly to self (a plain Control, not a Container) rather than
+	# under `root`/`scroll`/`_grid` — a Container would otherwise fight the
+	# overlay's manually-set global_position every layout pass.
+	_overlay = CardPreviewOverlay.new()
+	add_child(_overlay)
+
 func _on_kingdom_filter_selected(index: int) -> void:
 	_kingdom_filter = "ALL" if index == 0 else _kingdom_option.get_item_text(index)
 	_refresh()
@@ -89,7 +98,10 @@ func _refresh() -> void:
 	for child in _grid.get_children():
 		child.queue_free()
 	var shown := 0
-	var all_cards: Array = CardDatabase.all_cards()
+	# Leaders are browsable here too (§ user request) — they're printed
+	# CardData just like everything else (Legendary rarity, own kingdoms),
+	# so they fold into the same filtered/sorted/searched grid for free.
+	var all_cards: Array = CardDatabase.all_cards() + CardDatabase.all_leaders()
 	all_cards.sort_custom(func(a: CardData, b: CardData) -> bool: return a.card_name < b.card_name)
 	for card: CardData in all_cards:
 		if _kingdom_filter != "ALL":
@@ -105,8 +117,13 @@ func _refresh() -> void:
 		shown += 1
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(150, 160)
-		btn.text = CardRenderUtil.card_summary(card, card.cost)
-		btn.modulate = CardRenderUtil.card_color(card)
+		var tex := CardRenderUtil.apply_full_bleed_art(btn, card)
 		btn.focus_mode = Control.FOCUS_NONE # read-only browse — no pressed handler, just not focus-tabbable
-		_grid.add_child(CardRenderUtil.with_illustration(card, btn))
+		var badge_text := ""
+		if card is CreatureData:
+			var cd := card as CreatureData
+			badge_text = "%d/%d" % [cd.attack, cd.health]
+			CardRenderUtil.add_corner_badge(btn, badge_text)
+		CardRenderUtil.wire_hover_preview(btn, _overlay, tex, CardRenderUtil.card_full_text(card, card.cost), badge_text)
+		_grid.add_child(btn)
 	_count_label.text = "%d cards" % shown

@@ -108,8 +108,7 @@ func _ready() -> void:
 	var costs_low_to_high: Array[int] = []
 	for i in range(min(20, db._browser_grid.get_child_count())):
 		var btn: Button = db._browser_grid.get_child(i)
-		var cost_line: String = btn.text.split("\n")[1]
-		costs_low_to_high.append(int(cost_line.replace("Cost ", "").split(" ")[0]))
+		costs_low_to_high.append(int(btn.get_meta("cost")))
 	var is_ascending := true
 	for i in range(1, costs_low_to_high.size()):
 		if costs_low_to_high[i] < costs_low_to_high[i - 1]:
@@ -118,7 +117,7 @@ func _ready() -> void:
 
 	db._on_sort_selected(DeckBuilderUI.SortMode.COST_HIGH)
 	await get_tree().process_frame
-	var first_high_cost := int(db._browser_grid.get_child(0).text.split("\n")[1].replace("Cost ", "").split(" ")[0])
+	var first_high_cost := int((db._browser_grid.get_child(0) as Button).get_meta("cost"))
 	var first_low_cost := costs_low_to_high[0]
 	_check(first_high_cost >= first_low_cost, "Sort: Cost (High-Low) puts the most expensive card first")
 

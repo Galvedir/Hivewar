@@ -520,6 +520,16 @@ func _build_log_panel() -> void:
 	_log_display.custom_minimum_size = Vector2(300, 200)
 	box.add_child(_log_display)
 
+## GameLog.entry_added fires for essentially every game action (draws,
+## plays, attacks, damage, hero powers, ...), so re-rendering the board
+## here (§ user request) keeps it live throughout the AI's whole turn
+## instead of only before and after it. Previously the only refreshes
+## around an AI turn were _on_turn_started's (before) and the one after
+## `await AIPlayer.take_turn(...)` finishes — so a creature the AI played
+## AND attacked with in the same turn (e.g. a Swift creature) was
+## invisible on the opponent board the entire time, only appearing once
+## its whole turn had already ended. _refresh() itself no-ops if the
+## match view isn't showing, so this is safe to call this often.
 func _on_log_entry(text: String, kind: String) -> void:
 	if _log_display == null:
 		return
@@ -532,6 +542,7 @@ func _on_log_entry(text: String, kind: String) -> void:
 		"chat":
 			color = "#55ddff"
 	_log_display.append_text("[color=%s]%s[/color]\n" % [color, text.replace("[", "(").replace("]", ")")])
+	_refresh()
 
 func _make_scrolling_row(height: int = 200) -> HBoxContainer:
 	var scroll := ScrollContainer.new()
@@ -700,7 +711,7 @@ func _on_block_requested(attacker: CardInstance, legal_blockers: Array[CardInsta
 	for child in _block_popup_box.get_children():
 		child.queue_free()
 	var label := Label.new()
-	label.text = "%s is attacking your Leader. Choose any number of blockers." % attacker.display_name()
+	label.text = "%s (%d/%d) is attacking your Leader. Choose any number of blockers." % [attacker.display_name(), attacker.current_attack, attacker.current_health()]
 	_block_popup_box.add_child(label)
 	for c: CardInstance in legal_blockers:
 		var btn := Button.new()

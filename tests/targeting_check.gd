@@ -96,6 +96,27 @@ func _ready() -> void:
 	EffectResolver.fire_end_of_turn(human, ai)
 	_check(human.health == health_before - poison_bug.current_attack, "Leader takes no extra damage from Poison at end of turn (Leaders are immune)")
 
+	# --- The board refreshes live off GameLog entries, not just at turn boundaries ---
+	# (§ user request — a Swift creature the opponent played AND attacked with in
+	# the same turn used to be invisible on their board the whole turn, since
+	# _refresh() previously only ran before/after the opponent's whole turn.)
+	var freshly_played := CardDatabase.create_instance("worker_termite", 1)
+	ai.board.append(freshly_played)
+	GameLog.log("test event to trigger a mid-turn refresh", "system")
+	for i in range(2):
+		await get_tree().process_frame
+	_check(main._opponent_board.get_child_count() == ai.board.size() + 1, "Any GameLog entry immediately refreshes the opponent board (+1 for the 'Attack Leader' button), not just at turn start/end")
+
+	# --- The block popup shows the attacker's own attack/health (§ user request) ---
+	var big_attacker := CardDatabase.create_instance("apex_bloodhunter", 1) # 10/6
+	var no_blockers: Array[CardInstance] = []
+	main._on_block_requested(big_attacker, no_blockers)
+	var block_label_text := ""
+	for child in main._block_popup_box.get_children():
+		if child is Label:
+			block_label_text = child.text
+	_check(block_label_text.contains("(10/6)"), "The block popup's prompt shows the attacking creature's attack/health, not just its name")
+
 	# Decking out is an instant loss (§ user request), checked at the turn draw.
 	human.deck.clear()
 	var human_health_before := human.health

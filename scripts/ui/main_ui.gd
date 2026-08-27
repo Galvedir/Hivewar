@@ -242,6 +242,7 @@ func _anchor_bottom_right(control: Control, size: Vector2, margin: float = 16.0)
 ## reaching the menu.
 func _show_splash_screen() -> void:
 	if not ResourceLoader.exists(SPLASH_PATH):
+		_play_menu_anim_once() # no splash to wait for — the menu is already visible
 		return
 	var overlay := ColorRect.new()
 	overlay.color = Color.BLACK
@@ -265,6 +266,7 @@ func _show_splash_screen() -> void:
 	var dismiss := func() -> void:
 		if is_instance_valid(overlay):
 			overlay.queue_free()
+		_play_menu_anim_once() # the menu is only actually visible from this moment on
 	overlay.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
 			dismiss.call()
@@ -324,9 +326,15 @@ func _build_deck_select() -> void:
 	# background, sits directly on top of it but still behind the actual
 	# menu content (title/buttons/deck list) added below, so it never
 	# blocks a click. Plays through once whenever the main menu is shown
-	# (see _play_menu_anim_once, called from _set_menu_visible and once
-	# here for the very first appearance at boot) and then disappears —
-	# it does not loop.
+	# (see _play_menu_anim_once, called from _set_menu_visible) and then
+	# disappears — it does not loop. Deliberately NOT triggered here: the
+	# title splash covers the whole screen for SPLASH_DURATION (2.5s)
+	# immediately after this runs, and the animation itself only takes
+	# ~2s (16 frames at 8fps) — starting it now meant it played out
+	# completely hidden behind the splash and had already finished
+	# before the player ever saw the menu. _show_splash_screen's dismiss
+	# callback triggers the first play instead, at the moment the menu
+	# actually becomes visible.
 	if ResourceLoader.exists(MENU_ANIM_SPRITE_PATH):
 		var sheet: Texture2D = load(MENU_ANIM_SPRITE_PATH)
 		var frame_w := sheet.get_width() / MENU_ANIM_COLS
@@ -347,7 +355,6 @@ func _build_deck_select() -> void:
 		_menu_anim_timer.wait_time = 1.0 / MENU_ANIM_FPS
 		_menu_anim_timer.timeout.connect(_on_menu_anim_tick)
 		add_child(_menu_anim_timer)
-		_play_menu_anim_once()
 
 	var content := VBoxContainer.new()
 	LayoutUtil.fill_parent(content)

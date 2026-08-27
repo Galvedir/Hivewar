@@ -71,6 +71,10 @@ var _busy := false # true while the AI or an awaited attack is resolving
 
 var _menu_music_player: AudioStreamPlayer
 var _sfx_player: AudioStreamPlayer
+var _menu_anim_rect: TextureRect
+var _menu_anim_atlas: AtlasTexture
+var _menu_anim_timer: Timer
+var _menu_anim_frame := 0
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -145,12 +149,44 @@ func _play_click_sfx() -> void:
 ## match) is doing the toggling.
 func _set_menu_visible(visible_now: bool) -> void:
 	_deck_select.visible = visible_now
+	if visible_now:
+		_play_menu_anim_once()
+	elif _menu_anim_rect != null:
+		_menu_anim_timer.stop()
+		_menu_anim_rect.visible = false
 	if _menu_music_player == null:
 		return
 	if visible_now and not _menu_music_player.playing:
 		_menu_music_player.play()
 	elif not visible_now and _menu_music_player.playing:
 		_menu_music_player.stop()
+
+## Restarts the main-menu overlay animation from frame 0 and plays it
+## through exactly once (§ user request) — no-ops if the asset isn't
+## present. _on_menu_anim_tick stops itself and hides the sprite again
+## once every frame has played.
+func _play_menu_anim_once() -> void:
+	if _menu_anim_rect == null:
+		return
+	_menu_anim_frame = 0
+	var frame_w := _menu_anim_atlas.atlas.get_width() / MENU_ANIM_COLS
+	var frame_h := _menu_anim_atlas.atlas.get_height() / MENU_ANIM_ROWS
+	_menu_anim_atlas.region = Rect2(0, 0, frame_w, frame_h)
+	_menu_anim_rect.visible = true
+	_menu_anim_timer.start()
+
+func _on_menu_anim_tick() -> void:
+	_menu_anim_frame += 1
+	var total_frames := MENU_ANIM_COLS * MENU_ANIM_ROWS
+	if _menu_anim_frame >= total_frames:
+		_menu_anim_timer.stop()
+		_menu_anim_rect.visible = false
+		return
+	var frame_w := _menu_anim_atlas.atlas.get_width() / MENU_ANIM_COLS
+	var frame_h := _menu_anim_atlas.atlas.get_height() / MENU_ANIM_ROWS
+	var col := _menu_anim_frame % MENU_ANIM_COLS
+	var row := _menu_anim_frame / MENU_ANIM_COLS
+	_menu_anim_atlas.region = Rect2(col * frame_w, row * frame_h, frame_w, frame_h)
 
 ## Builds a small animated loading-spinner widget from a 4x4 sprite sheet
 ## (§ user request), cycling all 16 frames on a Timer. Returns null if the
@@ -258,7 +294,11 @@ func _make_title() -> Control:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return title
 
-const MENU_BG_PATH := "res://art/branding/main_menu_bg.png"
+const MENU_BG_PATH := "res://art/ui/backgrounds/main_menu_bg.png"
+const MENU_ANIM_SPRITE_PATH := "res://art/ui/backgrounds/main_menu_anim_sprite.png"
+const MENU_ANIM_COLS := 4
+const MENU_ANIM_ROWS := 4
+const MENU_ANIM_FPS := 8.0
 
 func _build_deck_select() -> void:
 	_deck_select = Control.new()
@@ -279,6 +319,35 @@ func _build_deck_select() -> void:
 		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		LayoutUtil.fill_parent(bg)
 		_deck_select.add_child(bg)
+
+	# Animated overlay (§ user request): same full-screen size as the
+	# background, sits directly on top of it but still behind the actual
+	# menu content (title/buttons/deck list) added below, so it never
+	# blocks a click. Plays through once whenever the main menu is shown
+	# (see _play_menu_anim_once, called from _set_menu_visible and once
+	# here for the very first appearance at boot) and then disappears —
+	# it does not loop.
+	if ResourceLoader.exists(MENU_ANIM_SPRITE_PATH):
+		var sheet: Texture2D = load(MENU_ANIM_SPRITE_PATH)
+		var frame_w := sheet.get_width() / MENU_ANIM_COLS
+		var frame_h := sheet.get_height() / MENU_ANIM_ROWS
+		_menu_anim_atlas = AtlasTexture.new()
+		_menu_anim_atlas.atlas = sheet
+		_menu_anim_atlas.region = Rect2(0, 0, frame_w, frame_h)
+		_menu_anim_rect = TextureRect.new()
+		_menu_anim_rect.texture = _menu_anim_atlas
+		_menu_anim_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_menu_anim_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		_menu_anim_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_menu_anim_rect.visible = false
+		LayoutUtil.fill_parent(_menu_anim_rect)
+		_deck_select.add_child(_menu_anim_rect)
+
+		_menu_anim_timer = Timer.new()
+		_menu_anim_timer.wait_time = 1.0 / MENU_ANIM_FPS
+		_menu_anim_timer.timeout.connect(_on_menu_anim_tick)
+		add_child(_menu_anim_timer)
+		_play_menu_anim_once()
 
 	var content := VBoxContainer.new()
 	LayoutUtil.fill_parent(content)

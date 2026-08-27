@@ -124,6 +124,6 @@ func _refresh() -> void:
 			var cd := card as CreatureData
 			badge_text = "%d/%d" % [cd.attack, cd.health]
 			CardRenderUtil.add_corner_badge(btn, badge_text)
-		CardRenderUtil.wire_hover_preview(btn, _overlay, tex, CardRenderUtil.card_full_text(card, card.cost), badge_text)
+		CardRenderUtil.wire_hover_preview(btn, _overlay, card, tex, card.cost, CardRenderUtil.card_full_text(card), badge_text)
 		_grid.add_child(btn)
 	_count_label.text = "%d cards" % shown

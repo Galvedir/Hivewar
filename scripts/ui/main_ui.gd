@@ -1508,7 +1508,7 @@ func _make_hive_widget(c: CardInstance) -> Control:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(160, 90)
 	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)
-	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, tex, CardRenderUtil.card_full_text(c.data, 0, false, false), "")
+	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, c.data, tex, c.data.cost, CardRenderUtil.card_full_text(c.data), "")
 	return btn
 
 func _render_hand() -> void:
@@ -1518,7 +1518,6 @@ func _render_hand() -> void:
 	for i in range(human.hand.size()):
 		var card: CardInstance = human.hand[i]
 		var cost := CostCalculator.calculate_cost(card.data, human.leader.data)
-		var surcharged := not card.data.matches_kingdom(human.leader.data.kingdoms)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(170, 190)
 		var tex := CardRenderUtil.style_card_face(btn, card.data, cost)
@@ -1531,7 +1530,7 @@ func _render_hand() -> void:
 			badge_text = "%d/%d" % [cd.attack, cd.health]
 			CardRenderUtil.add_corner_badge(btn, badge_text)
 		btn.pressed.connect(_on_hand_card_pressed.bind(i))
-		CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, tex, CardRenderUtil.card_full_text(card.data, cost, surcharged), badge_text)
+		CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, card.data, tex, cost, CardRenderUtil.card_full_text(card.data), badge_text)
 		_player_hand.add_child(btn)
 
 func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
@@ -1550,7 +1549,7 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	if c.data is CreatureData:
 		badge_text = "%d/%d" % [c.current_attack, c.current_health()]
 		CardRenderUtil.add_corner_badge(btn, badge_text)
-	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, tex, _creature_bbcode(c), badge_text)
+	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, c.data, tex, c.data.cost, _creature_bbcode(c), badge_text)
 
 	if friendly and c.is_face_down and c.true_data != null and c.true_data.ambush.get("flip_trigger", "") == "paid":
 		var cost := int(c.true_data.ambush.get("flip_cost", 0))
@@ -1564,18 +1563,16 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 const TEMP_KEYWORD_COLOR := "#ffcc33"
 
 ## Hover-preview body text for a live board creature (§ user request: the
-## base widget shows only art + the ATK/DEF corner badge — this is
+## base widget shows only art + name/cost/ATK-DEF decorations — this is
 ## everything else, shown only on hover). ATK/DEF is deliberately excluded
-## here since the corner badge already covers it.
+## here since the corner badge already covers it; name/cost are likewise
+## shown only as the overlay's own art-area decorations.
 func _creature_bbcode(c: CardInstance) -> String:
-	var lines: Array[String] = [_bbcode_escape(c.display_name())]
-	var cd0 := c.data as CreatureData
-	if cd0 != null and cd0.creature_type != "":
-		lines.append(cd0.creature_type)
+	var lines: Array[String] = [_bbcode_escape(CardRenderUtil.type_line(c.data))]
 	if c.poison_counters > 0:
 		lines.append("Poison x%d" % c.poison_counters)
 	if c.data.text != "":
-		lines.append(_bbcode_escape(_wrap_text(c.data.text)))
+		lines.append(_bbcode_escape(CardRenderUtil.format_rules_text(c.data.text)))
 	if not c.temp_keywords.is_empty():
 		lines.append("[color=%s]%s (until your next turn)[/color]" % [TEMP_KEYWORD_COLOR, _bbcode_escape(", ".join(c.temp_keywords))])
 	if not c.attached_gear.is_empty():
@@ -1591,23 +1588,3 @@ func _creature_bbcode(c: CardInstance) -> String:
 
 func _bbcode_escape(text: String) -> String:
 	return text.replace("[", "(").replace("]", ")")
-
-## Buttons don't word-wrap their text on their own, so we hand-wrap ability
-## text at a rough character width to keep it legible on the card widgets.
-func _wrap_text(text: String, width_chars: int = 22) -> String:
-	if text == "":
-		return ""
-	var words := text.split(" ")
-	var lines: Array[String] = []
-	var current := ""
-	for w: String in words:
-		if current == "":
-			current = w
-		elif (current + " " + w).length() <= width_chars:
-			current += " " + w
-		else:
-			lines.append(current)
-			current = w
-	if current != "":
-		lines.append(current)
-	return "\n".join(lines)

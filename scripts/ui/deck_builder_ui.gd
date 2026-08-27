@@ -381,7 +381,6 @@ func _refresh_browser() -> void:
 
 	for card: CardData in candidates:
 		var cost := CostCalculator.calculate_cost(card, leader_data) if leader_data != null else card.cost
-		var surcharged := leader_data != null and not card.matches_kingdom(leader_data.kingdoms)
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(160, 170)
 		var tex := CardRenderUtil.style_card_face(btn, card, cost)
@@ -391,7 +390,7 @@ func _refresh_browser() -> void:
 			var cd := card as CreatureData
 			badge_text = "%d/%d" % [cd.attack, cd.health]
 			CardRenderUtil.add_corner_badge(btn, badge_text)
-		CardRenderUtil.wire_hover_preview(btn, _overlay, tex, CardRenderUtil.card_full_text(card, cost, surcharged), badge_text)
+		CardRenderUtil.wire_hover_preview(btn, _overlay, card, tex, cost, CardRenderUtil.card_full_text(card), badge_text)
 		btn.pressed.connect(_add_card.bind(card.id))
 		_browser_grid.add_child(btn)
 

@@ -3,13 +3,15 @@ extends RefCounted
 ## Shared card-widget rendering helpers used everywhere a card is shown
 ## (Collection, Deck Builder browser, and every match-view widget — hand,
 ## board creatures, hive). § user request: the base widget shows only its
-## artwork plus an ATK/DEF corner badge (creatures only) and no text at
-## all; hovering reveals a CardPreviewOverlay with the art on top and all
-## of the card's text below, with the badge repeated in its own corner and
-## nowhere else. Live in-play stats (buffs/damage) aren't known here — the
-## caller supplies the ATK/DEF text and hover body text so this stays
-## usable for both printed CardData (Collection/Deck Builder/hand) and
-## live CardInstance state (board creatures).
+## artwork, its name (top-left) and Larva cost (top-right, in a circular
+## badge — a placeholder for real card-frame art later), and an ATK/DEF
+## corner badge (creatures only) — no rules text. Hovering reveals a
+## CardPreviewOverlay with the same name/cost decorations over its (larger)
+## art, and all of the card's rules text below with the ATK/DEF badge
+## repeated in its own corner there too. Live in-play stats (buffs/damage)
+## aren't known here — the caller supplies the ATK/DEF text and hover body
+## text so this stays usable for both printed CardData (Collection/Deck
+## Builder/hand) and live CardInstance state (board creatures).
 
 const KINGDOM_COLORS := {
 	Kingdoms.WHITE: Color(0.85, 0.78, 0.55),
@@ -19,6 +21,9 @@ const KINGDOM_COLORS := {
 	Kingdoms.RED: Color(0.80, 0.25, 0.25),
 }
 const COLORLESS_COLOR := Color(0.55, 0.55, 0.50)
+
+const NAME_BAR_HEIGHT := 22.0
+const COST_BADGE_SIZE := 26.0
 
 static func card_color(card_data: CardData) -> Color:
 	if card_data.kingdoms.is_empty():
@@ -71,9 +76,6 @@ static func apply_full_bleed_art(btn: Button, card_data: CardData) -> Texture2D:
 		btn.modulate = card_color(card_data)
 	return tex
 
-const NAME_BAR_HEIGHT := 22.0
-const COST_BADGE_SIZE := 26.0
-
 ## Adds the base card face's name (top-left, ellipsized instead of ever
 ## overlapping the cost badge) and Larva-cost badge (top-right, a plain
 ## circle for now — § user request: "eventually this circle will be
@@ -83,9 +85,9 @@ const COST_BADGE_SIZE := 26.0
 ## null) for the caller to pass along to wire_hover_preview.
 static func style_card_face(btn: Button, card_data: CardData, cost: int) -> Texture2D:
 	var tex := apply_full_bleed_art(btn, card_data)
-	_add_name_label(btn, card_data.card_name)
+	add_name_label(btn, card_data.card_name)
 	if card_data.card_type != CardTypes.LEADER:
-		_add_cost_badge(btn, cost)
+		add_cost_badge(btn, cost)
 	return tex
 
 ## Semi-transparent bar across the top (a placeholder "nameplate" until
@@ -93,19 +95,21 @@ static func style_card_face(btn: Button, card_data: CardData, cost: int) -> Text
 ## OVERRUN_TRIM_ELLIPSIS is what turns an overlong name into "Some Long
 ## Na…" instead of overlapping the cost badge (§ user request) — the
 ## label's own right edge is anchored to stop short of the badge rather
-## than the ellipsis needing any special-casing for it.
-static func _add_name_label(btn: Control, card_name: String) -> void:
+## than the ellipsis needing any special-casing for it. Exposed (not
+## private) so CardPreviewOverlay can build the same decoration over its
+## own, larger art region.
+static func add_name_label(widget: Control, card_name: String, font_size: int = 13) -> Label:
 	var bar := ColorRect.new()
 	bar.color = Color(0, 0, 0, 0.55)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.anchor_right = 1.0
 	bar.offset_bottom = NAME_BAR_HEIGHT
-	btn.add_child(bar)
+	widget.add_child(bar)
 
 	var label := Label.new()
 	label.text = card_name
 	label.add_theme_color_override("font_color", Color.WHITE)
-	label.add_theme_font_size_override("font_size", 13)
+	label.add_theme_font_size_override("font_size", font_size)
 	label.clip_text = true
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -114,19 +118,24 @@ static func _add_name_label(btn: Control, card_name: String) -> void:
 	label.offset_left = 4.0
 	label.offset_right = -(COST_BADGE_SIZE + 8.0) # stop short of the cost badge regardless of the widget's actual width
 	label.offset_bottom = NAME_BAR_HEIGHT
-	btn.add_child(label)
+	widget.add_child(label)
+	return label
 
-## Circular Larva-cost badge, top-right — a flat placeholder shape for now
-## (§ user request: "eventually this circle will be replaced with an
-## image").
-static func _add_cost_badge(btn: Control, cost: int) -> void:
-	var circle := Panel.new()
+static func make_cost_circle_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.12, 0.16, 0.92)
 	style.border_color = Color(0.85, 0.8, 0.55)
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(int(COST_BADGE_SIZE / 2.0))
-	circle.add_theme_stylebox_override("panel", style)
+	return style
+
+## Circular Larva-cost badge, top-right — a flat placeholder shape for now
+## (§ user request: "eventually this circle will be replaced with an
+## image"). Exposed (not private) so CardPreviewOverlay can build the same
+## decoration over its own, larger art region.
+static func add_cost_badge(widget: Control, cost: int) -> Label:
+	var circle := Panel.new()
+	circle.add_theme_stylebox_override("panel", make_cost_circle_style())
 	circle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	circle.anchor_left = 1.0
 	circle.anchor_right = 1.0
@@ -134,7 +143,7 @@ static func _add_cost_badge(btn: Control, cost: int) -> void:
 	circle.offset_top = 4.0
 	circle.offset_right = -4.0
 	circle.offset_bottom = 4.0 + COST_BADGE_SIZE
-	btn.add_child(circle)
+	widget.add_child(circle)
 
 	var label := Label.new()
 	label.text = str(cost)
@@ -145,6 +154,7 @@ static func _add_cost_badge(btn: Control, cost: int) -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	LayoutUtil.fill_parent(label)
 	circle.add_child(label)
+	return label
 
 ## Adds a bottom-right ATK/DEF badge as a child of `widget` (§ user
 ## request — creature stats show only here on the base card view, and
@@ -171,30 +181,58 @@ static func add_corner_badge(widget: Control, text: String) -> void:
 ## Wires the shared hover-to-enlarge behavior onto `widget`. No-ops if
 ## `overlay` is null (e.g. a widget rendered somewhere with no preview
 ## overlay built for it).
-static func wire_hover_preview(widget: Control, overlay: CardPreviewOverlay, tex: Texture2D, bbcode_text: String, badge_text: String) -> void:
+static func wire_hover_preview(widget: Control, overlay: CardPreviewOverlay, card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String) -> void:
 	if overlay == null:
 		return
-	widget.mouse_entered.connect(func() -> void: overlay.show_for(tex, bbcode_text, badge_text, widget.get_global_rect()))
+	widget.mouse_entered.connect(func() -> void: overlay.show_for(card_data, tex, cost, bbcode_text, badge_text, widget.get_global_rect()))
 	widget.mouse_exited.connect(overlay.hide_preview)
 
-## Full card text for the enlarged hover view — everything except ATK/DEF,
-## which is shown only via the corner badge. `show_cost` is false for
-## already-in-play Hive cards, matching their previous no-cost display.
-static func card_full_text(card_data: CardData, cost: int = 0, surcharged: bool = false, show_cost: bool = true) -> String:
-	var lines: Array[String] = [card_data.card_name]
-	if show_cost and card_data.card_type != CardTypes.LEADER:
-		lines.append("Cost %d (+2 off-Kingdom)" % cost if surcharged else "Cost %d" % cost)
-	lines.append(kingdom_label(card_data))
+## First line of a card's rules text (§ user request): "{Kingdom} -
+## {Creature Type}" for creatures, "{Kingdom} - {Ability/Gear/Hive}"
+## otherwise. Leaders skip this entirely — card_full_text shows their Hero
+## Power/Ultimate instead, and "Kingdom - Leader" isn't meaningful the same
+## way.
+static func type_line(card_data: CardData) -> String:
+	var kingdom := kingdom_label(card_data)
 	if card_data is CreatureData:
 		var cd := card_data as CreatureData
-		if cd.creature_type != "":
-			lines.append(cd.creature_type)
-	elif card_data.card_type != CardTypes.LEADER:
-		lines.append(card_data.card_type)
+		return "%s - %s" % [kingdom, cd.creature_type] if cd.creature_type != "" else "%s - Creature" % kingdom
+	return "%s - %s" % [kingdom, card_data.card_type]
+
+## Splits `text` into one line per keyword/ability clause (§ user
+## request — "each keyword should be on its own line followed by any
+## abilities it has, each ability should also be on its own line"):
+## card_definitions.gd already writes keywords first, then any triggered
+## abilities, as sentences separated by ". " — this turns each such clause
+## into its own line instead of one flowing paragraph, so no per-card text
+## rewrites were needed. Long clauses still wrap within their own line.
+static func format_rules_text(text: String, width_chars: int = 34) -> String:
+	if text == "":
+		return ""
+	var clauses := text.split(". ")
+	var lines: Array[String] = []
+	for i in range(clauses.size()):
+		var clause: String = clauses[i].strip_edges()
+		if clause == "":
+			continue
+		if i < clauses.size() - 1 or not clause.ends_with("."):
+			clause += "." # re-add the period the ". " split consumed (every clause but a bare-period-less last one)
+		lines.append(wrap_text(clause, width_chars))
+	return "\n".join(lines)
+
+## Rules-text body for the enlarged hover view. Name and cost are shown as
+## dedicated overlay decorations instead (matching the base card face), so
+## this is everything else: the kingdom/type line, then each keyword/
+## ability on its own line, then (for Leaders) Hero Power/Ultimate.
+static func card_full_text(card_data: CardData) -> String:
+	var lines: Array[String] = []
+	if card_data.card_type != CardTypes.LEADER:
+		lines.append(type_line(card_data))
+	var body := format_rules_text(card_data.text)
+	if body != "":
+		lines.append(body)
 	if card_data is LeaderData:
 		var ld := card_data as LeaderData
-		lines.append("Hero Power (%d): %s" % [ld.hero_power_cost, wrap_text(ld.hero_power_text, 34)])
-		lines.append("Ultimate (%d): %s" % [ld.ultimate_cost, wrap_text(ld.ultimate_text, 34)])
-	elif card_data.text != "":
-		lines.append(wrap_text(card_data.text, 34))
+		lines.append("Hero Power (%d): %s" % [ld.hero_power_cost, format_rules_text(ld.hero_power_text)])
+		lines.append("Ultimate (%d): %s" % [ld.ultimate_cost, format_rules_text(ld.ultimate_text)])
 	return "\n".join(lines)

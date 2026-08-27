@@ -13,6 +13,18 @@ static func get_all() -> Array[Dictionary]:
 
 const WHITE: Array[Dictionary] = [
 	{
+		"id": "ant_egg_cluster", "name": "Ant Egg Cluster", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
+		"attack": 0, "health": 1, "creature_type": "Ant", "keywords": [],
+		"text": "",
+	},
+	{
+		"id": "wasp_larva", "name": "Wasp Larva", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
+		"attack": 1, "health": 1, "creature_type": "Wasp", "keywords": [],
+		"text": "",
+	},
+	{
 		"id": "worker_termite", "name": "Worker Termite", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 2, "creature_type": "Termite", "keywords": [Keywords.GUARD],
@@ -140,7 +152,7 @@ const WHITE: Array[Dictionary] = [
 	{
 		"id": "hive_healer_bee", "name": "Nurse Bee", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.UNCOMMON,
-		"attack": 2, "health": 3, "creature_type": "Bee", "keywords": [],
+		"attack": 2, "health": 2, "creature_type": "Bee", "keywords": [],
 		"effects": [{"trigger": "on_play", "effect_id": "heal_leader", "params": {"amount": 3, "target": "self"}}],
 		"text": "On Play: restore 3 health to your Leader.",
 	},
@@ -242,6 +254,18 @@ const WHITE: Array[Dictionary] = [
 ]
 
 const GREEN: Array[Dictionary] = [
+	{
+		"id": "seedling_grub", "name": "Seedling Grub", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
+		"attack": 0, "health": 1, "creature_type": "Grub", "keywords": [],
+		"text": "",
+	},
+	{
+		"id": "mantis_nymph", "name": "Mantis Nymph", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
+		"attack": 1, "health": 1, "creature_type": "Mantis", "keywords": [],
+		"text": "",
+	},
 	{
 		"id": "roly_poly_grub", "name": "Roly-Poly Grub", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.GREEN], "rarity": Rarities.COMMON,
@@ -464,6 +488,18 @@ const GREEN: Array[Dictionary] = [
 
 const BLACK: Array[Dictionary] = [
 	{
+		"id": "widow_spiderling", "name": "Widow Spiderling", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
+		"attack": 0, "health": 1, "creature_type": "Spider", "keywords": [],
+		"text": "",
+	},
+	{
+		"id": "moth_larva", "name": "Moth Larva", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
+		"attack": 1, "health": 1, "creature_type": "Moth", "keywords": [],
+		"text": "",
+	},
+	{
 		"id": "black_widow_stalker", "name": "Black Widow Stalker", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 2, "health": 1, "creature_type": "Spider", "keywords": [Keywords.VENOMSTRIKE],
@@ -540,8 +576,8 @@ const BLACK: Array[Dictionary] = [
 		"text": "Pierce. Decay: draw a card.",
 	},
 	{
-		"id": "venomous_recluse", "name": "Venomous Recluse", "type": "Creature",
-		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
+		"id": "venomous_recluse", "name": "Daddy Long Legs", "type": "Creature",
+		"cost": 1, "kingdoms": [Kingdoms.BLACK, Kingdoms.GREEN], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 2, "creature_type": "Spider", "keywords": [],
 		"text": "",
 	},
@@ -604,7 +640,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Decay: deal 2 damage to the strongest enemy creature.",
 	},
 	{
-		"id": "venom_drenched_tarantula", "name": "Venom-Drenched Tarantula", "type": "Creature",
+		"id": "venom_drenched_tarantula", "name": "Pink Toed Tarantula", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"attack": 4, "health": 3, "creature_type": "Spider", "keywords": [Keywords.VENOMSTRIKE],
 		"text": "Venomstrike.",
@@ -621,7 +657,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Morph (flips at the start of your next turn). Decay: summon a 1/1 Metamorphae creature with Flying.",
 	},
 	{
-		"id": "widow_matriarchs_brood", "name": "Widow Matriarch's Brood", "type": "Creature",
+		"id": "widow_matriarchs_brood", "name": "Widowmaker's Brood", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
 		"attack": 5, "health": 5, "creature_type": "Spider", "keywords": [Keywords.VENOMSTRIKE, Keywords.DECAY],
 		"effects": [{"trigger": "on_death", "effect_id": "damage_creature", "params": {"amount": 3}}],
@@ -720,7 +756,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Camouflage.",
 	},
 	{
-		"id": "nightshade_widow", "name": "Nightshade Widow", "type": "Creature",
+		"id": "nightshade_widow", "name": "Brown Recluse Avenger", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.RARE,
 		"attack": 3, "health": 4, "creature_type": "Spider", "keywords": [Keywords.POISON],
 		"effects": [{"trigger": "on_damage_taken", "effect_id": "damage_creature", "params": {"amount": 1}}],
@@ -729,6 +765,18 @@ const BLACK: Array[Dictionary] = [
 ]
 
 const BLUE: Array[Dictionary] = [
+	{
+		"id": "mayfly_hatchling", "name": "Mayfly Hatchling", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
+		"attack": 0, "health": 1, "creature_type": "Mayfly", "keywords": [],
+		"text": "",
+	},
+	{
+		"id": "gnat_wisp", "name": "Gnat Wisp", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
+		"attack": 1, "health": 1, "creature_type": "Gnat", "keywords": [],
+		"text": "",
+	},
 	{
 		"id": "house_fly_scout", "name": "House Fly Scout", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
@@ -982,6 +1030,18 @@ const BLUE: Array[Dictionary] = [
 
 const RED: Array[Dictionary] = [
 	{
+		"id": "tick_larva", "name": "Tick Larva", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
+		"attack": 0, "health": 1, "creature_type": "Tick", "keywords": [],
+		"text": "",
+	},
+	{
+		"id": "flea_hatchling", "name": "Flea Hatchling", "type": "Creature",
+		"cost": 0, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
+		"attack": 1, "health": 1, "creature_type": "Flea", "keywords": [],
+		"text": "",
+	},
+	{
 		"id": "mosquito_swarm", "name": "Mosquito Swarm", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.RED], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Mosquito", "keywords": [Keywords.SWIFT],
@@ -1208,6 +1268,18 @@ const RED: Array[Dictionary] = [
 
 const COLORLESS: Array[Dictionary] = [
 	{
+		"id": "roach_nymph", "name": "Roach Nymph", "type": "Creature",
+		"cost": 0, "kingdoms": [], "rarity": Rarities.COMMON,
+		"attack": 0, "health": 1, "creature_type": "Roach", "keywords": [],
+		"text": "",
+	},
+	{
+		"id": "silverfish_hatchling", "name": "Silverfish Hatchling", "type": "Creature",
+		"cost": 0, "kingdoms": [], "rarity": Rarities.COMMON,
+		"attack": 1, "health": 1, "creature_type": "Silverfish", "keywords": [],
+		"text": "",
+	},
+	{
 		"id": "common_cricket", "name": "Common Cricket", "type": "Creature",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Cricket", "keywords": [],
@@ -1430,7 +1502,7 @@ const HYBRID: Array[Dictionary] = [
 ## Token creatures, only ever reached via summon_token effects — never in a deck list.
 const TOKENS: Array[Dictionary] = [
 	{
-		"id": "termite_worker_token", "name": "Termite Worker", "type": "Creature",
+		"id": "termite_worker_token", "name": "American Cockroach", "type": "Creature",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Termite", "keywords": [Keywords.GUARD],
 		"text": "Guard.",

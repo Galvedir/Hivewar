@@ -67,6 +67,8 @@ static func expand(deck_cards: Dictionary) -> Array[String]:
 	return out
 
 const WHITE_HIVE_GUARDIANS := {
+	"ant_egg_cluster": 2,
+	"wasp_larva": 2,
 	"worker_termite": 3,
 	"ladybug_healer": 2,
 	"honeybee_sentinel": 3,
@@ -89,11 +91,13 @@ const WHITE_HIVE_GUARDIANS := {
 	"golden_reliquary": 1,
 	"wax_moth_larva": 1,
 	"honeycomb": 1,
-} # 37 cards — mixes Guard bodies with vanilla/Colony creatures, so
+} # 41 cards — mixes Guard bodies with vanilla/Colony creatures, so
   # Protective Ward (grants Guard) and the anthems are meaningful upgrades
   # rather than redundant with a keyword every creature already has.
 
 const GREEN_WILDGROWTH := {
+	"seedling_grub": 2,
+	"mantis_nymph": 2,
 	"roly_poly_grub": 3,
 	"sapling_weevil": 2,
 	"burrow_grub": 2,
@@ -115,9 +119,11 @@ const GREEN_WILDGROWTH := {
 	"wild_growth_hive": 1,
 	"ancient_grove": 1,
 	"communal_growth": 1,
-} # 37 cards
+} # 41 cards
 
 const BLACK_VENOM_BROODMOTHER := {
+	"widow_spiderling": 2,
+	"moth_larva": 2,
 	"black_widow_stalker": 3,
 	"wasp_striker": 3,
 	"venomous_recluse": 2,
@@ -145,11 +151,13 @@ const BLACK_VENOM_BROODMOTHER := {
 	"universal_vigor": 1,
 	"call_the_swarm": 1,
 	"spider_web": 1,
-} # 44 cards — half the Poison creatures went vanilla, so Venom Fangs
+} # 48 cards — half the Poison creatures went vanilla, so Venom Fangs
   # (grants Poison) and Chitin Plague's anthem now upgrade bodies that
   # didn't already have it, instead of stacking on ones that did.
 
 const BLUE_SKYSWARM := {
+	"mayfly_hatchling": 2,
+	"gnat_wisp": 2,
 	"house_fly_scout": 3,
 	"pond_skimmer": 2,
 	"whisper_gnat": 2,
@@ -170,11 +178,13 @@ const BLUE_SKYSWARM := {
 	"cloudveil_hive": 1,
 	"windswept_reach": 1,
 	"undertow": 1,
-} # 37 cards — only about half the creatures fly now, so Gossamer Wings
+} # 41 cards — only about half the creatures fly now, so Gossamer Wings
   # (grants Flying) and Spider Silk Net (grants Reach) both do real work
   # instead of duplicating a keyword the whole deck already had.
 
 const RED_BLOODHUNT := {
+	"tick_larva": 2,
+	"flea_hatchling": 2,
 	"mosquito_swarm": 2,
 	"flea_biter": 2,
 	"chigger_pest": 2,
@@ -204,7 +214,7 @@ const RED_BLOODHUNT := {
 	"feeding_frenzy_grounds": 1,
 	"barbed_stinger": 1,
 	"blood_vial": 1,
-} # 43 cards — roughly a third of the small bloodsuckers are vanilla now,
+} # 47 cards — roughly a third of the small bloodsuckers are vanilla now,
   # so Barbed Stinger/Blood Vial granting Swift/Lifesteal stop being
   # redundant with a keyword nearly every creature already had.
 
@@ -290,7 +300,8 @@ const VEX_FERAL_INSTINCT := {
 	"reckless_bite": 4, "swarm_tactics": 4, "bloodlust": 4, "feeding_strike": 4, "thousand_stings": 4,
 	"reckless_gambit": 3, "blood_vial": 2, "bloodhunt_frenzy": 2, "chigger_pest": 3, "blood_tick": 3,
 	"horsefly_raider": 3, "silverfish_scuttler": 2, "house_centipede": 2,
-} # 40 cards
+	"roach_nymph": 2, "silverfish_hatchling": 2,
+} # 44 cards
 
 const THESSALY_SKYBOUND_ACCORD := {
 	"armored_hornet": 4, "skyguard_dragonfly": 4, "thorned_guardian_beetle": 4, "hive_wraith": 4,

@@ -12,7 +12,7 @@ func _ready() -> void:
 	print("=== Targeting UI check ===")
 	var main := MainScene.instantiate()
 	add_child(main)
-	await main._on_deck_chosen("white_hive_guardians") # human = White (Queen Amara) vs a random AI deck; starting a match now shows a brief loading beat first
+	await main._start_match("white_hive_guardians", "green_wildgrowth") # human = White (Queen Apis) vs a fixed AI deck; starting a match now shows a brief loading beat first
 
 	var human: PlayerState = GameState.players[0]
 	var ai: PlayerState = GameState.players[1]

@@ -25,8 +25,11 @@ const TARGETING_EFFECT_SIDES := {
 	"buff_friendly_per_larva_spent": "friendly",
 }
 
-var _deck_select: Control # plain Control wrapper (not a layout container) so a full-screen background image can sit behind the actual VBox content as a separate layer
+var _main_menu: Control # plain Control wrapper (not a layout container) so a full-screen background image can sit behind the actual VBox content as a separate layer
+var _main_menu_status_label: Label
+var _practice_screen: Control
 var _saved_decks_menu_box: VBoxContainer
+var _options_screen: Control
 var _deck_builder: DeckBuilderUI
 var _collection: CollectionUI
 var _rules_screen: RulesScreenUI
@@ -76,9 +79,33 @@ var _menu_anim_atlas: AtlasTexture
 var _menu_anim_timer: Timer
 var _menu_anim_frame := 0
 
+## Options (§ user request): basic sound/graphics settings, persisted to
+## user://settings.cfg so they survive a restart.
+const SETTINGS_PATH := "user://settings.cfg"
+var _music_volume := 1.0 # linear 0.0-1.0
+var _sfx_volume := 1.0
+var _fullscreen := false
+var _music_volume_slider: HSlider
+var _sfx_volume_slider: HSlider
+var _fullscreen_check: CheckBox
+
+## Practice mode (§ user request): the player picks BOTH decks before a
+## match starts, instead of the AI's deck being randomized.
+var _practice_your_deck_id := ""
+var _practice_opponent_deck_id := ""
+var _practice_choosing_side := "your" # "your" / "opponent"
+var _practice_your_label: Label
+var _practice_opponent_label: Label
+var _practice_start_btn: Button
+var _practice_choose_your_btn: Button
+var _practice_choose_opp_btn: Button
+
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
-	_build_deck_select()
+	_load_settings()
+	_build_main_menu()
+	_build_practice_screen()
+	_build_options_screen()
 	_build_match_view()
 	_match_view.visible = false
 
@@ -105,9 +132,126 @@ func _ready() -> void:
 	GameLog.entry_added.connect(_on_log_entry)
 
 	_setup_menu_audio()
+	_apply_audio_settings()
+	_apply_graphics_settings()
 	_show_splash_screen()
 
-## --- Deck select ------------------------------------------------------------
+## --- Options / settings persistence -----------------------------------------
+
+func _load_settings() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) == OK:
+		_music_volume = cfg.get_value("audio", "music_volume", 1.0)
+		_sfx_volume = cfg.get_value("audio", "sfx_volume", 1.0)
+		_fullscreen = cfg.get_value("graphics", "fullscreen", false)
+
+func _save_settings() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("audio", "music_volume", _music_volume)
+	cfg.set_value("audio", "sfx_volume", _sfx_volume)
+	cfg.set_value("graphics", "fullscreen", _fullscreen)
+	cfg.save(SETTINGS_PATH)
+
+func _linear_to_volume_db(v: float) -> float:
+	return -80.0 if v <= 0.001 else linear_to_db(v)
+
+func _apply_audio_settings() -> void:
+	if _menu_music_player != null:
+		_menu_music_player.volume_db = _linear_to_volume_db(_music_volume)
+	if _sfx_player != null:
+		_sfx_player.volume_db = _linear_to_volume_db(_sfx_volume)
+
+func _apply_graphics_settings() -> void:
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if _fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
+
+func _build_options_screen() -> void:
+	_options_screen = Control.new()
+	LayoutUtil.fill_parent(_options_screen)
+	_options_screen.visible = false
+	add_child(_options_screen)
+
+	var box := VBoxContainer.new()
+	LayoutUtil.fill_parent(box)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 10)
+	_options_screen.add_child(box)
+
+	var title := Label.new()
+	title.text = "Options"
+	title.add_theme_font_size_override("font_size", 24)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+
+	var music_row := HBoxContainer.new()
+	music_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(music_row)
+	var music_label := Label.new()
+	music_label.text = "Music Volume"
+	music_label.custom_minimum_size = Vector2(140, 0)
+	music_row.add_child(music_label)
+	_music_volume_slider = HSlider.new()
+	_music_volume_slider.min_value = 0
+	_music_volume_slider.max_value = 100
+	_music_volume_slider.step = 1
+	_music_volume_slider.value = _music_volume * 100.0
+	_music_volume_slider.custom_minimum_size = Vector2(220, 0)
+	_music_volume_slider.value_changed.connect(_on_music_volume_changed)
+	music_row.add_child(_music_volume_slider)
+
+	var sfx_row := HBoxContainer.new()
+	sfx_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(sfx_row)
+	var sfx_label := Label.new()
+	sfx_label.text = "SFX Volume"
+	sfx_label.custom_minimum_size = Vector2(140, 0)
+	sfx_row.add_child(sfx_label)
+	_sfx_volume_slider = HSlider.new()
+	_sfx_volume_slider.min_value = 0
+	_sfx_volume_slider.max_value = 100
+	_sfx_volume_slider.step = 1
+	_sfx_volume_slider.value = _sfx_volume * 100.0
+	_sfx_volume_slider.custom_minimum_size = Vector2(220, 0)
+	_sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
+	sfx_row.add_child(_sfx_volume_slider)
+
+	var fullscreen_row := HBoxContainer.new()
+	fullscreen_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(fullscreen_row)
+	_fullscreen_check = CheckBox.new()
+	_fullscreen_check.text = "Fullscreen"
+	_fullscreen_check.button_pressed = _fullscreen
+	_fullscreen_check.toggled.connect(_on_fullscreen_toggled)
+	fullscreen_row.add_child(_fullscreen_check)
+
+	var back_btn := Button.new()
+	back_btn.text = "< Back"
+	back_btn.pressed.connect(_on_options_back_pressed)
+	box.add_child(back_btn)
+
+func _on_music_volume_changed(value: float) -> void:
+	_music_volume = value / 100.0
+	_apply_audio_settings()
+	_save_settings()
+
+func _on_sfx_volume_changed(value: float) -> void:
+	_sfx_volume = value / 100.0
+	_apply_audio_settings()
+	_save_settings()
+
+func _on_fullscreen_toggled(pressed: bool) -> void:
+	_fullscreen = pressed
+	_apply_graphics_settings()
+	_save_settings()
+
+func _on_options_pressed() -> void:
+	_set_main_menu_visible(false)
+	_options_screen.visible = true
+
+func _on_options_back_pressed() -> void:
+	_options_screen.visible = false
+	_set_main_menu_visible(true)
+
+## --- Main menu ---------------------------------------------------------------
 
 const LOGO_PATH := "res://art/branding/logo.png"
 const SPLASH_PATH := "res://art/branding/title_screen.png"
@@ -142,24 +286,28 @@ func _play_click_sfx() -> void:
 	if _sfx_player != null:
 		_sfx_player.play()
 
-## Single source of truth for showing/hiding the main menu (§ user
-## request) so the background music starts/stops exactly when the
-## deck-select screen actually becomes the active screen, no matter which
-## of the several code paths (Deck Builder, Collection, Rules, starting a
-## match) is doing the toggling.
-func _set_menu_visible(visible_now: bool) -> void:
-	_deck_select.visible = visible_now
+## Single source of truth for showing/hiding the top-level main menu —
+## just its own visibility plus the bg animation overlay, which only ever
+## lives on this screen. Music is no longer tied to this (§ user request:
+## the ambient music should keep playing across the main menu, Practice
+## deck-select, Deck Builder/Collection/Rules/Options, and the loading
+## screen — it only actually stops once a match starts; see
+## _stop_ambient_music/_resume_ambient_music).
+func _set_main_menu_visible(visible_now: bool) -> void:
+	_main_menu.visible = visible_now
 	if visible_now:
 		_start_menu_anim()
 	elif _menu_anim_rect != null:
 		_menu_anim_timer.stop()
 		_menu_anim_rect.visible = false
-	if _menu_music_player == null:
-		return
-	if visible_now and not _menu_music_player.playing:
-		_menu_music_player.play()
-	elif not visible_now and _menu_music_player.playing:
+
+func _stop_ambient_music() -> void:
+	if _menu_music_player != null and _menu_music_player.playing:
 		_menu_music_player.stop()
+
+func _resume_ambient_music() -> void:
+	if _menu_music_player != null and not _menu_music_player.playing:
+		_menu_music_player.play()
 
 ## Restarts the main-menu overlay animation from frame 0 and starts it
 ## looping (§ user request — trying looping in place of the original
@@ -301,10 +449,10 @@ const MENU_ANIM_COLS := 4
 const MENU_ANIM_ROWS := 4
 const MENU_ANIM_FPS := 8.0
 
-func _build_deck_select() -> void:
-	_deck_select = Control.new()
-	LayoutUtil.fill_parent(_deck_select)
-	add_child(_deck_select)
+func _build_main_menu() -> void:
+	_main_menu = Control.new()
+	LayoutUtil.fill_parent(_main_menu)
+	add_child(_main_menu)
 
 	# Background image (§ user request), added first so it renders behind
 	# the actual menu content below — a plain Control (not a layout
@@ -319,14 +467,14 @@ func _build_deck_select() -> void:
 		bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		LayoutUtil.fill_parent(bg)
-		_deck_select.add_child(bg)
+		_main_menu.add_child(bg)
 
 	# Animated overlay (§ user request): same full-screen size as the
 	# background, sits directly on top of it but still behind the actual
 	# menu content (title/buttons/deck list) added below, so it never
 	# blocks a click. Loops continuously while the main menu is shown
 	# (see _start_menu_anim/_on_menu_anim_tick, called from
-	# _set_menu_visible) and pauses+hides when the menu isn't. Deliberately
+	# _set_main_menu_visible) and pauses+hides when the menu isn't. Deliberately
 	# NOT started here: the title splash covers the whole screen for
 	# SPLASH_DURATION (2.5s) immediately after this runs, so starting the
 	# loop this early would just mean a few silent cycles behind the
@@ -347,7 +495,7 @@ func _build_deck_select() -> void:
 		_menu_anim_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_menu_anim_rect.visible = false
 		LayoutUtil.fill_parent(_menu_anim_rect)
-		_deck_select.add_child(_menu_anim_rect)
+		_main_menu.add_child(_menu_anim_rect)
 
 		_menu_anim_timer = Timer.new()
 		_menu_anim_timer.wait_time = 1.0 / MENU_ANIM_FPS
@@ -356,32 +504,138 @@ func _build_deck_select() -> void:
 
 	var content := VBoxContainer.new()
 	LayoutUtil.fill_parent(content)
-	_deck_select.add_child(content)
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	_main_menu.add_child(content)
 
 	content.add_child(_make_title())
 
-	var menu_row := HBoxContainer.new()
-	menu_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	content.add_child(menu_row)
+	var btn_box := VBoxContainer.new()
+	btn_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn_box.custom_minimum_size = Vector2(260, 0)
+	btn_box.add_theme_constant_override("separation", 10)
+	content.add_child(btn_box)
+
+	var campaign_btn := Button.new()
+	campaign_btn.text = "Campaign"
+	campaign_btn.pressed.connect(_on_campaign_pressed)
+	campaign_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(campaign_btn)
+
+	var practice_btn := Button.new()
+	practice_btn.text = "Practice"
+	practice_btn.pressed.connect(_on_open_practice)
+	practice_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(practice_btn)
+
+	var multiplayer_btn := Button.new()
+	multiplayer_btn.text = "Multiplayer"
+	multiplayer_btn.pressed.connect(_on_multiplayer_pressed)
+	multiplayer_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(multiplayer_btn)
+
+	var options_btn := Button.new()
+	options_btn.text = "Options"
+	options_btn.pressed.connect(_on_options_pressed)
+	options_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(options_btn)
+
+	var exit_btn := Button.new()
+	exit_btn.text = "Exit"
+	exit_btn.pressed.connect(_on_exit_pressed)
+	exit_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(exit_btn)
+
+	_main_menu_status_label = Label.new()
+	_main_menu_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	content.add_child(_main_menu_status_label)
+
+func _on_campaign_pressed() -> void:
+	_main_menu_status_label.text = "Campaign mode isn't available yet."
+
+func _on_multiplayer_pressed() -> void:
+	_main_menu_status_label.text = "Multiplayer isn't available yet."
+
+func _on_exit_pressed() -> void:
+	get_tree().quit()
+
+func _on_open_practice() -> void:
+	_set_main_menu_visible(false)
+	_refresh_saved_decks_menu()
+	_practice_screen.visible = true
+
+## --- Practice mode: deck selection --------------------------------------------
+
+func _build_practice_screen() -> void:
+	_practice_screen = Control.new()
+	LayoutUtil.fill_parent(_practice_screen)
+	_practice_screen.visible = false
+	add_child(_practice_screen)
+
+	var content := VBoxContainer.new()
+	LayoutUtil.fill_parent(content)
+	content.add_theme_constant_override("separation", 6)
+	_practice_screen.add_child(content)
+
+	content.add_child(_make_title())
+
+	var top := HBoxContainer.new()
+	top.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_child(top)
+	var back_btn := Button.new()
+	back_btn.text = "< Back to Main Menu"
+	back_btn.pressed.connect(_on_practice_back_pressed)
+	back_btn.pressed.connect(_play_click_sfx)
+	top.add_child(back_btn)
 	var builder_btn := Button.new()
 	builder_btn.text = "Deck Builder"
 	builder_btn.pressed.connect(_on_open_deck_builder)
 	builder_btn.pressed.connect(_play_click_sfx)
-	menu_row.add_child(builder_btn)
+	top.add_child(builder_btn)
 	var collection_btn := Button.new()
 	collection_btn.text = "Collection"
 	collection_btn.pressed.connect(_on_open_collection)
 	collection_btn.pressed.connect(_play_click_sfx)
-	menu_row.add_child(collection_btn)
+	top.add_child(collection_btn)
 	var rules_btn := Button.new()
 	rules_btn.text = "Rules & Keywords"
-	rules_btn.pressed.connect(_on_open_rules.bind(_deck_select))
+	rules_btn.pressed.connect(_on_open_rules.bind(_practice_screen))
 	rules_btn.pressed.connect(_play_click_sfx)
-	menu_row.add_child(rules_btn)
+	top.add_child(rules_btn)
+
+	var selection_row := HBoxContainer.new()
+	selection_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	selection_row.add_theme_constant_override("separation", 30)
+	content.add_child(selection_row)
+	_practice_your_label = Label.new()
+	_practice_your_label.text = "Your Deck: (none)"
+	selection_row.add_child(_practice_your_label)
+	_practice_opponent_label = Label.new()
+	_practice_opponent_label.text = "Opponent Deck: (none)"
+	selection_row.add_child(_practice_opponent_label)
+
+	var toggle_row := HBoxContainer.new()
+	toggle_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	toggle_row.add_theme_constant_override("separation", 10)
+	content.add_child(toggle_row)
+	_practice_choose_your_btn = Button.new()
+	_practice_choose_your_btn.toggle_mode = true
+	_practice_choose_your_btn.button_pressed = true
+	_practice_choose_your_btn.text = "Choosing: Your Deck"
+	_practice_choose_your_btn.pressed.connect(_on_practice_choose_side.bind("your"))
+	toggle_row.add_child(_practice_choose_your_btn)
+	_practice_choose_opp_btn = Button.new()
+	_practice_choose_opp_btn.toggle_mode = true
+	_practice_choose_opp_btn.text = "Choosing: Opponent Deck"
+	_practice_choose_opp_btn.pressed.connect(_on_practice_choose_side.bind("opponent"))
+	toggle_row.add_child(_practice_choose_opp_btn)
+	var random_btn := Button.new()
+	random_btn.text = "Random Opponent"
+	random_btn.pressed.connect(_on_practice_random_opponent)
+	toggle_row.add_child(random_btn)
 
 	# The 18 fixed decks (one per Leader) plus any saved decks easily
-	# overflow the window, so the list itself scrolls — only the title/menu
-	# row above stay pinned.
+	# overflow the window, so the list itself scrolls — only the header
+	# above stays pinned.
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -402,7 +656,7 @@ func _build_deck_select() -> void:
 		var btn := Button.new()
 		btn.text = "%s\n(%s)" % [deck_id.replace("_", " ").capitalize(), leader.card_name]
 		btn.custom_minimum_size = Vector2(0, 56)
-		btn.pressed.connect(_on_deck_chosen.bind(deck_id))
+		btn.pressed.connect(_on_practice_deck_picked.bind(deck_id))
 		btn.pressed.connect(_play_click_sfx)
 		list_box.add_child(btn)
 
@@ -413,6 +667,49 @@ func _build_deck_select() -> void:
 	_saved_decks_menu_box = VBoxContainer.new()
 	list_box.add_child(_saved_decks_menu_box)
 	_refresh_saved_decks_menu()
+
+	_practice_start_btn = Button.new()
+	_practice_start_btn.text = "Start Match"
+	_practice_start_btn.disabled = true
+	_practice_start_btn.pressed.connect(_on_practice_start_pressed)
+	content.add_child(_practice_start_btn)
+
+func _on_practice_back_pressed() -> void:
+	_practice_screen.visible = false
+	_set_main_menu_visible(true)
+
+func _on_practice_choose_side(side: String) -> void:
+	_practice_choosing_side = side
+	_practice_choose_your_btn.button_pressed = side == "your"
+	_practice_choose_opp_btn.button_pressed = side == "opponent"
+
+func _on_practice_deck_picked(deck_id: String) -> void:
+	if _practice_choosing_side == "your":
+		_practice_your_deck_id = deck_id
+		_practice_your_label.text = "Your Deck: %s" % _practice_display_name(deck_id)
+	else:
+		_practice_opponent_deck_id = deck_id
+		_practice_opponent_label.text = "Opponent Deck: %s" % _practice_display_name(deck_id)
+	_practice_start_btn.disabled = _practice_your_deck_id.is_empty() or _practice_opponent_deck_id.is_empty()
+
+func _on_practice_random_opponent() -> void:
+	var pool := DeckDefinitions.all_deck_ids()
+	if not _practice_your_deck_id.is_empty():
+		pool.erase(_practice_your_deck_id)
+	if pool.is_empty():
+		return
+	var chosen: String = pool[randi() % pool.size()]
+	_practice_opponent_deck_id = chosen
+	_practice_opponent_label.text = "Opponent Deck: %s" % _practice_display_name(chosen)
+	_practice_start_btn.disabled = _practice_your_deck_id.is_empty() or _practice_opponent_deck_id.is_empty()
+
+func _practice_display_name(deck_id: String) -> String:
+	if DeckDefinitions.all_deck_ids().has(deck_id):
+		return deck_id.replace("_", " ").capitalize()
+	return deck_id
+
+func _on_practice_start_pressed() -> void:
+	await _start_match(_practice_your_deck_id, _practice_opponent_deck_id)
 
 func _refresh_saved_decks_menu() -> void:
 	for child in _saved_decks_menu_box.get_children():
@@ -429,45 +726,40 @@ func _refresh_saved_decks_menu() -> void:
 		var btn := Button.new()
 		btn.text = "%s\n(%s)" % [deck_name, leader.card_name if leader != null else "?"]
 		btn.custom_minimum_size = Vector2(0, 56)
-		btn.pressed.connect(_on_deck_chosen.bind(deck_name))
+		btn.pressed.connect(_on_practice_deck_picked.bind(deck_name))
 		btn.pressed.connect(_play_click_sfx)
 		_saved_decks_menu_box.add_child(btn)
 
 func _on_open_deck_builder() -> void:
-	_set_menu_visible(false)
+	_practice_screen.visible = false
 	_deck_builder.refresh_on_show()
 	_deck_builder.visible = true
 
 func _on_deck_builder_closed() -> void:
 	_deck_builder.visible = false
 	_refresh_saved_decks_menu()
-	_set_menu_visible(true)
+	_practice_screen.visible = true
 
 func _on_open_collection() -> void:
-	_set_menu_visible(false)
+	_practice_screen.visible = false
 	_collection.visible = true
 
 func _on_collection_closed() -> void:
 	_collection.visible = false
-	_set_menu_visible(true)
+	_practice_screen.visible = true
 
-## `from` is whichever screen was open when Rules was requested (the main
-## menu or the Deck Builder), so closing Rules returns to the right place.
+## `from` is whichever screen was open when Rules was requested (the
+## Practice deck-select screen or the Deck Builder), so closing Rules
+## returns to the right place.
 func _on_open_rules(from: Control) -> void:
 	_rules_return_target = from
-	if from == _deck_select:
-		_set_menu_visible(false)
-	else:
-		from.visible = false
+	from.visible = false
 	_rules_screen.visible = true
 
 func _on_rules_closed() -> void:
 	_rules_screen.visible = false
 	if _rules_return_target != null:
-		if _rules_return_target == _deck_select:
-			_set_menu_visible(true)
-		else:
-			_rules_return_target.visible = true
+		_rules_return_target.visible = true
 
 ## Brief loading beat (§ user request) shown while a match is being set up
 ## — currently instant work (deck shuffle, opening hands), so this is a
@@ -488,21 +780,24 @@ func _show_loading_screen() -> void:
 	await get_tree().create_timer(LOADING_SCREEN_DURATION).timeout
 	overlay.queue_free()
 
-func _on_deck_chosen(deck_id: String) -> void:
-	var ai_pool := DeckDefinitions.all_deck_ids()
-	ai_pool.erase(deck_id)
-	var ai_deck_id: String = ai_pool[randi() % ai_pool.size()] if not ai_pool.is_empty() else deck_id
-
-	_set_menu_visible(false)
+## Starts a match with explicitly-chosen decks for both sides (§ user
+## request — Practice mode now lets the player pick the AI's deck too,
+## instead of it being randomized). Ambient menu music (§ user request)
+## keeps playing through the loading screen and only actually stops once
+## the match view becomes visible; _on_new_game_pressed resumes it when
+## the player returns to the Practice deck-select screen.
+func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
+	_practice_screen.visible = false
 	await _show_loading_screen()
 	_match_view.visible = true
+	_stop_ambient_music()
 	_selected_hand_index = -1
 	_selected_attacker_id = -1
 	GameLog.clear()
 	if _log_display != null:
 		_log_display.clear()
 
-	TurnManager.start_game([deck_id, ai_deck_id], HUMAN)
+	TurnManager.start_game([your_deck_id, opponent_deck_id], HUMAN)
 	GameState.players[AI].is_ai = true
 	_refresh()
 
@@ -758,8 +1053,9 @@ func _build_game_over_popup() -> void:
 func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
 	_match_view.visible = false
+	_resume_ambient_music()
 	_refresh_saved_decks_menu()
-	_set_menu_visible(true)
+	_practice_screen.visible = true
 
 ## --- Signal handlers ---------------------------------------------------------
 

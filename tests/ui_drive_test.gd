@@ -25,7 +25,7 @@ func _ready() -> void:
 		TurnManager.call_deferred("submit_block_choices", empty_choices))
 	# Starting a match now shows a brief loading beat (§ user request) before
 	# the match actually starts, so this must be awaited.
-	await main._on_deck_chosen("blue_skyswarm")
+	await main._start_match("blue_skyswarm", "white_hive_guardians")
 
 	var safety := 0
 	while not GameState.is_over and safety < 100:
@@ -40,9 +40,14 @@ func _ready() -> void:
 					main._on_board_creature_pressed(c, true)
 					# Attacking now opens a "Confirm this attack?" popup (§ user
 					# request) instead of resolving immediately — simulate
-					# clicking through it, same as a real player would.
+					# clicking through it, same as a real player would. The
+					# Leader may not be a legal target (e.g. an enemy Guard is
+					# in the way), in which case the popup never opens — a
+					# real player would just pick something else, so skip
+					# confirming instead of blindly firing a stale/no target.
 					main._on_enemy_leader_pressed()
-					await main._on_attack_confirm_yes()
+					if main._attack_confirm_popup.visible:
+						await main._on_attack_confirm_yes()
 			main._on_end_turn_pressed()
 		else:
 			# It's the AI's turn (or its coroutine is suspended waiting on a

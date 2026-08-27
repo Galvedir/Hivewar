@@ -21,6 +21,12 @@ func _ready() -> void:
 	add_child(main)
 	var db: DeckBuilderUI = main._deck_builder
 
+	# Deck Builder/Collection/Rules are opened from the Practice deck-select
+	# screen (§ user request: the main menu is now just 5 top-level buttons —
+	# Campaign/Practice/Multiplayer/Options/Exit), so simulate having already
+	# navigated there, same as a real player would before clicking any of them.
+	main._practice_screen.visible = true
+
 	# --- Screens actually get a nonzero size when shown ------------------------
 	# Regression check: set_anchors_preset(PRESET_FULL_RECT) defaults to
 	# resize_mode = PRESET_MODE_MINSIZE, which sizes a control to its own
@@ -38,25 +44,25 @@ func _ready() -> void:
 
 	# --- Rules screen: real size, and returns to whichever screen opened it ---
 	var rules: RulesScreenUI = main._rules_screen
-	main._on_open_rules(main._deck_select)
+	main._on_open_rules(main._practice_screen)
 	_check(rules.size.x > 100 and rules.size.y > 100, "Rules screen has a real nonzero size when opened (got %s)" % rules.size)
-	_check(not main._deck_select.visible, "Opening Rules hides the screen it was opened from")
+	_check(not main._practice_screen.visible, "Opening Rules hides the screen it was opened from")
 	main._on_rules_closed()
-	_check(rules.visible == false and main._deck_select.visible, "Closing Rules (opened from the main menu) returns to the main menu")
+	_check(rules.visible == false and main._practice_screen.visible, "Closing Rules (opened from the Practice screen) returns to the Practice screen")
 
 	main._on_open_deck_builder()
 	main._on_open_rules(main._deck_builder)
 	main._on_rules_closed()
-	_check(main._deck_builder.visible and not main._deck_select.visible, "Closing Rules (opened from the Deck Builder) returns to the Deck Builder, not the main menu")
+	_check(main._deck_builder.visible and not main._practice_screen.visible, "Closing Rules (opened from the Deck Builder) returns to the Deck Builder, not the Practice screen")
 	main._on_deck_builder_closed()
 
-	# --- Deck-select list is actually scrollable (18 fixed decks overflow the window) ---
+	# --- Practice deck list is actually scrollable (18 fixed decks overflow the window) ---
 	# Container layout resolves only after real frame processing, unlike the
 	# anchor-preset bug above — this needs `await`, not an immediate check.
 	for i in range(5):
 		await get_tree().process_frame
-	var scroll := _find_scroll_container(main._deck_select)
-	_check(scroll != null, "Deck-select screen has a ScrollContainer")
+	var scroll := _find_scroll_container(main._practice_screen)
+	_check(scroll != null, "Practice deck-select screen has a ScrollContainer")
 	if scroll != null:
 		_check(scroll.get_v_scroll_bar().max_value > scroll.size.y, "Deck list content is taller than its scroll viewport (scrolling is actually needed and works)")
 
@@ -204,7 +210,7 @@ func _ready() -> void:
 	DeckStorage.save_deck(TEST_DECK_NAME, "queen_amara", custom_cards)
 	_check(custom_total >= 40 and custom_total <= 60, "Custom deck for the play test is itself legal (%d cards)" % custom_total)
 
-	await main._on_deck_chosen(TEST_DECK_NAME) # starting a match now shows a brief loading beat (§ user request) first
+	await main._start_match(TEST_DECK_NAME, "green_wildgrowth") # starting a match now shows a brief loading beat (§ user request) first
 	var human := GameState.players[0]
 	_check(human.leader.data.id == "queen_amara", "Starting a match with a custom deck by name sets the right Leader")
 	_check(human.deck.size() + human.hand.size() == custom_total, "Custom deck's full card count is in play (deck + opening hand)")

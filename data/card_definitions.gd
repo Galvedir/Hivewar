@@ -79,7 +79,7 @@ const WHITE: Array[Dictionary] = [
 		"cost": 5, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.LEGENDARY,
 		"attack": 4, "health": 5, "creature_type": "Wasp", "keywords": [Keywords.COLONY],
 		"effects": [{"trigger": "on_play", "effect_id": "summon_token", "params": {"token_id": "ladybug_guard_token", "count": 2}}],
-		"text": "Colony (other Wasps get +0/+1 while this is in play). On Play: summon two 1/1 Wasp Worker tokens with Guard.",
+		"text": "Colony (other Wasps get +0/+1 while this is in play). On Play: summon two 1/1 Wasp Drone tokens with Guard.",
 	},
 	{
 		"id": "termite_colony", "name": "Termite Colony", "type": "Hive",
@@ -563,7 +563,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Your Poison creatures have +1/+0.",
 	},
 	{
-		"id": "stinger_gauntlet", "name": "Stinger Gauntlet", "type": "Gear",
+		"id": "stinger_gauntlet", "name": "Scorpion Tail", "type": "Gear",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1, "grants_keywords": [Keywords.PIERCE],
 		"text": "Equipped creature gets +1/+0 and Pierce.",
@@ -707,7 +707,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Your Leader takes 1 damage, then restores 3 health.",
 	},
 	{
-		"id": "venom_fangs", "name": "Venom Fangs", "type": "Gear",
+		"id": "venom_fangs", "name": "Caterpillar Spikes", "type": "Gear",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack_buff": 1, "grants_keywords": [Keywords.POISON],
 		"text": "Equipped creature gets +1/+0 and Poison.",
@@ -1322,7 +1322,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "locust_swarm", "name": "Locust Swarm", "type": "Creature",
+		"id": "locust_swarm", "name": "Stick Bug", "type": "Creature",
 		"cost": 3, "kingdoms": [], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 3, "creature_type": "Locust", "keywords": [],
 		"text": "",
@@ -1352,13 +1352,13 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "No allegiance, no weakness, no ceiling.",
 	},
 	{
-		"id": "universal_ration", "name": "Universal Ration", "type": "Ability",
-		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
+		"id": "universal_ration", "name": "Maggot Mass", "type": "Ability",
+		"cost": 0, "kingdoms": [], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "gain_larva", "params": {"amount": 1}}],
 		"text": "Gain 1 extra Larva this turn.",
 	},
 	{
-		"id": "adaptive_strike", "name": "Adaptive Strike", "type": "Ability",
+		"id": "adaptive_strike", "name": "Spider Pounce", "type": "Ability",
 		"cost": 2, "kingdoms": [], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 2}}],
 		"text": "Deal 2 damage to target enemy creature.",
@@ -1403,7 +1403,7 @@ const COLORLESS: Array[Dictionary] = [
 		"text": "Summon two 1/1 Swarm Locust tokens.",
 	},
 	{
-		"id": "universal_vigor", "name": "Universal Vigor", "type": "Ability",
+		"id": "universal_vigor", "name": "Feeder Fodder", "type": "Ability",
 		"cost": 3, "kingdoms": [], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "buff_friendly", "params": {"attack": 2, "health": 2}}],
 		"text": "Give a friendly creature +2/+2. Works the same no matter what Kingdom it is.",
@@ -1508,7 +1508,7 @@ const TOKENS: Array[Dictionary] = [
 		"text": "Guard.",
 	},
 	{
-		"id": "ladybug_guard_token", "name": "Wasp Worker", "type": "Creature",
+		"id": "ladybug_guard_token", "name": "Wasp Drone", "type": "Creature",
 		"cost": 1, "kingdoms": [], "rarity": Rarities.COMMON, "is_token": true,
 		"attack": 1, "health": 1, "creature_type": "Wasp", "keywords": [Keywords.GUARD],
 		"text": "Guard.",

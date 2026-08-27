@@ -217,7 +217,7 @@ static func get_all() -> Array[Dictionary]:
 			],
 		},
 		{
-			"id": "ashen_cricket", "name": "Ashen Cricket",
+			"id": "ashen_cricket", "name": "Musca, Mother of Maggots",
 			"kingdoms": [], "starting_health": 30,
 			"text": "Leader of the Feeders — no allegiance, no weakness.",
 			"hero_power_cost": 1,
@@ -229,7 +229,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "buff_friendly_per_larva_spent", "params": {"attack_per_larva": 1, "health_per_larva": 1}}],
 		},
 		{
-			"id": "grethe_ironshell", "name": "Grethe Ironshell",
+			"id": "grethe_ironshell", "name": "Vulgar, Isopod Legend",
 			"kingdoms": [], "starting_health": 30,
 			"text": "Leader of the Feeders — no allegiance, no weakness.",
 			"hero_power_cost": 1,

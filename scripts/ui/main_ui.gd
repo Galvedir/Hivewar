@@ -150,7 +150,7 @@ func _play_click_sfx() -> void:
 func _set_menu_visible(visible_now: bool) -> void:
 	_deck_select.visible = visible_now
 	if visible_now:
-		_play_menu_anim_once()
+		_start_menu_anim()
 	elif _menu_anim_rect != null:
 		_menu_anim_timer.stop()
 		_menu_anim_rect.visible = false
@@ -161,11 +161,11 @@ func _set_menu_visible(visible_now: bool) -> void:
 	elif not visible_now and _menu_music_player.playing:
 		_menu_music_player.stop()
 
-## Restarts the main-menu overlay animation from frame 0 and plays it
-## through exactly once (§ user request) — no-ops if the asset isn't
-## present. _on_menu_anim_tick stops itself and hides the sprite again
-## once every frame has played.
-func _play_menu_anim_once() -> void:
+## Restarts the main-menu overlay animation from frame 0 and starts it
+## looping (§ user request — trying looping in place of the original
+## play-once-then-hide behavior; see _on_menu_anim_tick) — no-ops if the
+## asset isn't present.
+func _start_menu_anim() -> void:
 	if _menu_anim_rect == null:
 		return
 	_menu_anim_frame = 0
@@ -176,12 +176,11 @@ func _play_menu_anim_once() -> void:
 	_menu_anim_timer.start()
 
 func _on_menu_anim_tick() -> void:
-	_menu_anim_frame += 1
+	# Looping (§ user request — trying it out in place of the original
+	# play-once-then-hide behavior): wraps back to frame 0 instead of
+	# stopping and hiding once every frame has played.
 	var total_frames := MENU_ANIM_COLS * MENU_ANIM_ROWS
-	if _menu_anim_frame >= total_frames:
-		_menu_anim_timer.stop()
-		_menu_anim_rect.visible = false
-		return
+	_menu_anim_frame = (_menu_anim_frame + 1) % total_frames
 	var frame_w := _menu_anim_atlas.atlas.get_width() / MENU_ANIM_COLS
 	var frame_h := _menu_anim_atlas.atlas.get_height() / MENU_ANIM_ROWS
 	var col := _menu_anim_frame % MENU_ANIM_COLS
@@ -242,7 +241,7 @@ func _anchor_bottom_right(control: Control, size: Vector2, margin: float = 16.0)
 ## reaching the menu.
 func _show_splash_screen() -> void:
 	if not ResourceLoader.exists(SPLASH_PATH):
-		_play_menu_anim_once() # no splash to wait for — the menu is already visible
+		_start_menu_anim() # no splash to wait for — the menu is already visible
 		return
 	var overlay := ColorRect.new()
 	overlay.color = Color.BLACK
@@ -266,7 +265,7 @@ func _show_splash_screen() -> void:
 	var dismiss := func() -> void:
 		if is_instance_valid(overlay):
 			overlay.queue_free()
-		_play_menu_anim_once() # the menu is only actually visible from this moment on
+		_start_menu_anim() # the menu is only actually visible from this moment on
 	overlay.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
 			dismiss.call()
@@ -325,16 +324,15 @@ func _build_deck_select() -> void:
 	# Animated overlay (§ user request): same full-screen size as the
 	# background, sits directly on top of it but still behind the actual
 	# menu content (title/buttons/deck list) added below, so it never
-	# blocks a click. Plays through once whenever the main menu is shown
-	# (see _play_menu_anim_once, called from _set_menu_visible) and then
-	# disappears — it does not loop. Deliberately NOT triggered here: the
-	# title splash covers the whole screen for SPLASH_DURATION (2.5s)
-	# immediately after this runs, and the animation itself only takes
-	# ~2s (16 frames at 8fps) — starting it now meant it played out
-	# completely hidden behind the splash and had already finished
-	# before the player ever saw the menu. _show_splash_screen's dismiss
-	# callback triggers the first play instead, at the moment the menu
-	# actually becomes visible.
+	# blocks a click. Loops continuously while the main menu is shown
+	# (see _start_menu_anim/_on_menu_anim_tick, called from
+	# _set_menu_visible) and pauses+hides when the menu isn't. Deliberately
+	# NOT started here: the title splash covers the whole screen for
+	# SPLASH_DURATION (2.5s) immediately after this runs, so starting the
+	# loop this early would just mean a few silent cycles behind the
+	# splash before the player ever saw the menu. _show_splash_screen's
+	# dismiss callback starts it instead, at the moment the menu actually
+	# becomes visible.
 	if ResourceLoader.exists(MENU_ANIM_SPRITE_PATH):
 		var sheet: Texture2D = load(MENU_ANIM_SPRITE_PATH)
 		var frame_w := sheet.get_width() / MENU_ANIM_COLS

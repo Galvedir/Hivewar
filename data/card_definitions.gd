@@ -684,7 +684,7 @@ const BLACK: Array[Dictionary] = [
 	},
 	{
 		"id": "ossuary_of_the_fallen", "name": "Ossuary of the Fallen", "type": "Hive",
-		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
+		"cost": 4, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.DECAY, "health": 1}],
 		"text": "Your Decay creatures have +0/+1.",
 	},

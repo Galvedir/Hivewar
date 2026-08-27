@@ -25,9 +25,17 @@ extends Control
 const PREVIEW_SIZE := Vector2(260, 340)
 const ART_HEIGHT := 170.0
 const GAP := 12.0
+const LEADER_ANIM_COLS := 4
+const LEADER_ANIM_ROWS := 4
+const LEADER_ANIM_FPS := 8.0
 
 var _art: TextureRect
 var _art_area: Control
+var _anim_rect: TextureRect
+var _anim_atlas: AtlasTexture
+var _anim_timer: Timer
+var _anim_frame := 0
+var _anim_texture_cache: Dictionary = {} # path -> Texture2D
 var _name_label: Label
 var _cost_circle: Panel
 var _cost_label: Label
@@ -60,6 +68,23 @@ func _ready() -> void:
 	_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	LayoutUtil.fill_parent(_art)
 	_art_area.add_child(_art)
+
+	# Leader animation (§ user request): a 4x4 sprite sheet that plays once
+	# over the portrait then disappears — same play-once pattern as the
+	# main menu's original animated overlay. Sits above the static portrait
+	# but below the name/cost decorations, so those stay legible throughout.
+	_anim_rect = TextureRect.new()
+	_anim_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_anim_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_anim_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anim_rect.visible = false
+	LayoutUtil.fill_parent(_anim_rect)
+	_art_area.add_child(_anim_rect)
+
+	_anim_timer = Timer.new()
+	_anim_timer.wait_time = 1.0 / LEADER_ANIM_FPS
+	_anim_timer.timeout.connect(_on_anim_tick)
+	add_child(_anim_timer)
 
 	# Same name/cost decorations as the base card face (§ user request:
 	# "do the same thing with the name and cost for the enlarged cards"),
@@ -115,12 +140,56 @@ func show_for(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: Strin
 	_text.text = bbcode_text
 	_badge.text = badge_text
 	_badge.visible = badge_text != ""
+	_start_leader_animation(card_data)
 	_position_near(anchor_rect)
 	move_to_front()
 	visible = true
 
 func hide_preview() -> void:
 	visible = false
+	_anim_timer.stop()
+
+## Plays a Leader's 4x4 sprite-sheet animation once over its portrait (§
+## user request), then hides itself when the last frame's played — the
+## same play-once-and-disappear pattern the main menu's overlay originally
+## used. Resets/no-ops (clearing any previous animation) for anything that
+## isn't a Leader with an animation sprite matched to it.
+func _start_leader_animation(card_data: CardData) -> void:
+	_anim_timer.stop()
+	_anim_rect.visible = false
+	if not (card_data is LeaderData):
+		return
+	var path: String = (card_data as LeaderData).animation_sprite_path
+	if path.is_empty() or not ResourceLoader.exists(path):
+		return
+	var sheet := _load_anim_texture(path)
+	var frame_w := sheet.get_width() / LEADER_ANIM_COLS
+	var frame_h := sheet.get_height() / LEADER_ANIM_ROWS
+	_anim_atlas = AtlasTexture.new()
+	_anim_atlas.atlas = sheet
+	_anim_atlas.region = Rect2(0, 0, frame_w, frame_h)
+	_anim_rect.texture = _anim_atlas
+	_anim_frame = 0
+	_anim_rect.visible = true
+	_anim_timer.start()
+
+func _load_anim_texture(path: String) -> Texture2D:
+	if not _anim_texture_cache.has(path):
+		_anim_texture_cache[path] = load(path)
+	return _anim_texture_cache[path]
+
+func _on_anim_tick() -> void:
+	var total_frames := LEADER_ANIM_COLS * LEADER_ANIM_ROWS
+	_anim_frame += 1
+	if _anim_frame >= total_frames:
+		_anim_timer.stop()
+		_anim_rect.visible = false
+		return
+	var frame_w := _anim_atlas.atlas.get_width() / LEADER_ANIM_COLS
+	var frame_h := _anim_atlas.atlas.get_height() / LEADER_ANIM_ROWS
+	var col := _anim_frame % LEADER_ANIM_COLS
+	var row := _anim_frame / LEADER_ANIM_COLS
+	_anim_atlas.region = Rect2(col * frame_w, row * frame_h, frame_w, frame_h)
 
 func _position_near(anchor_rect: Rect2) -> void:
 	var viewport_size := get_viewport_rect().size

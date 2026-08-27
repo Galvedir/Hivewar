@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://5u4eeewitipi"
-path="res://.godot/imported/Hesper_The_Hourglass_Weaver.png-3e42f146a90ac8d7350b6ac84f846dba.ctex"
+uid="uid://ddxuyuqtoynl8"
+path="res://.godot/imported/One_from_the_square_mound_animation.png-b96d2488c46c5de732611324a637e0c2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/leaders/Hesper_The_Hourglass_Weaver.png"
-dest_files=["res://.godot/imported/Hesper_The_Hourglass_Weaver.png-3e42f146a90ac8d7350b6ac84f846dba.ctex"]
+source_file="res://art/leaders/One_From_The_Square_Mound/One_from_the_square_mound_animation.png"
+dest_files=["res://.godot/imported/One_from_the_square_mound_animation.png-b96d2488c46c5de732611324a637e0c2.ctex"]
 
 [params]
 

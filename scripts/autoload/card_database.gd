@@ -20,7 +20,7 @@ const LEADER_ILLUSTRATIONS_DIR := "res://art/leaders/"
 
 func _ready() -> void:
 	var card_art := _scan_illustrations(CARD_ILLUSTRATIONS_DIR)
-	var leader_art := _scan_illustrations(LEADER_ILLUSTRATIONS_DIR)
+	var leader_art := _scan_leader_art(LEADER_ILLUSTRATIONS_DIR)
 	_load_cards(card_art)
 	_load_leaders(leader_art)
 
@@ -72,15 +72,21 @@ func _load_leaders(art_map: Dictionary) -> void:
 		leader.ultimate_text = def.get("ultimate_text", "")
 		leader.ultimate_effects = _dict_array(def.get("ultimate_effects", []))
 		leader.ultimate_variable_cost = def.get("ultimate_variable_cost", false)
-		leader.illustration_path = art_map.get(_normalize_name(leader.card_name), "")
+		var art: Dictionary = art_map.get(_normalize_name(leader.card_name), {})
+		leader.illustration_path = art.get("portrait", "")
+		leader.animation_sprite_path = art.get("animation", "")
 		_leaders[leader.id] = leader
+
+func _is_image_file(file_name: String) -> bool:
+	if file_name.ends_with(".import"):
+		return false
+	var ext := file_name.get_extension().to_lower()
+	return ext == "png" or ext == "jpg" or ext == "jpeg" or ext == "webp"
 
 ## Lists image files directly in `dir_path` and indexes them by a
 ## normalized form of their filename (see _normalize_name), so e.g.
-## "Azure_Damselfly.png" matches a card named "Azure Damselfly" and
-## "Hesper_The_Hourglass_Weaver.png" matches "Hesper, Hourglass Weaver"
-## despite the punctuation/filler-word differences. No-ops (returns an
-## empty map) if the folder doesn't exist yet.
+## "Azure_Damselfly.png" matches a card named "Azure Damselfly". No-ops
+## (returns an empty map) if the folder doesn't exist yet.
 func _scan_illustrations(dir_path: String) -> Dictionary:
 	var out := {}
 	var dir := DirAccess.open(dir_path)
@@ -89,13 +95,62 @@ func _scan_illustrations(dir_path: String) -> Dictionary:
 	dir.list_dir_begin()
 	var file_name := dir.get_next()
 	while file_name != "":
-		if not dir.current_is_dir() and not file_name.ends_with(".import"):
-			var ext := file_name.get_extension().to_lower()
-			if ext == "png" or ext == "jpg" or ext == "jpeg" or ext == "webp":
-				out[_normalize_name(file_name.get_basename())] = dir_path + file_name
+		if not dir.current_is_dir() and _is_image_file(file_name):
+			out[_normalize_name(file_name.get_basename())] = dir_path + file_name
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	return out
+
+## Leader art (§ user request) lives one subfolder per Leader under
+## art/leaders/ — e.g. "Hesper_The_Hourglass_Weaver/" — each holding a
+## portrait image and optionally a second file with "animation" in its
+## name: a 4x4 sprite sheet that plays once over the portrait when that
+## Leader's enlarged hover card is shown (see CardPreviewOverlay). The
+## subfolder name is matched to a Leader the same fuzzy way filenames are
+## elsewhere (see _normalize_name) — e.g. "One_From_The_Square_Mound"
+## matches "One, from the Square Mound". A flat image file placed directly
+## in art/leaders/ (no subfolder) still works too, for a Leader that
+## hasn't been moved into its own folder yet. Returns
+## {normalized_leader_name: {"portrait": path, "animation": path_or_empty}}.
+func _scan_leader_art(dir_path: String) -> Dictionary:
+	var out := {}
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return out
+	dir.list_dir_begin()
+	var entry := dir.get_next()
+	while entry != "":
+		if dir.current_is_dir():
+			if not entry.begins_with("."):
+				var sub_path := dir_path + entry + "/"
+				var found := _scan_leader_folder(sub_path)
+				if found.get("portrait", "") != "":
+					out[_normalize_name(entry)] = found
+		elif _is_image_file(entry):
+			out[_normalize_name(entry.get_basename())] = {"portrait": dir_path + entry, "animation": ""}
+		entry = dir.get_next()
+	dir.list_dir_end()
+	return out
+
+## Within one Leader's art subfolder: whichever image file's name contains
+## "animation" is the sprite sheet, the other is the static portrait.
+func _scan_leader_folder(sub_path: String) -> Dictionary:
+	var portrait := ""
+	var animation := ""
+	var dir := DirAccess.open(sub_path)
+	if dir == null:
+		return {"portrait": portrait, "animation": animation}
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	while file_name != "":
+		if not dir.current_is_dir() and _is_image_file(file_name):
+			if file_name.to_lower().contains("animation"):
+				animation = sub_path + file_name
+			else:
+				portrait = sub_path + file_name
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	return {"portrait": portrait, "animation": animation}
 
 ## Lowercases, strips punctuation, and drops filler words so filenames and
 ## printed card names compare equal despite cosmetic differences (spaces vs

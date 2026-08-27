@@ -12,6 +12,12 @@ extends Resource
 @export var rarity: String = Rarities.COMMON
 @export var text: String = ""
 @export var is_legendary: bool = false
+## Path to this card's illustration, resolved by CardDatabase at load time
+## by matching card_name against whatever art has been dropped into
+## art/cards/illustrations/ (or art/leaders/ for LeaderData) — see
+## CardDatabase._scan_illustrations. Empty if no art exists for this card
+## yet (art is being added incrementally during playtesting).
+@export var illustration_path: String = ""
 
 ## True if this card is Colorless or shares a Kingdom with leader_kingdoms.
 ## Used by CostCalculator (§4) — a Hybrid card only needs one match.

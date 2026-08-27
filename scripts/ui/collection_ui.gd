@@ -108,5 +108,5 @@ func _refresh() -> void:
 		btn.text = CardRenderUtil.card_summary(card, card.cost)
 		btn.modulate = CardRenderUtil.card_color(card)
 		btn.focus_mode = Control.FOCUS_NONE # read-only browse — no pressed handler, just not focus-tabbable
-		_grid.add_child(btn)
+		_grid.add_child(CardRenderUtil.with_illustration(card, btn))
 	_count_label.text = "%d cards" % shown

@@ -60,3 +60,24 @@ static func card_summary(card_data: CardData, cost: int, surcharged: bool = fals
 	if card_data.text != "":
 		lines.append(wrap_text(card_data.text))
 	return "\n".join(lines)
+
+## Wraps `content` (an existing card button/widget) with a fixed-height
+## illustration slot above it (§ user request: card/leader art is being
+## added incrementally during playtesting) — left blank instead of shrunk
+## away when no art has been matched yet for `card_data`, so every card
+## widget in a row/grid stays the same size regardless of which ones
+## currently have art.
+static func with_illustration(card_data: CardData, content: Control, art_height: float = 70.0) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 0)
+	var art := TextureRect.new()
+	art.custom_minimum_size = Vector2(0, art_height)
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tex := CardDatabase.get_illustration_texture(card_data)
+	if tex != null:
+		art.texture = tex
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	box.add_child(art)
+	box.add_child(content)
+	return box

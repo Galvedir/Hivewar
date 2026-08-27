@@ -34,10 +34,10 @@ func _ready() -> void:
 	# Control with no inherent minimum size silently renders at (0,0) with
 	# no error. Bit both DeckBuilderUI and CollectionUI this way in practice
 	# (fixed via LayoutUtil.fill_parent, which sets anchors+offsets explicitly).
-	main._on_open_deck_builder()
+	main._on_open_deck_builder(main._practice_screen)
 	_check(db.size.x > 100 and db.size.y > 100, "Deck Builder screen has a real nonzero size when opened (got %s)" % db.size)
 	main._on_deck_builder_closed()
-	main._on_open_collection()
+	main._on_open_collection(main._practice_screen)
 	var col: CollectionUI = main._collection
 	_check(col.size.x > 100 and col.size.y > 100, "Collection screen has a real nonzero size when opened (got %s)" % col.size)
 	main._on_collection_closed()
@@ -50,7 +50,7 @@ func _ready() -> void:
 	main._on_rules_closed()
 	_check(rules.visible == false and main._practice_screen.visible, "Closing Rules (opened from the Practice screen) returns to the Practice screen")
 
-	main._on_open_deck_builder()
+	main._on_open_deck_builder(main._practice_screen)
 	main._on_open_rules(main._deck_builder)
 	main._on_rules_closed()
 	_check(main._deck_builder.visible and not main._practice_screen.visible, "Closing Rules (opened from the Deck Builder) returns to the Deck Builder, not the Practice screen")

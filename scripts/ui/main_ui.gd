@@ -33,18 +33,22 @@ var _options_screen: Control
 var _deck_builder: DeckBuilderUI
 var _collection: CollectionUI
 var _rules_screen: RulesScreenUI
-var _rules_return_target: Control # whichever screen was open before Rules — main menu or Deck Builder
+var _rules_return_target: Control # whichever screen was open before Rules — main menu, Practice, or Deck Builder
+var _deck_builder_return_target: Control # whichever screen was open before Deck Builder — main menu or Practice
+var _collection_return_target: Control # whichever screen was open before Collection — main menu or Practice
 var _match_view: HBoxContainer
 var _match_root: VBoxContainer
 var _log_display: RichTextLabel
 var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
 var _opponent_info: Label
+var _opponent_portrait: TextureRect
 var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
 var _player_hand: HBoxContainer
 var _player_info: Label
+var _player_portrait: TextureRect
 var _player_discard_btn: Button
 var _discard_popup: PanelContainer
 var _discard_popup_box: VBoxContainer
@@ -533,6 +537,24 @@ func _build_main_menu() -> void:
 	multiplayer_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(multiplayer_btn)
 
+	var builder_btn := Button.new()
+	builder_btn.text = "Deck Builder"
+	builder_btn.pressed.connect(_on_open_deck_builder.bind(_main_menu))
+	builder_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(builder_btn)
+
+	var collection_btn := Button.new()
+	collection_btn.text = "Collection"
+	collection_btn.pressed.connect(_on_open_collection.bind(_main_menu))
+	collection_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(collection_btn)
+
+	var rules_btn := Button.new()
+	rules_btn.text = "Rules & Keywords"
+	rules_btn.pressed.connect(_on_open_rules.bind(_main_menu))
+	rules_btn.pressed.connect(_play_click_sfx)
+	btn_box.add_child(rules_btn)
+
 	var options_btn := Button.new()
 	options_btn.text = "Options"
 	options_btn.pressed.connect(_on_options_pressed)
@@ -588,12 +610,12 @@ func _build_practice_screen() -> void:
 	top.add_child(back_btn)
 	var builder_btn := Button.new()
 	builder_btn.text = "Deck Builder"
-	builder_btn.pressed.connect(_on_open_deck_builder)
+	builder_btn.pressed.connect(_on_open_deck_builder.bind(_practice_screen))
 	builder_btn.pressed.connect(_play_click_sfx)
 	top.add_child(builder_btn)
 	var collection_btn := Button.new()
 	collection_btn.text = "Collection"
-	collection_btn.pressed.connect(_on_open_collection)
+	collection_btn.pressed.connect(_on_open_collection.bind(_practice_screen))
 	collection_btn.pressed.connect(_play_click_sfx)
 	top.add_child(collection_btn)
 	var rules_btn := Button.new()
@@ -730,36 +752,57 @@ func _refresh_saved_decks_menu() -> void:
 		btn.pressed.connect(_play_click_sfx)
 		_saved_decks_menu_box.add_child(btn)
 
-func _on_open_deck_builder() -> void:
-	_practice_screen.visible = false
+## Shows/hides a top-level screen, special-casing the main menu so its bg
+## animation starts/stops correctly (§ user request: Deck Builder,
+## Collection, and Rules & Keywords are reachable from BOTH the main menu
+## and the Practice screen now, so closing one of them must return to
+## whichever of those two actually opened it, not always the same screen).
+func _show_screen(s: Control) -> void:
+	if s == _main_menu:
+		_set_main_menu_visible(true)
+	else:
+		s.visible = true
+
+func _hide_screen(s: Control) -> void:
+	if s == _main_menu:
+		_set_main_menu_visible(false)
+	else:
+		s.visible = false
+
+func _on_open_deck_builder(from: Control) -> void:
+	_deck_builder_return_target = from
+	_hide_screen(from)
 	_deck_builder.refresh_on_show()
 	_deck_builder.visible = true
 
 func _on_deck_builder_closed() -> void:
 	_deck_builder.visible = false
 	_refresh_saved_decks_menu()
-	_practice_screen.visible = true
+	if _deck_builder_return_target != null:
+		_show_screen(_deck_builder_return_target)
 
-func _on_open_collection() -> void:
-	_practice_screen.visible = false
+func _on_open_collection(from: Control) -> void:
+	_collection_return_target = from
+	_hide_screen(from)
 	_collection.visible = true
 
 func _on_collection_closed() -> void:
 	_collection.visible = false
-	_practice_screen.visible = true
+	if _collection_return_target != null:
+		_show_screen(_collection_return_target)
 
-## `from` is whichever screen was open when Rules was requested (the
-## Practice deck-select screen or the Deck Builder), so closing Rules
-## returns to the right place.
+## `from` is whichever screen was open when Rules was requested (the main
+## menu, the Practice deck-select screen, or the Deck Builder), so closing
+## Rules returns to the right place.
 func _on_open_rules(from: Control) -> void:
 	_rules_return_target = from
-	from.visible = false
+	_hide_screen(from)
 	_rules_screen.visible = true
 
 func _on_rules_closed() -> void:
 	_rules_screen.visible = false
 	if _rules_return_target != null:
-		_rules_return_target.visible = true
+		_show_screen(_rules_return_target)
 
 ## Brief loading beat (§ user request) shown while a match is being set up
 ## — currently instant work (deck shuffle, opening hands), so this is a
@@ -816,6 +859,12 @@ func _build_match_view() -> void:
 
 	var opponent_info_row := HBoxContainer.new()
 	_match_root.add_child(opponent_info_row)
+	_opponent_portrait = TextureRect.new()
+	_opponent_portrait.custom_minimum_size = Vector2(48, 48)
+	_opponent_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_opponent_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_opponent_portrait.visible = false
+	opponent_info_row.add_child(_opponent_portrait)
 	_opponent_info = Label.new()
 	_opponent_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	opponent_info_row.add_child(_opponent_info)
@@ -855,6 +904,12 @@ func _build_match_view() -> void:
 	_match_root.add_child(_player_hive.get_parent())
 	var player_info_row := HBoxContainer.new()
 	_match_root.add_child(player_info_row)
+	_player_portrait = TextureRect.new()
+	_player_portrait.custom_minimum_size = Vector2(48, 48)
+	_player_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_player_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_player_portrait.visible = false
+	player_info_row.add_child(_player_portrait)
 	_player_info = Label.new()
 	_player_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	player_info_row.add_child(_player_info)
@@ -1394,11 +1449,17 @@ func _refresh() -> void:
 	_opponent_info.text = "%s — Health %d | Larva %d/%d | Hand %d | Deck %d" % [
 		ai.leader.data.card_name, ai.health, ai.current_larva, ai.max_larva, ai.hand.size(), ai.deck.size()
 	]
+	var opp_tex := CardDatabase.get_illustration_texture(ai.leader.data)
+	_opponent_portrait.texture = opp_tex
+	_opponent_portrait.visible = opp_tex != null
 	_opponent_discard_btn.text = "Discard (%d)" % ai.graveyard.size()
 	_player_info.text = "%s — Health %d | Larva %d/%d | Turn %d (%s) | Deck %d" % [
 		human.leader.data.card_name, human.health, human.current_larva, human.max_larva,
 		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn", human.deck.size()
 	]
+	var player_tex := CardDatabase.get_illustration_texture(human.leader.data)
+	_player_portrait.texture = player_tex
+	_player_portrait.visible = player_tex != null
 	_player_discard_btn.text = "Discard (%d)" % human.graveyard.size()
 
 	_render_row(_opponent_board, ai.board, false)
@@ -1443,7 +1504,7 @@ func _make_hive_widget(c: CardInstance) -> Control:
 		lines.append(_wrap_text(c.data.text))
 	btn.text = "\n".join(lines)
 	btn.modulate = _card_color(c.data)
-	return btn
+	return CardRenderUtil.with_illustration(c.data, btn, 40.0)
 
 func _render_hand() -> void:
 	for child in _player_hand.get_children():
@@ -1459,7 +1520,7 @@ func _render_hand() -> void:
 		btn.modulate = _card_color(card.data)
 		btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > human.current_larva
 		btn.pressed.connect(_on_hand_card_pressed.bind(i))
-		_player_hand.add_child(btn)
+		_player_hand.add_child(CardRenderUtil.with_illustration(card.data, btn))
 
 func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
@@ -1489,7 +1550,7 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 		flip_btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > GameState.players[HUMAN].current_larva
 		flip_btn.pressed.connect(_on_flip_ambush_pressed.bind(c.instance_id))
 		box.add_child(flip_btn)
-	return box
+	return CardRenderUtil.with_illustration(c.data, box, 40.0)
 
 const TEMP_KEYWORD_COLOR := "#ffcc33"
 

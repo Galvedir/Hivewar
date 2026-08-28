@@ -123,7 +123,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "buff_all_matching", "params": {"attack": 1, "health": 1, "keyword": Keywords.VENOMSTRIKE, "filter_creature_type": "Spider"}}],
 		},
 		{
-			"id": "captain_vell", "name": "Captain Vell, Windrunner",
+			"id": "captain_vell", "name": "Skipper Pyrgus",
 			"kingdoms": [Kingdoms.BLUE], "starting_health": 30,
 			"text": "Leader of the Swarm Aloft.",
 			"hero_power_cost": 2,
@@ -134,7 +134,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "draw_card", "params": {"count": 3}}],
 		},
 		{
-			"id": "mira_duskwing", "name": "Mira Duskwing",
+			"id": "mira_duskwing", "name": "Alexandrae Birdwing",
 			"kingdoms": [Kingdoms.BLUE], "starting_health": 30,
 			"text": "Leader of the Swarm Aloft.",
 			"hero_power_cost": 3,
@@ -178,7 +178,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "summon_token", "params": {"token_id": "flea_biter_token", "count": 4}}],
 		},
 		{
-			"id": "thessaly_ironwing", "name": "Thessaly Ironwing",
+			"id": "thessaly_ironwing", "name": "Osmia Mega Mason",
 			"kingdoms": [Kingdoms.WHITE, Kingdoms.BLUE], "starting_health": 30,
 			"text": "Leader of the Hive and the Swarm Aloft.",
 			"hero_power_cost": 2,

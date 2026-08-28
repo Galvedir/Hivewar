@@ -772,37 +772,37 @@ const BLUE: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "gnat_wisp", "name": "Gnat Wisp", "type": "Creature",
+		"id": "gnat_wisp", "name": "Fungus Gnat", "type": "Creature",
 		"cost": 0, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Gnat", "keywords": [],
 		"text": "",
 	},
 	{
-		"id": "house_fly_scout", "name": "House Fly Scout", "type": "Creature",
+		"id": "house_fly_scout", "name": "Hoverfly Drifter", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Fly", "keywords": [Keywords.FLYING],
 		"text": "Flying.",
 	},
 	{
-		"id": "dragonfly_duelist", "name": "Dragonfly Duelist", "type": "Creature",
+		"id": "dragonfly_duelist", "name": "Western Pondhawk", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 2, "health": 3, "creature_type": "Dragonfly", "keywords": [],
 		"text": "",
 	},
 	{
-		"id": "gnat_swarm", "name": "Gnat Swarm", "type": "Creature",
+		"id": "gnat_swarm", "name": "Gnat Cloud", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 1, "health": 1, "creature_type": "Gnat", "keywords": [Keywords.FLYING, Keywords.STEALTH],
+		"attack": 2, "health": 2, "creature_type": "Gnat", "keywords": [Keywords.FLYING, Keywords.STEALTH],
 		"text": "Flying. Camouflage.",
 	},
 	{
-		"id": "mayfly_seer", "name": "Mayfly Seer", "type": "Ability",
+		"id": "mayfly_seer", "name": "May Imago", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "draw_card", "params": {"count": 2}}],
 		"text": "Draw 2 cards.",
 	},
 	{
-		"id": "butterfly_dancer", "name": "Butterfly Dancer", "type": "Creature",
+		"id": "butterfly_dancer", "name": "Adonis Blue", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 3, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"ambush": {
@@ -813,13 +813,7 @@ const BLUE: Array[Dictionary] = [
 		"text": "Morph (Pay 2: flip face up). Flips into a 2/3 Flying, draw a card.",
 	},
 	{
-		"id": "gust_of_wind", "name": "Gust of Wind", "type": "Ability",
-		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
-		"effects": [{"trigger": "on_cast", "effect_id": "bounce_creature", "params": {}}],
-		"text": "Return target enemy creature to its owner's hand.",
-	},
-	{
-		"id": "dragonfly_ace", "name": "Dragonfly Ace", "type": "Creature",
+		"id": "dragonfly_ace", "name": "Pronghorn Clubtail", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
 		"attack": 5, "health": 4, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING, Keywords.SWIFT],
 		"effects": [{"trigger": "on_attack", "effect_id": "draw_card", "params": {"count": 1}}],
@@ -832,13 +826,13 @@ const BLUE: Array[Dictionary] = [
 		"text": "Equipped creature gains Reach.",
 	},
 	{
-		"id": "cloudveil_hive", "name": "Cloudveil", "type": "Hive",
+		"id": "cloudveil_hive", "name": "Wing Emergence", "type": "Hive",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.FLYING, "attack": 1}],
 		"text": "Your Flying creatures have +1/+0.",
 	},
 	{
-		"id": "monarch_caterpillar", "name": "Monarch Butterfly", "type": "Creature",
+		"id": "monarch_caterpillar", "name": "Swallowtail Butterfly", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"attack": 4, "health": 3, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"ambush": {
@@ -848,7 +842,7 @@ const BLUE: Array[Dictionary] = [
 		"text": "Morph (Pay 2: flip face up). Flips into a 4/3 Flying.",
 	},
 	{
-		"id": "painted_caterpillar", "name": "Painted Lady Ascendant", "type": "Creature",
+		"id": "painted_caterpillar", "name": "Painted Lady Cosmopolitan", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"attack": 5, "health": 4, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"ambush": {
@@ -868,7 +862,7 @@ const BLUE: Array[Dictionary] = [
 		"text": "Morph (flips at the start of your next turn). Flips into a 4/4 Flying, Swift.",
 	},
 	{
-		"id": "pond_skimmer", "name": "Pond Skimmer", "type": "Creature",
+		"id": "pond_skimmer", "name": "Waterstrider", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 2, "creature_type": "Water Strider", "keywords": [],
 		"text": "",
@@ -880,15 +874,15 @@ const BLUE: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "whisper_gnat", "name": "Whisper Gnat", "type": "Creature",
+		"id": "whisper_gnat", "name": "White Gnat", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 1, "creature_type": "Gnat", "keywords": [Keywords.STEALTH],
 		"text": "Camouflage.",
 	},
 	{
-		"id": "swift_dragonlet", "name": "Swift Wingling", "type": "Creature",
+		"id": "swift_dragonlet", "name": "Beautiful Demoiselle", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 1, "creature_type": "Butterfly", "keywords": [Keywords.SWIFT],
+		"attack": 2, "health": 1, "creature_type": "Damselfly", "keywords": [Keywords.SWIFT],
 		"text": "Swift.",
 	},
 	{
@@ -899,7 +893,7 @@ const BLUE: Array[Dictionary] = [
 		"text": "Flying. On Play: draw a card.",
 	},
 	{
-		"id": "current_rider_dragonfly", "name": "Current Rider Butterfly", "type": "Creature",
+		"id": "current_rider_dragonfly", "name": "Glasswing Butterfly", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 4, "creature_type": "Butterfly", "keywords": [],
 		"ambush": {
@@ -909,7 +903,7 @@ const BLUE: Array[Dictionary] = [
 		"text": "Morph (flips at the start of your next turn). Flips into a 3/4.",
 	},
 	{
-		"id": "cloudmind_butterfly", "name": "Cloudmind Butterfly", "type": "Creature",
+		"id": "cloudmind_butterfly", "name": "Blue Morpho", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 3, "health": 5, "creature_type": "Butterfly", "keywords": [],
 		"ambush": {
@@ -920,14 +914,14 @@ const BLUE: Array[Dictionary] = [
 		"text": "Morph (Pay 2: flip face up). Flips into a 3/5, scry (look at the top card of your library).",
 	},
 	{
-		"id": "tempest_dragonfly", "name": "Tempest Dragonfly", "type": "Creature",
+		"id": "tempest_dragonfly", "name": "Migrant Hawker", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"attack": 4, "health": 3, "creature_type": "Dragonfly", "keywords": [Keywords.SWIFT],
 		"effects": [{"trigger": "on_attack", "effect_id": "scry", "params": {}}],
 		"text": "Swift. On Attack: scry (look at the top card of your library).",
 	},
 	{
-		"id": "monarch_ascendant", "name": "Monarch Ascendant", "type": "Creature",
+		"id": "monarch_ascendant", "name": "Monarch Butterfly", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"attack": 5, "health": 5, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"ambush": {
@@ -938,48 +932,48 @@ const BLUE: Array[Dictionary] = [
 		"text": "Morph (Pay 3: flip face up). Flips into a 5/5 Flying, returning the strongest enemy creature to its owner's hand (no target choice at reveal).",
 	},
 	{
-		"id": "skywhisper_matriarch", "name": "Skywhisper Matriarch", "type": "Creature",
+		"id": "skywhisper_matriarch", "name": "Milkweed Monarch", "type": "Creature",
 		"cost": 6, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
 		"attack": 6, "health": 6, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"ambush": {
-			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 4},
+			"face_down": {"name": "Unidentified Caterpillar", "attack": 1, "health": 3, "keywords": [Keywords.POISON]},
 			"flip_trigger": "paid", "flip_cost": 3,
 		},
 		"effects": [{"trigger": "on_play", "effect_id": "draw_card", "params": {"count": 2}}],
 		"text": "Morph (Pay 3: flip face up). Flips into a 6/6 Flying, draw 2 cards.",
 	},
 	{
-		"id": "gale_step", "name": "Gale Step", "type": "Ability",
+		"id": "gale_step", "name": "Change of Seasons", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "bounce_creature", "params": {}}],
 		"text": "Return target enemy creature to its owner's hand.",
 	},
 	{
-		"id": "tidal_insight", "name": "Tidal Insight", "type": "Ability",
+		"id": "tidal_insight", "name": "Milkweed Fodder", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "scry", "params": {}}],
 		"text": "Scry (look at the top card of your library).",
 	},
 	{
-		"id": "silt_diver", "name": "Silt Diver", "type": "Ability",
+		"id": "silt_diver", "name": "Thanatosis", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "return_from_graveyard", "params": {}}],
 		"text": "Return the most recently died friendly creature from your graveyard to your hand.",
 	},
 	{
-		"id": "undertow", "name": "Undertow", "type": "Ability",
+		"id": "undertow", "name": "Metamorphize", "type": "Ability",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"effects": [{"trigger": "on_cast", "effect_id": "shuffle_into_library", "params": {}}],
 		"text": "Shuffle target enemy creature into its owner's library.",
 	},
 	{
-		"id": "windswept_veil", "name": "Windswept Veil", "type": "Ability",
+		"id": "windswept_veil", "name": "Eye Spots", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "buff_friendly", "params": {"attack": 0, "health": 0, "keyword": Keywords.STEALTH}}],
 		"text": "Give a friendly creature Camouflage.",
 	},
 	{
-		"id": "storm_surge", "name": "Storm Surge", "type": "Ability",
+		"id": "storm_surge", "name": "Milkweed Toxicity", "type": "Ability",
 		"cost": 4, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.RARE,
 		"effects": [
 			{"trigger": "on_cast", "effect_id": "bounce_creature", "params": {}},
@@ -994,19 +988,19 @@ const BLUE: Array[Dictionary] = [
 		"text": "Equipped creature gains Flying.",
 	},
 	{
-		"id": "veil_of_mist", "name": "Veil of Mist", "type": "Hive",
+		"id": "veil_of_mist", "name": "Mimicry", "type": "Hive",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.STEALTH, "health": 1}],
 		"text": "Your Camouflage creatures have +0/+1.",
 	},
 	{
-		"id": "windswept_reach", "name": "Windswept Reach", "type": "Hive",
+		"id": "windswept_reach", "name": "Annual Migration", "type": "Hive",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.FLYING, "health": 1}],
 		"text": "Your Flying creatures have +0/+1.",
 	},
 	{
-		"id": "sovereign_of_storms", "name": "Sovereign of Storms", "type": "Creature",
+		"id": "sovereign_of_storms", "name": "Pipevine Swallowtail", "type": "Creature",
 		"cost": 9, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.LEGENDARY,
 		"attack": 8, "health": 8, "creature_type": "Butterfly", "keywords": [Keywords.FLYING],
 		"ambush": {
@@ -1020,7 +1014,7 @@ const BLUE: Array[Dictionary] = [
 		"text": "Morph (Pay 4: flip face up). Flips into an 8/8 Flying, draw 3 cards. Whenever this creature is dealt combat damage, deal 2 damage to the strongest enemy creature.",
 	},
 	{
-		"id": "storm_petrel", "name": "Storm Petrel", "type": "Creature",
+		"id": "storm_petrel", "name": "Red Hawk", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 2, "health": 2, "creature_type": "Dragonfly", "keywords": [Keywords.FLYING],
 		"effects": [{"trigger": "on_attack", "effect_id": "scry", "params": {}}],
@@ -1448,7 +1442,7 @@ const HYBRID: Array[Dictionary] = [
 		"text": "Trample. Swift.",
 	},
 	{
-		"id": "shadow_widow", "name": "Shadow Widow", "type": "Creature",
+		"id": "shadow_widow", "name": "Hourglass Lake Widow", "type": "Creature",
 		"cost": 4, "kingdoms": [Kingdoms.BLACK, Kingdoms.BLUE], "rarity": Rarities.UNCOMMON,
 		"attack": 3, "health": 2, "creature_type": "Spider", "keywords": [Keywords.POISON, Keywords.STEALTH],
 		"text": "Poison. Camouflage.",
@@ -1479,9 +1473,9 @@ const HYBRID: Array[Dictionary] = [
 		"text": "Guard. Decay: draw a card.",
 	},
 	{
-		"id": "galeforce_hornet", "name": "Galeforce Hornet", "type": "Creature",
+		"id": "galeforce_hornet", "name": "No-See-Ums", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLUE, Kingdoms.RED], "rarity": Rarities.UNCOMMON,
-		"attack": 2, "health": 2, "creature_type": "Hornet", "keywords": [Keywords.FLYING, Keywords.SWIFT],
+		"attack": 2, "health": 2, "creature_type": "Midge", "keywords": [Keywords.FLYING, Keywords.SWIFT],
 		"text": "Flying. Swift.",
 	},
 	{
@@ -1556,9 +1550,9 @@ const TOKENS: Array[Dictionary] = [
 		"text": "Flying.",
 	},
 	{
-		"id": "metamorphae_sprite_token", "name": "Metamorphae Sprite", "type": "Creature",
-		"cost": 1, "kingdoms": [Kingdoms.BLUE], "rarity": Rarities.COMMON, "is_token": true,
-		"attack": 1, "health": 1, "creature_type": "Sprite", "keywords": [Keywords.FLYING],
-		"text": "Flying.",
+		"id": "metamorphae_sprite_token", "name": "Bee Lice", "type": "Creature",
+		"cost": 1, "kingdoms": [Kingdoms.BLUE, Kingdoms.WHITE, Kingdoms.RED], "rarity": Rarities.COMMON, "is_token": true,
+		"attack": 1, "health": 1, "creature_type": "Fly", "keywords": [Keywords.LIFESTEAL],
+		"text": "Lifesteal.",
 	},
 ]

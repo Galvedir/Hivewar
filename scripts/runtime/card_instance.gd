@@ -60,10 +60,21 @@ func enter_play_face_down() -> void:
 	face_down.attack = fd.get("attack", 0)
 	face_down.health = fd.get("health", 1)
 	face_down.kingdoms = []
+	# A face-down side can carry its own keywords (§ user request — e.g.
+	# Milkweed Monarch's face-down Caterpillar has Poison) — printed on
+	# face_down.keywords like any other creature, and reflected in prose
+	# via face_down.text using the same period-joined convention every
+	# other card's keyword line already uses.
+	var fd_keywords: Array[String] = []
+	for kw in fd.get("keywords", []):
+		fd_keywords.append(kw)
+	face_down.keywords = fd_keywords
+	if not fd_keywords.is_empty():
+		face_down.text = ". ".join(fd_keywords) + "."
 	data = face_down
 	current_attack = face_down.attack
 	max_health = face_down.health
-	runtime_keywords = []
+	runtime_keywords = fd_keywords.duplicate()
 	summoning_sick = true
 	colony_bonus = 0 # stat baseline is being reset wholesale; a refresh right after will recompute cleanly
 

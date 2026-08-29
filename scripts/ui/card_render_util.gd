@@ -57,20 +57,26 @@ static func wrap_text(text: String, width_chars: int = 22) -> String:
 
 ## Fills `btn` edge-to-edge with `card_data`'s illustration and clears its
 ## text (§ user request — the base card view is art-only). Falls back to
-## the card's Kingdom frame background (§ user request — one background
-## image per Kingdom, e.g. Monogyne) when no illustration has been matched
-## yet, or to a flat kingdom-colored tint if that Kingdom has no frame
-## image either, so the card stays visually distinct either way until real
-## art is dropped in. Returns the resolved illustration texture (or null —
-## note this is independent of whether a frame image is now showing) for
-## the caller to pass along to wire_hover_preview.
+## the card's Kingdom frame background (§ user request — one shared
+## background image per Kingdom, e.g. Monogyne) when no illustration has
+## been matched yet, or to a flat kingdom-colored tint if that Kingdom has
+## no frame image either. Leaders are excluded from the Kingdom-frame
+## fallback (§ user request — "Leaders should use the full card art, not
+## the background art... full art card, not full background art"): a
+## Leader without a personal portrait yet just gets the flat tint instead
+## of borrowing a shared, non-Leader-specific background. Returns the
+## resolved illustration texture (or null — note this is independent of
+## whether a frame image is now showing) for the caller to pass along to
+## wire_hover_preview.
 static func apply_full_bleed_art(btn: Button, card_data: CardData) -> Texture2D:
 	btn.text = ""
 	var tex := CardDatabase.get_illustration_texture(card_data)
 	if tex != null:
 		_add_full_rect_texture(btn, tex)
 	else:
-		var frame_tex := CardDatabase.get_kingdom_frame_texture(card_data)
+		var frame_tex: Texture2D = null
+		if not (card_data is LeaderData):
+			frame_tex = CardDatabase.get_kingdom_frame_texture(card_data)
 		if frame_tex != null:
 			_add_full_rect_texture(btn, frame_tex)
 		else:

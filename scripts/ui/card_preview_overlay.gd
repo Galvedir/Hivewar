@@ -146,7 +146,13 @@ func _ready() -> void:
 ## they differ between printed CardData and a live CardInstance's current
 ## stats/status.
 func show_for(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String, anchor_rect: Rect2) -> void:
-	var frame_tex := CardDatabase.get_kingdom_frame_texture(card_data)
+	# Leaders skip the Kingdom-frame background entirely (§ user request —
+	# "Leaders should use the full card art, not the background art"): a
+	# Leader without a personal portrait just shows no art here rather than
+	# borrowing the shared, non-Leader-specific Kingdom background.
+	var frame_tex: Texture2D = null
+	if not (card_data is LeaderData):
+		frame_tex = CardDatabase.get_kingdom_frame_texture(card_data)
 	_frame_rect.texture = frame_tex
 	_frame_rect.visible = frame_tex != null
 	_art.texture = tex

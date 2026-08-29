@@ -200,17 +200,22 @@ func get_illustration_texture(card: CardData) -> Texture2D:
 		return null
 	return _load_and_cache(card.illustration_path)
 
-## The card-frame background texture for `card`'s Kingdom (first Kingdom
-## for a Hybrid card, same "first wins" convention CardRenderUtil.
-## card_color already uses). An empty kingdoms array means Colorless —
-## same convention CardRenderUtil.kingdom_label already uses — so this
-## looks up the Insecta frame for those, not no frame at all. Null only if
-## that Kingdom has no frame image yet.
+## The card-frame background texture for `card`'s Kingdom. An empty
+## kingdoms array means Colorless — same convention CardRenderUtil.
+## kingdom_label already uses. For a Hybrid/multi-Kingdom card (Leaders
+## especially — § user request: Leader cards should reliably have a full
+## art background), every one of its Kingdoms is checked in order rather
+## than just the first, so it only comes up empty if NONE of its Kingdoms
+## has a frame image yet.
 func get_kingdom_frame_texture(card: CardData) -> Texture2D:
 	if card == null:
 		return null
-	var kingdom: String = card.kingdoms[0] if not card.kingdoms.is_empty() else Kingdoms.COLORLESS
-	return _load_and_cache(_kingdom_frames.get(kingdom, ""))
+	if card.kingdoms.is_empty():
+		return _load_and_cache(_kingdom_frames.get(Kingdoms.COLORLESS, ""))
+	for kingdom: String in card.kingdoms:
+		if _kingdom_frames.has(kingdom):
+			return _load_and_cache(_kingdom_frames[kingdom])
+	return null
 
 func _load_and_cache(path: String) -> Texture2D:
 	if path.is_empty():

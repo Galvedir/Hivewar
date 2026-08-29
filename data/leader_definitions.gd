@@ -57,7 +57,7 @@ static func get_all() -> Array[Dictionary]:
 			],
 		},
 		{
-			"id": "marshal_kesk", "name": "Marshal Kesk, Ironshell Sentinel",
+			"id": "marshal_kesk", "name": "Bockus, Dronelord",
 			"kingdoms": [Kingdoms.WHITE], "starting_health": 30,
 			"text": "Leader of the Hive.",
 			"hero_power_cost": 2,
@@ -145,7 +145,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "flip_ambush_instant", "params": {}}],
 		},
 		{
-			"id": "karneth_bloodfang", "name": "Karneth Bloodfang",
+			"id": "karneth_bloodfang", "name": "Haemagogus, Mosquito Lord",
 			"kingdoms": [Kingdoms.RED], "starting_health": 30,
 			"text": "Leader of the Bloodhunt.",
 			"hero_power_cost": 2,
@@ -156,7 +156,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "damage_leader", "params": {"amount": 8, "target": "enemy"}}],
 		},
 		{
-			"id": "skarr_wing_reaver", "name": "Skarr Wing-Reaver",
+			"id": "skarr_wing_reaver", "name": "Galvedir, Murder Hornet",
 			"kingdoms": [Kingdoms.RED], "starting_health": 30,
 			"text": "Leader of the Bloodhunt.",
 			"hero_power_cost": 2,
@@ -203,7 +203,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "buff_friendly", "params": {"attack": 5, "health": 5, "keyword": Keywords.POISON}}],
 		},
 		{
-			"id": "zeth_cindermaw", "name": "Zeth Cindermaw",
+			"id": "zeth_cindermaw", "name": "Phorid Insecticide",
 			"kingdoms": [Kingdoms.RED, Kingdoms.BLACK], "starting_health": 30,
 			"text": "Leader of the Bloodhunt and the Venom.",
 			"hero_power_cost": 2,

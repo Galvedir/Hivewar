@@ -322,6 +322,17 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 			if target != null:
 				target.damage_marked = target.max_health
 				GameLog.log("%s destroys %s (from %s)." % [player.leader.data.card_name, target.display_name(), source_label])
+		"destroy_face_down_creature":
+			# "You may" (§ user request — Caterpillar Searcher) falls out for
+			# free: this pool is only ever face-down creatures, so it's
+			# naturally empty (and this just no-ops) whenever the opponent
+			# has nothing eligible, exactly like every other targeted effect
+			# here does with an empty pool.
+			var face_down_pool: Array[CardInstance] = opponent.board.filter(func(c: CardInstance) -> bool: return c.is_face_down)
+			var fd_target := _pick_target(ctx, face_down_pool, "strongest")
+			if fd_target != null:
+				fd_target.damage_marked = fd_target.max_health
+				GameLog.log("%s destroys the face-down %s (from %s)." % [player.leader.data.card_name, fd_target.display_name(), source_label])
 		"heal_creature_full":
 			var target := _pick_target(ctx, player.board, "weakest")
 			if target != null:

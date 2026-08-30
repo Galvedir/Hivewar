@@ -23,7 +23,25 @@ const TARGETING_EFFECT_SIDES := {
 	"heal_creature_full": "friendly",
 	"flip_ambush_instant": "friendly",
 	"buff_friendly_per_larva_spent": "friendly",
+	"destroy_face_down_creature": "enemy",
 }
+
+## Effects that need more than just "friendly vs enemy" to pick a legal
+## target (§ user request — Caterpillar Searcher's "you may destroy target
+## face-down creature" only makes sense against a face-down creature; "you
+## may" falls out naturally — if the enemy has none, this stays "" for
+## every candidate and the whole targeting prompt never engages, same as
+## how every other targeted effect here just no-ops with an empty pool).
+const TARGETING_EXTRA_FILTER := {
+	"destroy_face_down_creature": "face_down",
+}
+
+func _passes_extra_filter(effect_id: String, c: CardInstance) -> bool:
+	match TARGETING_EXTRA_FILTER.get(effect_id, ""):
+		"face_down":
+			return c.is_face_down
+		_:
+			return true
 
 var _main_menu: Control # plain Control wrapper (not a layout container) so a full-screen background image can sit behind the actual VBox content as a separate layer
 var _main_menu_status_label: Label
@@ -74,6 +92,7 @@ var _selected_attacker_id := -1
 var _pending_attack_target = null # null / "leader" / CardInstance — awaiting the attack-confirm popup
 var _pending_ultimate_larva_spend := -1 # set while an X-cost Ultimate's amount has been chosen and is awaiting a target (or is ready to fire if untargeted)
 var _pending_target_side := "" # "" / "friendly" / "enemy" — set while awaiting a click to target a hand card or Hero Power/Ultimate
+var _pending_target_effect_id := "" # the specific effect_id being targeted, if any extra legality filter applies (see TARGETING_EXTRA_FILTER)
 var _pending_power_kind := "" # "" / "hero" / "ultimate"
 var _busy := false # true while the AI or an awaited attack is resolving
 
@@ -1288,6 +1307,7 @@ func _clear_selection() -> void:
 	_selected_hand_index = -1
 	_selected_attacker_id = -1
 	_pending_target_side = ""
+	_pending_target_effect_id = ""
 	_pending_power_kind = ""
 	_pending_ultimate_larva_spend = -1
 
@@ -1312,11 +1332,13 @@ func _on_hand_card_pressed(index: int) -> void:
 
 	var side := _required_target_side(card)
 	if side != "":
+		var effect_id := _required_target_effect_id(card)
 		var pool := player.board if side == "friendly" else GameState.players[AI].board
-		if pool.any(func(c: CardInstance) -> bool: return c.is_alive()):
+		if pool.any(func(c: CardInstance) -> bool: return c.is_alive() and _passes_extra_filter(effect_id, c)):
 			_selected_hand_index = index
 			_selected_attacker_id = -1
 			_pending_target_side = side
+			_pending_target_effect_id = effect_id
 			_status_label.text = "Choose %s creature to target with %s." % [("a friendly" if side == "friendly" else "an enemy"), card.display_name()]
 			_refresh()
 			return
@@ -1358,6 +1380,29 @@ func _required_target_side(card: CardInstance) -> String:
 			return TARGETING_EFFECT_SIDES[e.get("effect_id", "")]
 	return ""
 
+## The specific effect_id _required_target_side matched, if any — needed
+## separately so extra-filter effects (see TARGETING_EXTRA_FILTER) can be
+## validated against, not just their side.
+func _required_target_effect_id(card: CardInstance) -> String:
+	var effects: Array[Dictionary] = []
+	var trigger := ""
+	if card.data is CreatureData:
+		var cd := card.data as CreatureData
+		if cd.is_ambush():
+			return ""
+		effects = cd.effects
+		trigger = "on_play"
+	elif card.data is AbilityData:
+		effects = (card.data as AbilityData).effects
+		trigger = "on_cast"
+	else:
+		return ""
+	for e: Dictionary in effects:
+		var effect_id: String = e.get("effect_id", "")
+		if e.get("trigger", "") == trigger and TARGETING_EFFECT_SIDES.has(effect_id):
+			return effect_id
+	return ""
+
 func _on_flip_ambush_pressed(instance_id: int) -> void:
 	if _busy or GameState.active_player_index != HUMAN:
 		return
@@ -1373,6 +1418,9 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 		var wants_friendly := _pending_target_side == "friendly"
 		if is_friendly != wants_friendly:
 			_status_label.text = "Choose %s creature." % ("a friendly" if wants_friendly else "an enemy")
+			return
+		if not _passes_extra_filter(_pending_target_effect_id, instance):
+			_status_label.text = "Choose a face-down creature."
 			return
 		_busy = true
 		_refresh()

@@ -192,7 +192,7 @@ static func get_all() -> Array[Dictionary]:
 			],
 		},
 		{
-			"id": "korrath_deathvine", "name": "Korrath Deathvine",
+			"id": "korrath_deathvine", "name": "Gigantea",
 			"kingdoms": [Kingdoms.BLACK, Kingdoms.GREEN], "starting_health": 30,
 			"text": "Leader of the Venom and the Wild.",
 			"hero_power_cost": 2,

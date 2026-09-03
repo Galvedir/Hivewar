@@ -13,6 +13,7 @@ var _search_filter := ""
 
 var _kingdom_option: OptionButton
 var _rarity_option: OptionButton
+var _search_edit: LineEdit
 var _grid: GridContainer
 var _count_label: Label
 var _overlay: CardPreviewOverlay
@@ -34,6 +35,7 @@ func _build_ui() -> void:
 	back_btn.text = "< Back to Menu"
 	back_btn.pressed.connect(func() -> void:
 		_overlay.hide_preview()
+		_reset_filters() # § user request: filters shouldn't persist once you navigate away
 		closed.emit())
 	top.add_child(back_btn)
 
@@ -58,11 +60,11 @@ func _build_ui() -> void:
 	_rarity_option.item_selected.connect(_on_rarity_filter_selected)
 	filters.add_child(_rarity_option)
 
-	var search_edit := LineEdit.new()
-	search_edit.placeholder_text = "Search name..."
-	search_edit.custom_minimum_size = Vector2(180, 0)
-	search_edit.text_changed.connect(_on_search_changed)
-	filters.add_child(search_edit)
+	_search_edit = LineEdit.new()
+	_search_edit.placeholder_text = "Search name..."
+	_search_edit.custom_minimum_size = Vector2(180, 0)
+	_search_edit.text_changed.connect(_on_search_changed)
+	filters.add_child(_search_edit)
 
 	_count_label = Label.new()
 	filters.add_child(_count_label)
@@ -81,6 +83,17 @@ func _build_ui() -> void:
 	# overlay's manually-set global_position every layout pass.
 	_overlay = CardPreviewOverlay.new()
 	add_child(_overlay)
+
+## § user request: filters shouldn't carry over between visits — back to
+## defaults (and the widgets reset to match) every time you leave.
+func _reset_filters() -> void:
+	_kingdom_filter = "ALL"
+	_rarity_filter = "ALL"
+	_search_filter = ""
+	_kingdom_option.selected = 0
+	_rarity_option.selected = 0
+	_search_edit.text = ""
+	_refresh()
 
 func _on_kingdom_filter_selected(index: int) -> void:
 	_kingdom_filter = "ALL" if index == 0 else _kingdom_option.get_item_text(index)

@@ -25,7 +25,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "",
 	},
 	{
-		"id": "worker_termite", "name": "Worker Termite", "type": "Creature",
+		"id": "worker_termite", "name": "Termite Worker", "type": "Creature",
 		"cost": 1, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.COMMON,
 		"attack": 1, "health": 2, "creature_type": "Termite", "keywords": [Keywords.GUARD],
 		"text": "Guard.",
@@ -190,7 +190,7 @@ const WHITE: Array[Dictionary] = [
 		"text": "Guard. Colony (other Termites get +0/+1 while this is in play). On Play: summon two 1/1 Termite Worker tokens with Guard.",
 	},
 	{
-		"id": "radiant_hive_guardian", "name": "Radiant Hive Guardian", "type": "Creature",
+		"id": "radiant_hive_guardian", "name": "Gold Digger Wasp", "type": "Creature",
 		"cost": 6, "kingdoms": [Kingdoms.WHITE], "rarity": Rarities.LEGENDARY,
 		"attack": 6, "health": 8, "creature_type": "Wasp", "keywords": [Keywords.GUARD, Keywords.LIFESTEAL],
 		"text": "Guard. Lifesteal.",
@@ -1343,7 +1343,7 @@ const COLORLESS: Array[Dictionary] = [
 	{
 		"id": "swarm_engine", "name": "Swarm Engine", "type": "Creature",
 		"cost": 6, "kingdoms": [], "rarity": Rarities.LEGENDARY,
-		"attack": 7, "health": 7, "creature_type": "Locust", "keywords": [],
+		"attack": 7, "health": 7, "creature_type": "Ant", "keywords": [],
 		"text": "No allegiance, no weakness, no ceiling.",
 	},
 	{

@@ -38,6 +38,7 @@ var _rarity_menu: MenuButton
 var _type_menu: MenuButton
 var _sort_option: OptionButton
 var _view_toggle_btn: Button
+var _search_edit: LineEdit
 var _browser_grid: GridContainer
 var _deck_list_box: VBoxContainer
 var _deck_size_label: Label
@@ -62,6 +63,7 @@ func _build_ui() -> void:
 	back_btn.text = "< Back to Menu"
 	back_btn.pressed.connect(func() -> void:
 		_overlay.hide_preview()
+		_reset_filters() # § user request: filters shouldn't persist once you navigate away
 		closed.emit())
 	top.add_child(back_btn)
 
@@ -122,11 +124,11 @@ func _build_ui() -> void:
 	_type_menu = _build_multi_filter_menu("Type", [CardTypes.CREATURE, CardTypes.ABILITY, CardTypes.GEAR, CardTypes.HIVE], _type_filters)
 	filters.add_child(_type_menu)
 
-	var search_edit := LineEdit.new()
-	search_edit.placeholder_text = "Search name..."
-	search_edit.custom_minimum_size = Vector2(180, 0)
-	search_edit.text_changed.connect(_on_search_changed)
-	filters.add_child(search_edit)
+	_search_edit = LineEdit.new()
+	_search_edit.placeholder_text = "Search name..."
+	_search_edit.custom_minimum_size = Vector2(180, 0)
+	_search_edit.text_changed.connect(_on_search_changed)
+	filters.add_child(_search_edit)
 
 	_sort_option = OptionButton.new()
 	_sort_option.add_item("Sort: Name")
@@ -201,6 +203,27 @@ func _on_multi_filter_toggled(id: int, menu_btn: MenuButton, options: Array, tar
 	else:
 		target.append(value)
 	menu_btn.text = label if target.is_empty() else "%s (%d)" % [label, target.size()]
+	_refresh_browser()
+
+func _reset_multi_filter(menu_btn: MenuButton, options: Array, target: Array, label: String) -> void:
+	var popup := menu_btn.get_popup()
+	for i in range(options.size()):
+		popup.set_item_checked(i, false)
+	target.clear() # same Array object _on_multi_filter_toggled's bound closure holds — clearing in place keeps that binding valid
+	menu_btn.text = label
+
+## § user request: filters shouldn't carry over between visits — back to
+## defaults (and every widget reset to match) every time you leave.
+func _reset_filters() -> void:
+	_reset_multi_filter(_kingdom_menu, Kingdoms.ALL + [Kingdoms.COLORLESS], _kingdom_filters, "Kingdom")
+	_reset_multi_filter(_rarity_menu, [Rarities.COMMON, Rarities.UNCOMMON, Rarities.RARE, Rarities.LEGENDARY], _rarity_filters, "Rarity")
+	_reset_multi_filter(_type_menu, [CardTypes.CREATURE, CardTypes.ABILITY, CardTypes.GEAR, CardTypes.HIVE], _type_filters, "Type")
+	_search_filter = ""
+	_search_edit.text = ""
+	_sort_mode = SortMode.NAME
+	_sort_option.selected = 0
+	_view_deck_only = false
+	_view_toggle_btn.text = "View: All Cards"
 	_refresh_browser()
 
 ## Called by the host whenever this screen becomes visible, in case saved

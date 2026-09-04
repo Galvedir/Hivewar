@@ -26,6 +26,7 @@ const CARD_BACK_PATH := "res://art/cards/card_back.png"
 const NAME_BAR_HEIGHT := 22.0
 const COST_BADGE_SIZE := 26.0
 const DARK_BOX_COLOR := Color(0, 0, 0, 0.62) # mostly-transparent black (§ user request), shared by the rules-text panel and both ATK/DEF badge boxes
+const GLOW_COLOR := Color(1.0, 0.85, 0.25, 0.95)
 
 static func make_dark_box_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -216,6 +217,33 @@ static func add_corner_badge(widget: Control, text: String) -> void:
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	LayoutUtil.fill_parent(badge)
 	box.add_child(badge)
+
+## A glowing outline (§ user request: "activate abilities... denote that by
+## having a glowing outline of what cards are able to be used") — an
+## oversized bordered+soft-shadowed panel behind the widget, rather than any
+## bloom/shader effect, to stay consistent with this project's flat,
+## StyleBoxFlat-driven visual language (e.g. the gold "selected attacker"
+## tint). Caller decides what "usable" means for the widget in question
+## (playable hand card, attack-ready creature, legal target, an available
+## Hero Power/Ultimate, ...) — this just draws the cue.
+static func add_playable_glow(widget: Control) -> void:
+	var glow := Panel.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.border_color = GLOW_COLOR
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(6)
+	style.shadow_color = Color(GLOW_COLOR.r, GLOW_COLOR.g, GLOW_COLOR.b, 0.55)
+	style.shadow_size = 6
+	glow.add_theme_stylebox_override("panel", style)
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow.anchor_right = 1.0
+	glow.anchor_bottom = 1.0
+	glow.offset_left = -4
+	glow.offset_top = -4
+	glow.offset_right = 4
+	glow.offset_bottom = 4
+	widget.add_child(glow)
 
 ## Wires the shared hover-to-enlarge behavior onto `widget`. No-ops if
 ## `overlay` is null (e.g. a widget rendered somewhere with no preview

@@ -14,6 +14,15 @@ const AI := 1
 const PILE_SIZE := Vector2(60, 84)
 const HIVE_ZONE_WIDTH := 190
 
+## Hand tray sizing (§ user request: cards "fanned out at the bottom" of
+## the screen). HAND_PLAY_LIFT_THRESHOLD is how far above the tray's own
+## top edge a card has to be dragged before releasing it counts as playing
+## it instead of just reordering it within the hand — "pick up cards and
+## place them in the play area to play them".
+const HAND_CARD_SIZE := Vector2(150, 210)
+const HAND_TRAY_HEIGHT := 230
+const HAND_PLAY_LIFT_THRESHOLD := 90.0
+
 ## Effect ids that need a chosen creature target rather than an auto-pick,
 ## and which side of the board is legal to click for each (§ user request:
 ## targeted effects should let the player choose, not silently pick for
@@ -71,7 +80,7 @@ var _opponent_deck_pile: Control
 var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
-var _player_hand: HBoxContainer
+var _player_hand: Control
 var _player_info: Label
 var _player_leader_view: EnlargedCardView
 var _player_deck_pile: Control
@@ -103,6 +112,18 @@ var _pending_target_side := "" # "" / "friendly" / "enemy" — set while awaitin
 var _pending_target_effect_id := "" # the specific effect_id being targeted, if any extra legality filter applies (see TARGETING_EXTRA_FILTER)
 var _pending_power_kind := "" # "" / "hero" / "ultimate"
 var _busy := false # true while the AI or an awaited attack is resolving
+
+## Hand drag state (§ user request: "pick up cards and place them in the
+## play area to play them" — dragging is the only way to play a card now).
+## _hand_display_order is a purely cosmetic ordering of the human's hand,
+## independent of PlayerState.hand's actual array order, so a manual
+## drag-reorder (§ user request) sticks between refreshes instead of
+## resetting to hand[] order every time — see _sync_hand_display_order.
+var _hand_display_order: Array[int] = []
+var _drag_btn: Control = null
+var _drag_instance_id := -1
+var _drag_can_play := false
+var _drag_grab_offset := Vector2.ZERO
 
 var _menu_music_player: AudioStreamPlayer
 var _sfx_player: AudioStreamPlayer
@@ -949,8 +970,17 @@ func _build_match_view() -> void:
 	_player_hive = _make_scrolling_row(200, HIVE_ZONE_WIDTH, false)
 	player_row.add_child(_player_hive.get_parent())
 
-	_player_hand = _make_scrolling_row()
-	_match_root.add_child(_player_hand.get_parent())
+	# Hand tray (§ user request): a plain Control, not a layout Container —
+	# cards are free-floating widgets positioned/rotated into a fan by
+	# _position_hand_slot and dragged freely by _begin_hand_drag/_input,
+	# neither of which a Container would tolerate (it would fight both the
+	# fan's per-card offsets and a drag's manually-set global_position every
+	# layout pass — the exact bug EnlargedCardView's header comment
+	# documents for the same reason). clip_contents stays off so a lifted
+	# card can rise above the tray's own bounds while dragging.
+	_player_hand = Control.new()
+	_player_hand.custom_minimum_size = Vector2(0, HAND_TRAY_HEIGHT)
+	_match_root.add_child(_player_hand)
 
 	_build_log_panel()
 	_build_block_popup()
@@ -1603,6 +1633,19 @@ func _refresh() -> void:
 	_end_turn_btn.disabled = not can_act or targeting
 	_cancel_btn.visible = targeting or _selected_attacker_id != -1
 
+	# § user request: glow whichever abilities are actually usable right now.
+	# These two buttons are persistent (rebuilt widgets elsewhere just get
+	# a fresh glow child each render; these get their old one cleared first
+	# so it doesn't stack a new one on top every single refresh).
+	for child in _hero_power_btn.get_children():
+		child.queue_free()
+	if not _hero_power_btn.disabled:
+		CardRenderUtil.add_playable_glow(_hero_power_btn)
+	for child in _ultimate_btn.get_children():
+		child.queue_free()
+	if not _ultimate_btn.disabled:
+		CardRenderUtil.add_playable_glow(_ultimate_btn)
+
 ## Rebuilds a deck/discard pile widget's visual (§ user request: "a spot
 ## that shows the deck, the discard pile") — `container` is either a plain
 ## Control (the deck, not interactive) or a Button (the discard pile, kept
@@ -1625,7 +1668,36 @@ func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool)
 		leader_btn.text = "Attack Leader"
 		leader_btn.custom_minimum_size = Vector2(100, 60)
 		leader_btn.pressed.connect(_on_enemy_leader_pressed)
+		if _selected_attacker_id != -1 and not _busy and GameState.active_player_index == HUMAN:
+			var attacker := GameState.players[HUMAN].find_on_board(_selected_attacker_id)
+			if attacker != null and CombatResolver.is_legal_leader_target(attacker, GameState.players[AI]):
+				CardRenderUtil.add_playable_glow(leader_btn)
 		row.add_child(leader_btn)
+
+## Whether a board creature widget should show the "usable" glow (§ user
+## request: "activate abilities, such as clicking on cards that are able to
+## be used, and denote that by having a glowing outline") — reuses the same
+## legality checks _on_board_creature_pressed itself validates against, so
+## the glow can never promise something a click would then reject:
+## - mid hand-card/Hero-Power/Ultimate targeting: glows legal targets on
+##   the required side (friendly or enemy) that also pass any extra filter
+##   (e.g. Caterpillar Searcher only wants face-down creatures).
+## - otherwise: a friendly creature glows if it can attack right now; an
+##   enemy creature glows only once an attacker is already selected and
+##   this one is a legal target for it.
+func _creature_usable_glow(c: CardInstance, friendly: bool) -> bool:
+	if _busy or GameState.active_player_index != HUMAN or GameState.is_over:
+		return false
+	if _selected_hand_index != -1 or _pending_power_kind != "":
+		if friendly != (_pending_target_side == "friendly"):
+			return false
+		return c.is_alive() and _passes_extra_filter(_pending_target_effect_id, c)
+	if friendly:
+		return CombatResolver.can_attack(c)
+	if _selected_attacker_id != -1:
+		var attacker := GameState.players[HUMAN].find_on_board(_selected_attacker_id)
+		return attacker != null and CombatResolver.is_legal_creature_target(attacker, c)
+	return false
 
 func _render_hive_row(row: HBoxContainer, hive_zone: Array[CardInstance]) -> void:
 	for child in row.get_children():
@@ -1641,27 +1713,234 @@ func _make_hive_widget(c: CardInstance) -> Control:
 	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, c.data, tex, c.data.cost, CardRenderUtil.card_full_text(c.data), "")
 	return btn
 
+## Player's hand: fanned out along the bottom (§ user request — "should
+## feel like moving real cards"), each card a free-floating widget
+## positioned/rotated by _position_hand_slot rather than laid out by a
+## Container, so it can overlap its neighbors and be dragged freely. Cards
+## render in _hand_display_order (cosmetic — see its declaration) instead
+## of raw hand[] order. Clicking no longer plays a card at all (§ user
+## request: dragging is the only way to play one) — _wire_hand_drag is the
+## only interaction wired onto these widgets now; _on_hand_card_pressed is
+## still the function that actually plays one, just invoked from a
+## completed drag (_finish_hand_drag) instead of a Button's pressed signal.
 func _render_hand() -> void:
 	for child in _player_hand.get_children():
 		child.queue_free()
 	var human := GameState.players[HUMAN]
-	for i in range(human.hand.size()):
-		var card: CardInstance = human.hand[i]
+	_sync_hand_display_order(human.hand)
+	var n := _hand_display_order.size()
+	for slot in range(n):
+		var iid: int = _hand_display_order[slot]
+		var card := _find_in_hand(human.hand, iid)
+		if card == null:
+			continue
 		var cost := CostCalculator.calculate_cost(card.data, human.leader.data)
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(170, 190)
+		btn.custom_minimum_size = HAND_CARD_SIZE
+		btn.size = HAND_CARD_SIZE
+		btn.pivot_offset = HAND_CARD_SIZE * 0.5
 		var tex := CardRenderUtil.style_card_face(btn, card.data, cost)
-		btn.disabled = _busy or GameState.active_player_index != HUMAN or cost > human.current_larva
-		if btn.disabled:
+		var can_play := _can_play_from_hand(card, cost, human)
+		if can_play:
+			CardRenderUtil.add_playable_glow(btn)
+		else:
 			btn.modulate *= Color(0.55, 0.55, 0.55)
 		var badge_text := ""
 		if card.data is CreatureData:
 			var cd := card.data as CreatureData
 			badge_text = "%d/%d" % [cd.attack, cd.health]
 			CardRenderUtil.add_corner_badge(btn, badge_text)
-		btn.pressed.connect(_on_hand_card_pressed.bind(i))
 		CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, card.data, tex, cost, CardRenderUtil.card_full_text(card.data), badge_text)
+		_position_hand_slot(btn, slot, n)
+		_wire_hand_drag(btn, iid, can_play)
 		_player_hand.add_child(btn)
+
+func _find_in_hand(hand: Array[CardInstance], iid: int) -> CardInstance:
+	for c: CardInstance in hand:
+		if c.instance_id == iid:
+			return c
+	return null
+
+## Keeps _hand_display_order in sync with the actual hand contents —
+## appends newly-drawn cards' instance_ids at the end, drops any that left
+## the hand (played/discarded) — without disturbing the relative order of
+## cards still present, which is what makes a manual drag-reorder stick
+## between refreshes instead of resetting to hand[] order every time.
+func _sync_hand_display_order(hand: Array[CardInstance]) -> void:
+	var live_ids: Array[int] = []
+	for c: CardInstance in hand:
+		live_ids.append(c.instance_id)
+	_hand_display_order = _hand_display_order.filter(func(iid: int) -> bool: return live_ids.has(iid))
+	for iid in live_ids:
+		if not _hand_display_order.has(iid):
+			_hand_display_order.append(iid)
+
+## Whether a hand card can actually be played right now — the same gate
+## _render_hand used to bake into Button.disabled, now also driving the
+## glow cue (§ user request: "denote that by having a glowing outline of
+## what cards are able to be used") and whether a lifted-out-of-hand drag
+## resolves as a play attempt at all (see _finish_hand_drag). Gear needs a
+## friendly creature to equip onto, mirroring _on_hand_card_pressed's own
+## check — no point glowing a Gear card as playable if it has nowhere to go.
+func _can_play_from_hand(card: CardInstance, cost: int, human: PlayerState) -> bool:
+	if _busy or GameState.active_player_index != HUMAN or _selected_hand_index != -1 or _pending_power_kind != "":
+		return false
+	if cost > human.current_larva:
+		return false
+	if card.data.card_type == CardTypes.GEAR and human.board.is_empty():
+		return false
+	return true
+
+## Fan slot geometry, shared between rendering (_position_hand_slot) and
+## resolving a reorder drop (_reorder_hand_to) so the two can never drift
+## out of sync with each other.
+func _hand_slot_layout(n: int, tray_width: float) -> Dictionary:
+	var overlap := HAND_CARD_SIZE.x * 0.55
+	var natural_spacing := HAND_CARD_SIZE.x - overlap
+	var total_span := natural_spacing * maxi(n - 1, 0)
+	var max_span := tray_width - HAND_CARD_SIZE.x - 40.0
+	var spacing: float = natural_spacing if (n <= 1 or total_span <= max_span) else max_span / maxi(n - 1, 1)
+	var start_x: float = (tray_width - (HAND_CARD_SIZE.x + spacing * maxi(n - 1, 0))) * 0.5
+	return {"spacing": spacing, "start_x": start_x}
+
+## A gentle arc (§ user request: cards "fanned out") — the middle of the
+## hand sits a little higher than the edges, like a real held hand of cards.
+func _hand_slot_rise(offset_from_mid: float, n: int) -> float:
+	if n <= 1:
+		return 0.0
+	var t: float = offset_from_mid / (n * 0.5)
+	return (1.0 - t * t) * 18.0
+
+func _hand_slot_position(slot: int, n: int) -> Vector2:
+	var tray_width: float = maxf(_player_hand.size.x, 400.0)
+	var layout := _hand_slot_layout(n, tray_width)
+	var mid: float = (n - 1) / 2.0
+	var offset_from_mid: float = slot - mid
+	var x: float = layout["start_x"] + layout["spacing"] * slot
+	var y: float = HAND_TRAY_HEIGHT - HAND_CARD_SIZE.y - 10.0 - _hand_slot_rise(offset_from_mid, n)
+	return Vector2(x, y)
+
+func _hand_slot_rotation(slot: int, n: int) -> float:
+	var mid: float = (n - 1) / 2.0
+	return deg_to_rad(clampf((slot - mid) * 4.0, -22.0, 22.0))
+
+func _position_hand_slot(btn: Control, slot: int, n: int) -> void:
+	btn.position = _hand_slot_position(slot, n)
+	btn.rotation = _hand_slot_rotation(slot, n)
+	btn.z_index = slot
+
+## Wires the free-drag gesture onto a hand card (§ user request: "pick up
+## cards and place them in the play area to play them" — this is now the
+## ONLY way to play a card; clicking does nothing). Tracking the drag itself
+## happens in _input once _drag_btn is set, since gui_input alone would
+## stop reporting motion the instant the mouse leaves this widget's own rect.
+func _wire_hand_drag(btn: Control, instance_id: int, can_play: bool) -> void:
+	btn.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			_begin_hand_drag(btn, instance_id, can_play, event.global_position))
+
+func _begin_hand_drag(btn: Control, instance_id: int, can_play: bool, mouse_global: Vector2) -> void:
+	if _busy or _drag_btn != null:
+		return
+	_card_preview_overlay.hide_preview()
+	_drag_btn = btn
+	_drag_instance_id = instance_id
+	_drag_can_play = can_play
+	_drag_grab_offset = mouse_global - btn.global_position
+	btn.top_level = true # independent of the hand tray's own transform while it follows the mouse
+	btn.z_index = 500
+	btn.rotation = 0.0
+	btn.scale = Vector2(1.12, 1.12)
+
+## Global input while a hand card is being dragged (§ user request — cards
+## should "feel like moving real cards"): follows the mouse until release,
+## then _finish_hand_drag decides whether that was a play or a reorder.
+## Only main_ui itself needs this (there's exactly one drag at a time), so
+## it's cheap to leave this a near-instant no-op the rest of the time.
+func _input(event: InputEvent) -> void:
+	if _drag_btn == null:
+		return
+	if event is InputEventMouseMotion:
+		_drag_btn.global_position = event.global_position - _drag_grab_offset
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_finish_hand_drag(event.global_position)
+
+## Resolves a completed hand-card drag. Lifting the card above the hand
+## tray's own top edge by HAND_PLAY_LIFT_THRESHOLD or more plays it
+## (reusing _on_hand_card_pressed — the exact same targeting/Gear/Legend
+## Rule flow the old click path used, just triggered by a drop instead of a
+## press); anything else (not lifted far enough, or the card wasn't
+## playable to begin with) is treated as a reorder within the hand instead
+## of being discarded outright, so an unaffordable card can still be
+## shuffled around. Either way the dragged widget itself is thrown away —
+## _refresh() (called either directly or via the tween below) rebuilds every
+## hand widget fresh in its resolved position regardless of outcome.
+func _finish_hand_drag(mouse_global: Vector2) -> void:
+	var btn := _drag_btn
+	var instance_id := _drag_instance_id
+	var can_play := _drag_can_play
+	_drag_btn = null
+	_drag_instance_id = -1
+
+	if can_play and not _busy and GameState.active_player_index == HUMAN:
+		var tray_top: float = _player_hand.get_global_rect().position.y
+		if mouse_global.y < tray_top - HAND_PLAY_LIFT_THRESHOLD:
+			var human := GameState.players[HUMAN]
+			var idx := -1
+			for i in range(human.hand.size()):
+				if human.hand[i].instance_id == instance_id:
+					idx = i
+					break
+			if idx != -1:
+				_on_hand_card_pressed(idx)
+				return
+
+	_reorder_hand_to(instance_id, mouse_global.x)
+	var slot := _hand_display_order.find(instance_id)
+	var n := _hand_display_order.size()
+	if slot != -1 and btn != null and is_instance_valid(btn):
+		var target := _player_hand.get_global_rect().position + _hand_slot_position(slot, n)
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(btn, "global_position", target, 0.15)
+		tween.tween_property(btn, "rotation", _hand_slot_rotation(slot, n), 0.15)
+		tween.tween_property(btn, "scale", Vector2.ONE, 0.15)
+		tween.set_parallel(false)
+		tween.tween_callback(_refresh)
+	else:
+		_refresh()
+
+## Moves the dragged card to whichever fan slot its drop point landed
+## closest to (§ user request: hand cards "should be able to be reordered
+## simply by dragging them into a different order... should feel like
+## moving real cards") — purely a _hand_display_order change, since hand
+## order has no gameplay meaning here.
+func _reorder_hand_to(instance_id: int, drop_x: float) -> void:
+	var n := _hand_display_order.size()
+	if n <= 1:
+		return
+	var tray_rect := _player_hand.get_global_rect()
+	var local_x := drop_x - tray_rect.position.x
+	# Same width floor _hand_slot_position uses (§ bug caught by a throwaway
+	# diagnostic) — without it, the two disagree on every slot's center
+	# whenever the tray hasn't been laid out to a real width yet (0), and a
+	# drop would never match the slot _position_hand_slot actually drew it at.
+	var layout := _hand_slot_layout(n, maxf(tray_rect.size.x, 400.0))
+	var spacing: float = layout["spacing"]
+	var start_x: float = layout["start_x"]
+	var best_slot := 0
+	var best_dist := INF
+	for slot in range(n):
+		var center := start_x + spacing * slot + HAND_CARD_SIZE.x * 0.5
+		var dist := absf(local_x - center)
+		if dist < best_dist:
+			best_dist = dist
+			best_slot = slot
+	var from_slot := _hand_display_order.find(instance_id)
+	if from_slot == -1 or from_slot == best_slot:
+		return
+	_hand_display_order.remove_at(from_slot)
+	_hand_display_order.insert(best_slot, instance_id)
 
 func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
@@ -1672,6 +1951,8 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 		btn.modulate *= Color(0.6, 0.6, 0.6)
 	if c.instance_id == _selected_attacker_id:
 		btn.modulate *= Color(1.3, 1.3, 0.6) # gold tint — the only "selection" cue left now that the base card has no text (§ user request)
+	if _creature_usable_glow(c, friendly):
+		CardRenderUtil.add_playable_glow(btn)
 	btn.pressed.connect(_on_board_creature_pressed.bind(c, friendly))
 	box.add_child(btn)
 

@@ -25,6 +25,7 @@ var _grid: GridContainer
 var _count_label: Label
 var _overlay: CardPreviewOverlay
 var _music_player: AudioStreamPlayer
+var _music_volume_db := 0.0 # kept in sync by main_ui.gd's _apply_audio_settings, same as the ambient track
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -107,11 +108,22 @@ func start_music() -> void:
 	var stream: AudioStream = load(MUSIC_1_PATH)
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = false
+	_music_player.volume_db = _music_volume_db
 	_music_player.stream = stream
 	_music_player.play()
 
 func stop_music() -> void:
 	_music_player.stop()
+
+## Keeps this screen's music in sync with the Options screen's Music
+## Volume slider (§ user request — it wasn't respecting that setting at
+## all before, since nothing ever touched this player's volume_db). Called
+## by main_ui.gd's _apply_audio_settings whenever settings load or change,
+## so the value is already correct by the time start_music runs even if
+## it's the very first time this screen has ever been shown.
+func set_music_volume_db(db: float) -> void:
+	_music_volume_db = db
+	_music_player.volume_db = db
 
 ## Music 1 finishing (a one-shot, non-looping stream) is what hands off to
 ## Music 2 — a plain AudioStreamPlayer never re-emits `finished` for a

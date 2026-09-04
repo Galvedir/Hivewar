@@ -11,8 +11,8 @@ signal closed
 ## Music 2 takes over and loops forever — and only while this screen is
 ## the active one (main_ui.gd pauses the ambient menu track for the
 ## duration; see _on_open_collection/_on_collection_closed).
-const MUSIC_1_PATH := "res://music/Collection_Menu_Music_1.mp3"
-const MUSIC_2_PATH := "res://music/Collection_menu_2.mp3"
+const MUSIC_1_PATH := "res://music/collection_menu_music_1.mp3"
+const MUSIC_2_PATH := "res://music/collection_menu_music_2.mp3"
 
 var _kingdom_filter := "ALL"
 var _rarity_filter := "ALL"

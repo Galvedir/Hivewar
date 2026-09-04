@@ -179,16 +179,24 @@ func _scan_kingdom_frames(dir_path: String) -> Dictionary:
 	dir.list_dir_end()
 	return out
 
-## Lowercases, strips punctuation, and drops filler words so filenames and
-## printed card names compare equal despite cosmetic differences (spaces vs
-## underscores, a stray comma, an inserted "The").
+## Lowercases, strips all punctuation (not just comma/underscore/hyphen —
+## also apostrophes, "?", "!", etc., since a filename can't legally
+## contain most of those anyway), and drops filler words, so filenames and
+## printed card names compare equal despite cosmetic differences (spaces
+## vs underscores, a stray comma, an inserted "The", a card name ending in
+## punctuation like "Little Boostie Eh?").
 func _normalize_name(s: String) -> String:
-	var cleaned := s.to_lower().replace(",", " ").replace("_", " ").replace("-", " ")
+	var cleaned := s.to_lower().replace("_", " ").replace("-", " ")
 	var out := ""
 	for word in cleaned.split(" ", false):
-		if word == "the" or word == "a" or word == "an":
+		var stripped := ""
+		for i in range(word.length()):
+			var ch := word[i]
+			if (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9"):
+				stripped += ch
+		if stripped == "" or stripped == "the" or stripped == "a" or stripped == "an":
 			continue
-		out += word
+		out += stripped
 	return out
 
 ## Loads (and caches) the Texture2D for a card/leader's illustration_path.

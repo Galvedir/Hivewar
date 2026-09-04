@@ -125,6 +125,19 @@ var _drag_instance_id := -1
 var _drag_can_play := false
 var _drag_grab_offset := Vector2.ZERO
 
+## Progressive-reveal state for an in-progress AI turn replay (§ user
+## request — see _process). While active, an opponent board/hive card not
+## yet in this set is hidden entirely, so newly-played cards only appear
+## once their own replay step reveals them instead of all showing up at once.
+var _ai_reveal_active := false
+var _ai_reveal_set: Dictionary = {}
+
+## AI-turn replay queue, drained one action per AI_ACTION_PAUSE seconds by
+## _process — see its own comment for why this is plain per-frame polling
+## instead of a chain of awaits.
+var _ai_replay_queue: Array[Dictionary] = []
+var _ai_replay_pause_timer := 0.0
+
 var _menu_music_player: AudioStreamPlayer
 var _sfx_player: AudioStreamPlayer
 var _menu_anim_rect: TextureRect
@@ -1247,9 +1260,112 @@ func _on_turn_started(player_id: int) -> void:
 	if GameState.players[player_id].is_ai:
 		_busy = true
 		_refresh()
-		await AIPlayer.take_turn(player_id)
+		var ai_player := GameState.players[player_id]
+		_ai_reveal_set = {}
+		for c: CardInstance in ai_player.board:
+			_ai_reveal_set[c.instance_id] = true
+		for c: CardInstance in ai_player.hive_zone:
+			_ai_reveal_set[c.instance_id] = true
+		_ai_reveal_active = true
+		# Nothing awaited after this line (see _process's own comment for
+		# why the actual pacing/animation happens there instead of here).
+		_ai_replay_queue = await AIPlayer.take_turn(player_id)
+
+const AI_ACTION_PAUSE := 0.45
+
+## Drives the AI-turn replay queue (§ user request: "have it take each turn
+## action in a way where the player can tell what they are doing before
+## moving on to the next action") entirely through per-frame polling
+## instead of a chain of awaits (get_tree().process_frame /
+## create_timer().timeout / tween.finished, directly or via call_deferred).
+## _on_turn_started (a signal callback for TurnManager.turn_started) can be
+## reentered synchronously from within its own await on AIPlayer.take_turn
+## — that call's tail end_turn() cascades straight into the next
+## start_turn/turn_started before this one even returns to its caller — and
+## an await-chain-based version of this replay reliably stalled partway
+## through real matches even though every isolated repro of that same
+## pattern worked fine in isolation. Polling from _process sidesteps the
+## question entirely: there is no await anywhere in the replay path itself,
+## so there's nothing left for that reentrancy to interact badly with.
+func _process(delta: float) -> void:
+	if _ai_replay_queue.is_empty():
+		return
+	if _ai_replay_pause_timer > 0.0:
+		_ai_replay_pause_timer -= delta
+		return
+	var action: Dictionary = _ai_replay_queue.pop_front()
+	_apply_ai_action_visual(action)
+	_ai_replay_pause_timer = AI_ACTION_PAUSE
+	if _ai_replay_queue.is_empty():
+		_ai_reveal_active = false
 		_busy = false
 		_refresh()
+
+## Applies one AI action's visual reveal/animation (§ user request — see
+## _process's own comment for why this doesn't await anything). Tweens
+## started here are fire-and-forget: each easily finishes well within
+## AI_ACTION_PAUSE before the next action's own _refresh would touch the
+## same widget anyway. _ai_reveal_set (seeded in _on_turn_started with
+## every opponent board/hive card that already existed BEFORE this turn) is
+## what makes this look progressive rather than "everything's already
+## there, then it pops for flavor": _render_row/_render_hive_row hide any
+## opponent card not yet in that set while _ai_reveal_active is true, so a
+## card newly played this turn only actually appears once its own
+## play_card/flip_ambush step here adds it and re-renders.
+func _apply_ai_action_visual(action: Dictionary) -> void:
+	var kind: String = action.get("kind", "")
+	if kind == "play_card" or kind == "flip_ambush":
+		_ai_reveal_set[int(action.get("instance_id", -1))] = true
+	_refresh()
+	match kind:
+		"play_card", "flip_ambush":
+			var widget := _find_widget_by_instance(_opponent_board, action.get("instance_id", -1))
+			if widget == null:
+				widget = _find_widget_by_instance(_opponent_hive, action.get("instance_id", -1))
+			if widget != null:
+				_start_pop_animation(widget)
+		"attack":
+			var widget := _find_widget_by_instance(_opponent_board, action.get("attacker_id", -1))
+			if widget != null:
+				_start_lunge_animation(widget)
+		"hero_power", "ultimate":
+			_start_pulse_animation(_opponent_leader_view)
+
+func _find_widget_by_instance(container: Node, instance_id: int) -> Control:
+	for child in container.get_children():
+		if child.has_meta("instance_id") and int(child.get_meta("instance_id")) == instance_id:
+			return child
+	return null
+
+## A played/flipped card popping into place from nothing, instead of just
+## appearing instantly. Fire-and-forget (see _process's own comment) — the
+## tween runs independently and finishes well within AI_ACTION_PAUSE.
+func _start_pop_animation(widget: Control) -> void:
+	widget.pivot_offset = widget.size * 0.5
+	widget.scale = Vector2(0.2, 0.2)
+	widget.modulate.a = 0.3
+	var tween := create_tween()
+	tween.tween_property(widget, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(widget, "modulate:a", 1.0, 0.2)
+
+## An attacker lunging toward the shared middle of the board (the opponent's
+## row sits above it) and back — reads as "reaching across to attack"
+## without needing to track the specific defender's screen position through
+## a refresh that may have just removed it.
+func _start_lunge_animation(widget: Control) -> void:
+	var start := widget.position
+	var tween := create_tween()
+	tween.tween_property(widget, "position", start + Vector2(0, 24), 0.12)
+	tween.tween_property(widget, "position", start, 0.15)
+
+## A brief scale pulse on the Leader panel for Hero Power/Ultimate.
+func _start_pulse_animation(view: Control) -> void:
+	if view == null:
+		return
+	view.pivot_offset = view.size * 0.5
+	var tween := create_tween()
+	tween.tween_property(view, "scale", Vector2(1.08, 1.08), 0.15)
+	tween.tween_property(view, "scale", Vector2.ONE, 0.15)
 
 ## Gang-blocking (§ user request): any number of legal blockers can be
 ## toggled on before confirming, instead of picking exactly one. Each
@@ -1620,8 +1736,8 @@ func _refresh() -> void:
 
 	_render_row(_opponent_board, ai.board, false)
 	_render_row(_player_board, human.board, true)
-	_render_hive_row(_opponent_hive, ai.hive_zone)
-	_render_hive_row(_player_hive, human.hive_zone)
+	_render_hive_row(_opponent_hive, ai.hive_zone, false)
+	_render_hive_row(_player_hive, human.hive_zone, true)
 	_render_hand()
 
 	var can_act := GameState.active_player_index == HUMAN and not _busy and not GameState.is_over
@@ -1662,6 +1778,8 @@ func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool)
 	for child in row.get_children():
 		child.queue_free()
 	for c: CardInstance in board:
+		if not friendly and _ai_reveal_active and not _ai_reveal_set.has(c.instance_id):
+			continue # § user request — not revealed by the AI turn replay yet
 		row.add_child(_make_creature_widget(c, friendly))
 	if not friendly:
 		var leader_btn := Button.new()
@@ -1699,15 +1817,18 @@ func _creature_usable_glow(c: CardInstance, friendly: bool) -> bool:
 		return attacker != null and CombatResolver.is_legal_creature_target(attacker, c)
 	return false
 
-func _render_hive_row(row: HBoxContainer, hive_zone: Array[CardInstance]) -> void:
+func _render_hive_row(row: HBoxContainer, hive_zone: Array[CardInstance], friendly: bool) -> void:
 	for child in row.get_children():
 		child.queue_free()
 	for c: CardInstance in hive_zone:
+		if not friendly and _ai_reveal_active and not _ai_reveal_set.has(c.instance_id):
+			continue # § user request — not revealed by the AI turn replay yet
 		row.add_child(_make_hive_widget(c))
 	row.get_parent().visible = not hive_zone.is_empty()
 
 func _make_hive_widget(c: CardInstance) -> Control:
 	var btn := Button.new()
+	btn.set_meta("instance_id", c.instance_id) # § lets _find_widget_by_instance locate this for the AI turn-animation hook
 	btn.custom_minimum_size = Vector2(160, 90)
 	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)
 	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, c.data, tex, c.data.cost, CardRenderUtil.card_full_text(c.data), "")
@@ -1944,6 +2065,7 @@ func _reorder_hand_to(instance_id: int, drop_x: float) -> void:
 
 func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	var box := VBoxContainer.new()
+	box.set_meta("instance_id", c.instance_id) # § lets _find_widget_by_instance locate this for the AI turn-animation hook
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(150, 150)
 	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)

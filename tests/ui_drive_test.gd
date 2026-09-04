@@ -27,9 +27,23 @@ func _ready() -> void:
 	# the match actually starts, so this must be awaited.
 	await main._start_match("blue_skyswarm", "white_hive_guardians")
 
+	# § the cap is much higher than it used to be (100) now that the AI's
+	# turn genuinely takes real wall-clock time per action (AI_ACTION_PAUSE
+	# in main_ui.gd) instead of resolving in a single frame — a full
+	# multi-turn match now needs thousands of frames' worth of real pauses,
+	# not a handful.
 	var safety := 0
-	while not GameState.is_over and safety < 100:
-		if GameState.active_player_index == 0 and not GameState.players[0].is_ai:
+	while not GameState.is_over and safety < 20000:
+		# § the AI's turn now genuinely takes real wall-clock time (paced,
+		# animated actions instead of resolving instantly) — active_player_index
+		# can flip to the human the instant the AI's turn logic finishes, while
+		# main._busy stays true until its animation replay actually catches up.
+		# A real player's UI would have every action button disabled during
+		# that window, so this loop needs to respect it too, not just act the
+		# moment active_player_index says "your turn" — otherwise it spins
+		# through 100 no-op iterations without ever yielding a frame, starving
+		# every timer/tween/deferred call the replay depends on to progress.
+		if GameState.active_player_index == 0 and not GameState.players[0].is_ai and not main._busy:
 			var human := GameState.players[0]
 			var tries := 0
 			while tries < 6 and not human.hand.is_empty():
@@ -63,7 +77,7 @@ func _ready() -> void:
 			GameState.turn_number, GameState.winner_id, GameState.players[0].health, GameState.players[1].health
 		])
 	else:
-		print("UI-drive test: SAFETY CAP after %d loop iterations — health P0:%d P1:%d" % [
-			safety, GameState.players[0].health, GameState.players[1].health
+		print("UI-drive test: SAFETY CAP after %d loop iterations (turn %d) — health P0:%d P1:%d" % [
+			safety, GameState.turn_number, GameState.players[0].health, GameState.players[1].health
 		])
 	get_tree().quit()

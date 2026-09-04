@@ -9,25 +9,47 @@ extends RefCounted
 ## Runs a full turn for the AI-controlled player at `player_index`, ending
 ## with TurnManager.end_turn(). Must be awaited by the caller since attacks
 ## may suspend (they never do for an AI defender, but declare_attack is a
-## coroutine either way).
-static func take_turn(player_index: int) -> void:
+## coroutine either way). Returns a replay log (§ user request: "have it
+## take each turn action in a way where the player can tell what they are
+## doing before moving on to the next action" — right now the AI "just does
+## everything quickly and nothing is animated"): each entry is {"kind":
+## "play_card"/"flip_ambush"/"hero_power"/"ultimate"/"attack"/"end_turn",
+## ...action-specific data}, in the exact order the actions actually
+## happened. This is a local array threaded through the helper functions
+## below (not a shared/static one — an earlier version used a static var
+## and it was a real, demonstrated bug: two reentrant turns, which can
+## genuinely happen since TurnManager.end_turn's tail call synchronously
+## cascades straight into the next start_turn/turn_started before this
+## turn's own take_turn call has even returned to its caller, could
+## reassign the SAME static var out from under an outer, still-unwinding
+## caller before it ever got a chance to read its own turn's log). A plain
+## returned array has no such hazard. main_ui.gd replays this log with real,
+## paced animations after take_turn has fully returned — see its _process's
+## own comment for why that replay is driven by per-frame polling instead
+## of a chain of awaits.
+static func take_turn(player_index: int) -> Array[Dictionary]:
 	var player := GameState.players[player_index]
 	var opponent := GameState.get_opponent(player_index)
+	var actions: Array[Dictionary] = []
 
-	await _play_cards(player)
-	_flip_paid_ambush(player)
+	await _play_cards(player, actions)
+	_flip_paid_ambush(player, actions)
 	if not player.leader.hero_power_used_this_turn and player.leader.data.hero_power_cost <= player.current_larva:
 		TurnManager.use_hero_power(player_index)
+		actions.append({"kind": "hero_power"})
 	if not player.leader.ultimate_used and player.leader.data.ultimate_cost <= player.current_larva:
 		TurnManager.use_ultimate(player_index)
+		actions.append({"kind": "ultimate"})
 
-	await _attack_phase(player_index, player, opponent)
+	await _attack_phase(player_index, player, opponent, actions)
 
+	actions.append({"kind": "end_turn"})
 	TurnManager.end_turn()
+	return actions
 
 ## Greedily plays the single most expensive affordable card each pass until
 ## nothing more is playable — a simple approximation of "don't waste Larva".
-static func _play_cards(player: PlayerState) -> void:
+static func _play_cards(player: PlayerState, actions: Array[Dictionary]) -> void:
 	var played := true
 	while played:
 		played = false
@@ -42,22 +64,25 @@ static func _play_cards(player: PlayerState) -> void:
 				best_cost = cost
 				best_index = i
 		if best_index != -1:
+			var played_card: CardInstance = player.hand[best_index]
 			var target_id := -1
-			if player.hand[best_index].data.card_type == CardTypes.GEAR:
+			if played_card.data.card_type == CardTypes.GEAR:
 				target_id = player.board[0].instance_id
 			if await TurnManager.play_card(player.player_id, best_index, target_id):
 				played = true
+				actions.append({"kind": "play_card", "instance_id": played_card.instance_id})
 
-static func _flip_paid_ambush(player: PlayerState) -> void:
+static func _flip_paid_ambush(player: PlayerState, actions: Array[Dictionary]) -> void:
 	for c: CardInstance in player.board:
 		if c.is_face_down and c.true_data != null and c.true_data.ambush.get("flip_trigger", "") == "paid":
 			var cost := int(c.true_data.ambush.get("flip_cost", 0))
 			if cost <= player.current_larva:
 				TurnManager.flip_ambush_paid(player.player_id, c.instance_id)
+				actions.append({"kind": "flip_ambush", "instance_id": c.instance_id})
 
 ## Favor attacks that trade favorably or go face when safe; hold back the
 ## single best blocker when this player's own health is low (§12).
-static func _attack_phase(player_index: int, player: PlayerState, opponent: PlayerState) -> void:
+static func _attack_phase(player_index: int, player: PlayerState, opponent: PlayerState, actions: Array[Dictionary]) -> void:
 	var attackers := player.board.filter(func(c: CardInstance) -> bool: return CombatResolver.can_attack(c))
 	if player.health <= 10 and attackers.size() > 1:
 		attackers.sort_custom(func(a: CardInstance, b: CardInstance) -> bool: return a.current_health() > b.current_health())
@@ -67,6 +92,7 @@ static func _attack_phase(player_index: int, player: PlayerState, opponent: Play
 		var target = _choose_attack_target(c, opponent)
 		if target != null:
 			await TurnManager.declare_attack(player_index, c.instance_id, target)
+			actions.append({"kind": "attack", "attacker_id": c.instance_id})
 
 static func _choose_attack_target(attacker: CardInstance, opponent: PlayerState):
 	if not CombatResolver.is_legal_leader_target(attacker, opponent):

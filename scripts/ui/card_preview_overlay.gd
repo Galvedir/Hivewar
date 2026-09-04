@@ -26,6 +26,10 @@ const PREVIEW_SIZE := Vector2(260, 340)
 const ART_HEIGHT := 170.0
 const GAP := 12.0
 const LEADER_ANIM_FPS := 8.0
+const TEXT_BOX_MARGIN := 8.0 # gap between the rules-text area's own edges and the black box (§ user request — a clear border so the background shows through, instead of the box filling the whole bottom portion)
+const TEXT_INNER_PADDING := 4.0 # gap between the black box's edges and the text itself, so words don't sit flush against it
+const TEXT_MAX_FONT_SIZE := 13
+const TEXT_MIN_FONT_SIZE := 8
 
 var _frame_rect: TextureRect
 var _art: TextureRect
@@ -41,6 +45,7 @@ var _name_label: Label
 var _cost_circle: Panel
 var _cost_label: Label
 var _text_area: Control
+var _text_box: Control
 var _text: RichTextLabel
 var _badge_box: Panel
 var _badge: Label
@@ -113,34 +118,51 @@ func _ready() -> void:
 	_text_area.anchor_right = 1.0
 	_text_area.anchor_bottom = 1.0
 	_text_area.offset_top = ART_HEIGHT
-	# Clips its children to this area's own bounds (§ user request — "make
-	# sure it all fits in the black box"): hovering this popup can't
-	# actually be used to scroll it (the whole thing hides the instant the
-	# mouse leaves the small base widget that triggered it, long before it
-	# could reach this popup), so an unreachable scrollbar wouldn't help —
-	# clipping is what guarantees an unusually long card's text never
-	# visually spills out past the box instead.
-	_text_area.clip_contents = true
 	add_child(_text_area)
+
+	# The black box itself (§ user request): inset from _text_area's own
+	# edges by TEXT_BOX_MARGIN on every side, so a thin strip of whatever's
+	# behind (the Kingdom frame/portrait) shows through around it as a
+	# clear border, instead of the box filling the whole bottom portion
+	# edge to edge. Clips to its own (smaller) bounds so text can't spill
+	# past it — combined with the font-size auto-fit in show_for, this is
+	# what keeps "make sure it all fits in the box" true even for an
+	# unusually verbose card, since the popup can't actually be scrolled by
+	# the user (it hides the instant the mouse leaves the small base widget
+	# that triggered it, long before it could ever reach this popup).
+	_text_box = Control.new()
+	_text_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_text_box.anchor_right = 1.0
+	_text_box.anchor_bottom = 1.0
+	_text_box.offset_left = TEXT_BOX_MARGIN
+	_text_box.offset_top = TEXT_BOX_MARGIN
+	_text_box.offset_right = -TEXT_BOX_MARGIN
+	_text_box.offset_bottom = -TEXT_BOX_MARGIN
+	_text_box.clip_contents = true
+	_text_area.add_child(_text_box)
 
 	# Mostly-transparent black panel behind the rules text (§ user request),
 	# so white text stays legible regardless of what the Kingdom frame or
-	# portrait looks like behind it. A plain ColorRect spanning the whole
-	# rules-text area, added before _text so it draws behind it.
+	# portrait looks like behind it. A plain ColorRect filling the box,
+	# added before _text so it draws behind it.
 	var text_bg := ColorRect.new()
 	text_bg.color = CardRenderUtil.DARK_BOX_COLOR
 	text_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	LayoutUtil.fill_parent(text_bg)
-	_text_area.add_child(text_bg)
+	_text_box.add_child(text_bg)
 
 	_text = RichTextLabel.new()
 	_text.bbcode_enabled = true
 	_text.scroll_active = false
 	_text.add_theme_color_override("default_color", Color.WHITE)
-	_text.add_theme_font_size_override("normal_font_size", 13) # smaller than the theme default so more of a verbose Leader's text fits before clip_contents would ever need to cut it off
 	_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	LayoutUtil.fill_parent(_text)
-	_text_area.add_child(_text)
+	_text.anchor_right = 1.0
+	_text.anchor_bottom = 1.0
+	_text.offset_left = TEXT_INNER_PADDING
+	_text.offset_top = TEXT_INNER_PADDING
+	_text.offset_right = -TEXT_INNER_PADDING
+	_text.offset_bottom = -TEXT_INNER_PADDING
+	_text_box.add_child(_text)
 
 	# ATK/DEF badge (§ user request): its own mostly-transparent black box,
 	# on top of the rules-text panel, anchored within the rules-text area
@@ -168,6 +190,22 @@ func _ready() -> void:
 	LayoutUtil.fill_parent(_badge)
 	_badge_box.add_child(_badge)
 
+## Shrinks the rules-text font just enough for a verbose card's text to
+## actually fit within the box (§ user request), rather than leaning on
+## clip_contents to silently cut it off. format_rules_text/card_full_text
+## already hard-wrap every clause at a fixed character width, so the
+## number of newline-separated lines is fixed regardless of font size —
+## only the vertical space each line needs changes — so just counting
+## them is enough to pick a size that fits without ever having to render
+## the text first to measure it.
+func _fit_font_size(bbcode_text: String) -> int:
+	var line_count := bbcode_text.count("\n") + 1
+	var box_height: float = (PREVIEW_SIZE.y - ART_HEIGHT) - 2.0 * TEXT_BOX_MARGIN - 2.0 * TEXT_INNER_PADDING
+	for size in range(TEXT_MAX_FONT_SIZE, TEXT_MIN_FONT_SIZE - 1, -1):
+		if line_count * size * 1.25 <= box_height:
+			return size
+	return TEXT_MIN_FONT_SIZE
+
 ## Shows the preview near `anchor_rect` (the hovered widget's global rect),
 ## clamped to stay fully on-screen. `card_data` supplies the name/cost
 ## decorations directly (Leaders hide the cost circle, same as the base
@@ -189,6 +227,7 @@ func show_for(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: Strin
 	_name_label.text = card_data.card_name
 	_cost_circle.visible = true
 	_cost_label.text = str(CardRenderUtil.badge_value(card_data, cost))
+	_text.add_theme_font_size_override("normal_font_size", _fit_font_size(bbcode_text))
 	_text.text = bbcode_text
 	_badge.text = badge_text
 	_badge_box.visible = badge_text != ""

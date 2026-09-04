@@ -101,7 +101,7 @@ static func get_all() -> Array[Dictionary]:
 			"ultimate_effects": [{"effect_id": "damage_creature", "params": {"amount": 8}}],
 		},
 		{
-			"id": "grix_the_hollow", "name": "Grix the Hollow",
+			"id": "grix_the_hollow", "name": "The Wandering Weaver",
 			"kingdoms": [Kingdoms.BLACK], "starting_health": 30,
 			"text": "Leader of the Venom.",
 			"hero_power_cost": 1,

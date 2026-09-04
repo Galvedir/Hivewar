@@ -189,6 +189,12 @@ func _apply_audio_settings() -> void:
 		_menu_music_player.volume_db = _linear_to_volume_db(_music_volume)
 	if _sfx_player != null:
 		_sfx_player.volume_db = _linear_to_volume_db(_sfx_volume)
+	# The Collection screen's music (§ user request — it wasn't respecting
+	# the Music Volume slider at all, since CollectionUI's player never had
+	# its volume_db touched) uses its own AudioStreamPlayer, so it needs to
+	# be kept in sync here too, same as the ambient track above.
+	if _collection != null:
+		_collection.set_music_volume_db(_linear_to_volume_db(_music_volume))
 
 func _apply_graphics_settings() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if _fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
@@ -810,9 +816,15 @@ func _on_open_collection(from: Control) -> void:
 	_collection_return_target = from
 	_hide_screen(from)
 	_collection.visible = true
+	# § user request: the Collection screen has its own music, and no other
+	# music should play alongside it — pause the ambient menu track for as
+	# long as this screen is open.
+	_stop_ambient_music()
+	_collection.start_music()
 
 func _on_collection_closed() -> void:
 	_collection.visible = false
+	_resume_ambient_music()
 	if _collection_return_target != null:
 		_show_screen(_collection_return_target)
 

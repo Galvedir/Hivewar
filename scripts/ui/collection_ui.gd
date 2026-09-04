@@ -7,6 +7,14 @@ extends Control
 
 signal closed
 
+## Collection screen music (§ user request): Music 1 plays once, then
+## Music 2 takes over and loops forever — and only while this screen is
+## the active one (main_ui.gd pauses the ambient menu track for the
+## duration; see _on_open_collection/_on_collection_closed).
+const MUSIC_1_PATH := "res://music/collection_menu_music_1.mp3"
+const MUSIC_2_PATH := "res://music/collection_menu_music_2.mp3"
+const BG_PATH := "res://art/ui/backgrounds/collection_menu_bg.png"
+
 var _kingdom_filter := "ALL"
 var _rarity_filter := "ALL"
 var _search_filter := ""
@@ -17,6 +25,8 @@ var _search_edit: LineEdit
 var _grid: GridContainer
 var _count_label: Label
 var _overlay: CardPreviewOverlay
+var _music_player: AudioStreamPlayer
+var _music_volume_db := 0.0 # kept in sync by main_ui.gd's _apply_audio_settings, same as the ambient track
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -24,6 +34,21 @@ func _ready() -> void:
 	_refresh()
 
 func _build_ui() -> void:
+	# Background image, added first so it renders behind the actual screen
+	# content below — self is a plain Control (not a layout container),
+	# which is what lets the two coexist as separate full-rect layers
+	# instead of both being forced into a single vertical stack (same
+	# pattern as the main menu's background). Fails safe (no background at
+	# all) if the art isn't present.
+	if ResourceLoader.exists(BG_PATH):
+		var bg := TextureRect.new()
+		bg.texture = load(BG_PATH)
+		bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		LayoutUtil.fill_parent(bg)
+		add_child(bg)
+
 	var root := VBoxContainer.new()
 	LayoutUtil.fill_parent(root)
 	root.add_theme_constant_override("separation", 6)
@@ -36,6 +61,7 @@ func _build_ui() -> void:
 	back_btn.pressed.connect(func() -> void:
 		_overlay.hide_preview()
 		_reset_filters() # § user request: filters shouldn't persist once you navigate away
+		stop_music()
 		closed.emit())
 	top.add_child(back_btn)
 
@@ -83,6 +109,49 @@ func _build_ui() -> void:
 	# overlay's manually-set global_position every layout pass.
 	_overlay = CardPreviewOverlay.new()
 	add_child(_overlay)
+
+	_music_player = AudioStreamPlayer.new()
+	_music_player.finished.connect(_on_music_1_finished)
+	add_child(_music_player)
+
+## Starts this screen's music (§ user request): Music 1 once, then Music 2
+## looping — called by main_ui.gd when this screen becomes the active one.
+## No-ops (fails safe, same pattern as every other optional art/audio
+## asset) if Music 1 isn't present yet.
+func start_music() -> void:
+	if not ResourceLoader.exists(MUSIC_1_PATH):
+		return
+	var stream: AudioStream = load(MUSIC_1_PATH)
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = false
+	_music_player.volume_db = _music_volume_db
+	_music_player.stream = stream
+	_music_player.play()
+
+func stop_music() -> void:
+	_music_player.stop()
+
+## Keeps this screen's music in sync with the Options screen's Music
+## Volume slider (§ user request — it wasn't respecting that setting at
+## all before, since nothing ever touched this player's volume_db). Called
+## by main_ui.gd's _apply_audio_settings whenever settings load or change,
+## so the value is already correct by the time start_music runs even if
+## it's the very first time this screen has ever been shown.
+func set_music_volume_db(db: float) -> void:
+	_music_volume_db = db
+	_music_player.volume_db = db
+
+## Music 1 finishing (a one-shot, non-looping stream) is what hands off to
+## Music 2 — a plain AudioStreamPlayer never re-emits `finished` for a
+## stream with loop enabled, so this can't re-trigger once Music 2 starts.
+func _on_music_1_finished() -> void:
+	if not ResourceLoader.exists(MUSIC_2_PATH):
+		return
+	var stream: AudioStream = load(MUSIC_2_PATH)
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = true
+	_music_player.stream = stream
+	_music_player.play()
 
 ## § user request: filters shouldn't carry over between visits — back to
 ## defaults (and the widgets reset to match) every time you leave.

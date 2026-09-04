@@ -542,7 +542,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Deal 3 damage to target enemy creature.",
 	},
 	{
-		"id": "sacrificial_rite", "name": "Sacrificial Rite", "type": "Ability",
+		"id": "sacrificial_rite", "name": "Eat Thy Own", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"effects": [
 			{"trigger": "on_cast", "effect_id": "damage_leader", "params": {"amount": 2, "target": "self"}},
@@ -558,7 +558,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Poison. Decay: deal 4 damage to the strongest enemy creature.",
 	},
 	{
-		"id": "chitin_plague", "name": "Chitin Plague", "type": "Hive",
+		"id": "chitin_plague", "name": "Potent Potables", "type": "Hive",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.POISON, "attack": 1}],
 		"text": "Your Poison creatures have +1/+0.",
@@ -678,7 +678,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Deal 2 damage to target enemy creature.",
 	},
 	{
-		"id": "blood_pact", "name": "Blood Pact", "type": "Ability",
+		"id": "blood_pact", "name": "Trap Door", "type": "Ability",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"effects": [
 			{"trigger": "on_cast", "effect_id": "damage_leader", "params": {"amount": 3, "target": "self"}},

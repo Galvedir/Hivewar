@@ -13,6 +13,7 @@ signal closed
 ## duration; see _on_open_collection/_on_collection_closed).
 const MUSIC_1_PATH := "res://music/collection_menu_music_1.mp3"
 const MUSIC_2_PATH := "res://music/collection_menu_music_2.mp3"
+const BG_PATH := "res://art/ui/backgrounds/collection_menu_bg.png"
 
 var _kingdom_filter := "ALL"
 var _rarity_filter := "ALL"
@@ -33,6 +34,21 @@ func _ready() -> void:
 	_refresh()
 
 func _build_ui() -> void:
+	# Background image, added first so it renders behind the actual screen
+	# content below — self is a plain Control (not a layout container),
+	# which is what lets the two coexist as separate full-rect layers
+	# instead of both being forced into a single vertical stack (same
+	# pattern as the main menu's background). Fails safe (no background at
+	# all) if the art isn't present.
+	if ResourceLoader.exists(BG_PATH):
+		var bg := TextureRect.new()
+		bg.texture = load(BG_PATH)
+		bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		LayoutUtil.fill_parent(bg)
+		add_child(bg)
+
 	var root := VBoxContainer.new()
 	LayoutUtil.fill_parent(root)
 	root.add_theme_constant_override("separation", 6)

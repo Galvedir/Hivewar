@@ -24,6 +24,13 @@ const COLORLESS_COLOR := Color(0.55, 0.55, 0.50)
 
 const NAME_BAR_HEIGHT := 22.0
 const COST_BADGE_SIZE := 26.0
+const DARK_BOX_COLOR := Color(0, 0, 0, 0.62) # mostly-transparent black (§ user request), shared by the rules-text panel and both ATK/DEF badge boxes
+
+static func make_dark_box_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = DARK_BOX_COLOR
+	style.set_corner_radius_all(3)
+	return style
 
 static func card_color(card_data: CardData) -> Color:
 	if card_data.kingdoms.is_empty():
@@ -181,27 +188,33 @@ static func add_cost_badge(widget: Control, cost: int) -> Label:
 	circle.add_child(label)
 	return label
 
-## Adds a bottom-right ATK/DEF badge as a child of `widget` (§ user
-## request — creature stats show only here on the base card view, and
-## again only in this same corner on the enlarged hover view).
+## Adds a bottom-right ATK/DEF badge — white text on a mostly-transparent
+## black box (§ user request) — as a child of `widget`. Only ever called
+## for a creature (every call site already skips it entirely for
+## Ability/Gear/Hive cards), so no box appears where there's no ATK/DEF to
+## show (§ user request).
 static func add_corner_badge(widget: Control, text: String) -> void:
+	var box := Panel.new()
+	box.add_theme_stylebox_override("panel", make_dark_box_style())
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.anchor_left = 1.0
+	box.anchor_top = 1.0
+	box.anchor_right = 1.0
+	box.anchor_bottom = 1.0
+	box.offset_left = -44
+	box.offset_top = -20
+	box.offset_right = -4
+	box.offset_bottom = -2
+	widget.add_child(box)
+
 	var badge := Label.new()
 	badge.text = text
 	badge.add_theme_color_override("font_color", Color.WHITE)
-	badge.add_theme_color_override("font_shadow_color", Color.BLACK)
-	badge.add_theme_constant_override("shadow_offset_x", 1)
-	badge.add_theme_constant_override("shadow_offset_y", 1)
-	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.anchor_left = 1.0
-	badge.anchor_top = 1.0
-	badge.anchor_right = 1.0
-	badge.anchor_bottom = 1.0
-	badge.offset_left = -44
-	badge.offset_top = -20
-	badge.offset_right = -4
-	badge.offset_bottom = -2
-	widget.add_child(badge)
+	LayoutUtil.fill_parent(badge)
+	box.add_child(badge)
 
 ## Wires the shared hover-to-enlarge behavior onto `widget`. No-ops if
 ## `overlay` is null (e.g. a widget rendered somewhere with no preview

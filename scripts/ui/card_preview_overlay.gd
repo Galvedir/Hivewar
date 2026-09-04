@@ -42,6 +42,7 @@ var _cost_circle: Panel
 var _cost_label: Label
 var _text_area: Control
 var _text: RichTextLabel
+var _badge_box: Panel
 var _badge: Label
 
 func _ready() -> void:
@@ -112,32 +113,60 @@ func _ready() -> void:
 	_text_area.anchor_right = 1.0
 	_text_area.anchor_bottom = 1.0
 	_text_area.offset_top = ART_HEIGHT
+	# Clips its children to this area's own bounds (§ user request — "make
+	# sure it all fits in the black box"): hovering this popup can't
+	# actually be used to scroll it (the whole thing hides the instant the
+	# mouse leaves the small base widget that triggered it, long before it
+	# could reach this popup), so an unreachable scrollbar wouldn't help —
+	# clipping is what guarantees an unusually long card's text never
+	# visually spills out past the box instead.
+	_text_area.clip_contents = true
 	add_child(_text_area)
+
+	# Mostly-transparent black panel behind the rules text (§ user request),
+	# so white text stays legible regardless of what the Kingdom frame or
+	# portrait looks like behind it. A plain ColorRect spanning the whole
+	# rules-text area, added before _text so it draws behind it.
+	var text_bg := ColorRect.new()
+	text_bg.color = CardRenderUtil.DARK_BOX_COLOR
+	text_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	LayoutUtil.fill_parent(text_bg)
+	_text_area.add_child(text_bg)
 
 	_text = RichTextLabel.new()
 	_text.bbcode_enabled = true
 	_text.scroll_active = false
+	_text.add_theme_color_override("default_color", Color.WHITE)
+	_text.add_theme_font_size_override("normal_font_size", 13) # smaller than the theme default so more of a verbose Leader's text fits before clip_contents would ever need to cut it off
 	_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	LayoutUtil.fill_parent(_text)
 	_text_area.add_child(_text)
 
+	# ATK/DEF badge (§ user request): its own mostly-transparent black box,
+	# on top of the rules-text panel, anchored within the rules-text area
+	# only (not the whole card). Hidden entirely — box included — whenever
+	# badge_text is empty (Ability/Gear/Hive cards; see show_for).
+	_badge_box = Panel.new()
+	_badge_box.add_theme_stylebox_override("panel", CardRenderUtil.make_dark_box_style())
+	_badge_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_badge_box.anchor_left = 1.0
+	_badge_box.anchor_top = 1.0
+	_badge_box.anchor_right = 1.0
+	_badge_box.anchor_bottom = 1.0
+	_badge_box.offset_left = -76
+	_badge_box.offset_top = -30
+	_badge_box.offset_right = -8
+	_badge_box.offset_bottom = -6
+	_text_area.add_child(_badge_box)
+
 	_badge = Label.new()
 	_badge.add_theme_color_override("font_color", Color.WHITE)
-	_badge.add_theme_color_override("font_shadow_color", Color.BLACK)
-	_badge.add_theme_constant_override("shadow_offset_x", 1)
-	_badge.add_theme_constant_override("shadow_offset_y", 1)
 	_badge.add_theme_font_size_override("font_size", 20)
-	_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_badge.anchor_left = 1.0
-	_badge.anchor_top = 1.0
-	_badge.anchor_right = 1.0
-	_badge.anchor_bottom = 1.0
-	_badge.offset_left = -76
-	_badge.offset_top = -30
-	_badge.offset_right = -8
-	_badge.offset_bottom = -6
-	_text_area.add_child(_badge) # anchored within the rules-text area only (§ user request), not the whole card
+	LayoutUtil.fill_parent(_badge)
+	_badge_box.add_child(_badge)
 
 ## Shows the preview near `anchor_rect` (the hovered widget's global rect),
 ## clamped to stay fully on-screen. `card_data` supplies the name/cost
@@ -162,7 +191,7 @@ func show_for(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: Strin
 	_cost_label.text = str(CardRenderUtil.badge_value(card_data, cost))
 	_text.text = bbcode_text
 	_badge.text = badge_text
-	_badge.visible = badge_text != ""
+	_badge_box.visible = badge_text != ""
 	_start_leader_animation(card_data)
 	_position_near(anchor_rect)
 	move_to_front()

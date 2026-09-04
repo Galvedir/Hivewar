@@ -7,6 +7,13 @@ extends Control
 
 signal closed
 
+## Collection screen music (§ user request): Music 1 plays once, then
+## Music 2 takes over and loops forever — and only while this screen is
+## the active one (main_ui.gd pauses the ambient menu track for the
+## duration; see _on_open_collection/_on_collection_closed).
+const MUSIC_1_PATH := "res://music/Collection_Menu_Music_1.mp3"
+const MUSIC_2_PATH := "res://music/Collection_menu_2.mp3"
+
 var _kingdom_filter := "ALL"
 var _rarity_filter := "ALL"
 var _search_filter := ""
@@ -17,6 +24,7 @@ var _search_edit: LineEdit
 var _grid: GridContainer
 var _count_label: Label
 var _overlay: CardPreviewOverlay
+var _music_player: AudioStreamPlayer
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -36,6 +44,7 @@ func _build_ui() -> void:
 	back_btn.pressed.connect(func() -> void:
 		_overlay.hide_preview()
 		_reset_filters() # § user request: filters shouldn't persist once you navigate away
+		stop_music()
 		closed.emit())
 	top.add_child(back_btn)
 
@@ -83,6 +92,38 @@ func _build_ui() -> void:
 	# overlay's manually-set global_position every layout pass.
 	_overlay = CardPreviewOverlay.new()
 	add_child(_overlay)
+
+	_music_player = AudioStreamPlayer.new()
+	_music_player.finished.connect(_on_music_1_finished)
+	add_child(_music_player)
+
+## Starts this screen's music (§ user request): Music 1 once, then Music 2
+## looping — called by main_ui.gd when this screen becomes the active one.
+## No-ops (fails safe, same pattern as every other optional art/audio
+## asset) if Music 1 isn't present yet.
+func start_music() -> void:
+	if not ResourceLoader.exists(MUSIC_1_PATH):
+		return
+	var stream: AudioStream = load(MUSIC_1_PATH)
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = false
+	_music_player.stream = stream
+	_music_player.play()
+
+func stop_music() -> void:
+	_music_player.stop()
+
+## Music 1 finishing (a one-shot, non-looping stream) is what hands off to
+## Music 2 — a plain AudioStreamPlayer never re-emits `finished` for a
+## stream with loop enabled, so this can't re-trigger once Music 2 starts.
+func _on_music_1_finished() -> void:
+	if not ResourceLoader.exists(MUSIC_2_PATH):
+		return
+	var stream: AudioStream = load(MUSIC_2_PATH)
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = true
+	_music_player.stream = stream
+	_music_player.play()
 
 ## § user request: filters shouldn't carry over between visits — back to
 ## defaults (and the widgets reset to match) every time you leave.

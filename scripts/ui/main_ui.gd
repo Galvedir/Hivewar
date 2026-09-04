@@ -810,9 +810,15 @@ func _on_open_collection(from: Control) -> void:
 	_collection_return_target = from
 	_hide_screen(from)
 	_collection.visible = true
+	# § user request: the Collection screen has its own music, and no other
+	# music should play alongside it — pause the ambient menu track for as
+	# long as this screen is open.
+	_stop_ambient_music()
+	_collection.start_music()
 
 func _on_collection_closed() -> void:
 	_collection.visible = false
+	_resume_ambient_music()
 	if _collection_return_target != null:
 		_show_screen(_collection_return_target)
 

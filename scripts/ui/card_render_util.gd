@@ -21,6 +21,7 @@ const KINGDOM_COLORS := {
 	Kingdoms.RED: Color(0.80, 0.25, 0.25),
 }
 const COLORLESS_COLOR := Color(0.55, 0.55, 0.50)
+const CARD_BACK_PATH := "res://art/cards/card_back.png"
 
 const NAME_BAR_HEIGHT := 22.0
 const COST_BADGE_SIZE := 26.0
@@ -224,6 +225,74 @@ static func wire_hover_preview(widget: Control, overlay: CardPreviewOverlay, car
 		return
 	widget.mouse_entered.connect(func() -> void: overlay.show_for(card_data, tex, cost, bbcode_text, badge_text, widget.get_global_rect()))
 	widget.mouse_exited.connect(overlay.hide_preview)
+
+## Face-down card-back visual (§ user request — the battlefield HUD needs a
+## deck pile and, later, a fanned opponent hand, both of which show a
+## face-down back rather than any real card). Uses real art once it exists
+## at CARD_BACK_PATH; until then draws a simple placeholder so a pile still
+## reads clearly as "a card" instead of a blank rect — swap-in-place, same
+## fail-safe convention as every other optional art asset in this project.
+static func build_card_back(size: Vector2) -> Control:
+	var back := Panel.new()
+	back.custom_minimum_size = size
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if ResourceLoader.exists(CARD_BACK_PATH):
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0, 0, 0, 0)
+		back.add_theme_stylebox_override("panel", style)
+		_add_full_rect_texture(back, load(CARD_BACK_PATH))
+	else:
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.14, 0.12, 0.20)
+		style.border_color = Color(0.55, 0.45, 0.75)
+		style.set_border_width_all(2)
+		style.set_corner_radius_all(6)
+		back.add_theme_stylebox_override("panel", style)
+		var label := Label.new()
+		label.text = "LARVA"
+		label.add_theme_color_override("font_color", Color(0.7, 0.6, 0.9))
+		label.add_theme_font_size_override("font_size", maxi(8, int(size.x * 0.16)))
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		LayoutUtil.fill_parent(label)
+		back.add_child(label)
+	return back
+
+## Deck/discard "pile" visual (§ user request: "a spot that shows the deck,
+## the discard pile") — a face-down card-back plus a count badge. Used bare
+## for the deck (not interactive) and dropped into a Button for the discard
+## pile (kept clickable to open its existing list popup) — the visual
+## itself doesn't need to know which case it's in.
+static func build_pile_visual(size: Vector2, count: int) -> Control:
+	var root := Control.new()
+	root.custom_minimum_size = size
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var back := build_card_back(size)
+	LayoutUtil.fill_parent(back)
+	root.add_child(back)
+
+	var badge := Panel.new()
+	badge.add_theme_stylebox_override("panel", make_dark_box_style())
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.anchor_left = 0.0
+	badge.anchor_right = 1.0
+	badge.anchor_top = 1.0
+	badge.anchor_bottom = 1.0
+	badge.offset_top = -18
+	root.add_child(badge)
+
+	var label := Label.new()
+	label.text = str(count)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_font_size_override("font_size", 12)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	LayoutUtil.fill_parent(label)
+	badge.add_child(label)
+	return root
 
 ## First line of a card's rules text (§ user request): "{Kingdom} -
 ## {Creature Type}" for creatures, "{Kingdom} - {Ability/Gear/Hive}"

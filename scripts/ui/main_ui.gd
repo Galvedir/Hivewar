@@ -8,6 +8,12 @@ extends Control
 const HUMAN := 0
 const AI := 1
 
+## Battlefield HUD zone sizing (§ user request — MTG-Arena-style layout):
+## the deck/discard pile art, and the width reserved for the Hive zone
+## (non-creature permanents that stick to the field) when it isn't empty.
+const PILE_SIZE := Vector2(60, 84)
+const HIVE_ZONE_WIDTH := 190
+
 ## Effect ids that need a chosen creature target rather than an auto-pick,
 ## and which side of the board is legal to click for each (§ user request:
 ## targeted effects should let the player choose, not silently pick for
@@ -60,13 +66,15 @@ var _log_display: RichTextLabel
 var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
 var _opponent_info: Label
-var _opponent_portrait: TextureRect
+var _opponent_leader_view: EnlargedCardView
+var _opponent_deck_pile: Control
 var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
 var _player_hand: HBoxContainer
 var _player_info: Label
-var _player_portrait: TextureRect
+var _player_leader_view: EnlargedCardView
+var _player_deck_pile: Control
 var _player_discard_btn: Button
 var _discard_popup: PanelContainer
 var _discard_popup_box: VBoxContainer
@@ -895,37 +903,30 @@ func _build_match_view() -> void:
 	_match_root.add_theme_constant_override("separation", 8)
 	_match_view.add_child(_match_root)
 
-	var opponent_info_row := HBoxContainer.new()
-	_match_root.add_child(opponent_info_row)
-	_opponent_portrait = TextureRect.new()
-	_opponent_portrait.custom_minimum_size = Vector2(48, 48)
-	_opponent_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_opponent_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_opponent_portrait.visible = false
-	opponent_info_row.add_child(_opponent_portrait)
-	_opponent_info = Label.new()
-	_opponent_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opponent_info_row.add_child(_opponent_info)
-	_opponent_discard_btn = Button.new()
-	_opponent_discard_btn.pressed.connect(_on_opponent_discard_pressed)
-	opponent_info_row.add_child(_opponent_discard_btn)
-	_opponent_hive = _make_scrolling_row(100)
-	_match_root.add_child(_opponent_hive.get_parent())
-	_opponent_board = _make_scrolling_row()
-	_match_root.add_child(_opponent_board.get_parent())
+	# Opponent battlefield row (§ user request — MTG-Arena-style zones):
+	# identity (Leader, always shown enlarged, + deck/discard piles) on the
+	# left, creatures front-and-center (expands to fill remaining space),
+	# permanents that stick to the field but aren't creatures (Hive) in
+	# their own area to the right — hidden entirely, freeing its space back
+	# to the creature zone, whenever it's empty (see _render_hive_row).
+	var opponent_row := HBoxContainer.new()
+	opponent_row.add_theme_constant_override("separation", 8)
+	_match_root.add_child(opponent_row)
+	opponent_row.add_child(_build_identity_cluster(false))
+	_opponent_board = _make_scrolling_row(200, 0, true)
+	opponent_row.add_child(_opponent_board.get_parent())
+	_opponent_hive = _make_scrolling_row(200, HIVE_ZONE_WIDTH, false)
+	opponent_row.add_child(_opponent_hive.get_parent())
 
 	_status_label = Label.new()
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_match_root.add_child(_status_label)
 
+	# Turn-flow controls only — Hero Power/Ultimate now live on the player's
+	# own identity cluster below, right next to the Leader they belong to.
 	var mid := HBoxContainer.new()
+	mid.alignment = BoxContainer.ALIGNMENT_CENTER
 	_match_root.add_child(mid)
-	_hero_power_btn = Button.new()
-	_hero_power_btn.pressed.connect(_on_hero_power_pressed)
-	mid.add_child(_hero_power_btn)
-	_ultimate_btn = Button.new()
-	_ultimate_btn.pressed.connect(_on_ultimate_pressed)
-	mid.add_child(_ultimate_btn)
 	_end_turn_btn = Button.new()
 	_end_turn_btn.text = "End Turn"
 	_end_turn_btn.pressed.connect(_on_end_turn_pressed)
@@ -936,24 +937,18 @@ func _build_match_view() -> void:
 	_cancel_btn.pressed.connect(_on_cancel_pressed)
 	mid.add_child(_cancel_btn)
 
-	_player_board = _make_scrolling_row()
-	_match_root.add_child(_player_board.get_parent())
-	_player_hive = _make_scrolling_row(100)
-	_match_root.add_child(_player_hive.get_parent())
-	var player_info_row := HBoxContainer.new()
-	_match_root.add_child(player_info_row)
-	_player_portrait = TextureRect.new()
-	_player_portrait.custom_minimum_size = Vector2(48, 48)
-	_player_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_player_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	_player_portrait.visible = false
-	player_info_row.add_child(_player_portrait)
-	_player_info = Label.new()
-	_player_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	player_info_row.add_child(_player_info)
-	_player_discard_btn = Button.new()
-	_player_discard_btn.pressed.connect(_on_player_discard_pressed)
-	player_info_row.add_child(_player_discard_btn)
+	# Mirrored player battlefield row — same left-to-right zone order
+	# (identity, creatures, Hive) as the opponent's, so both sides read the
+	# same way at a glance.
+	var player_row := HBoxContainer.new()
+	player_row.add_theme_constant_override("separation", 8)
+	_match_root.add_child(player_row)
+	player_row.add_child(_build_identity_cluster(true))
+	_player_board = _make_scrolling_row(200, 0, true)
+	player_row.add_child(_player_board.get_parent())
+	_player_hive = _make_scrolling_row(200, HIVE_ZONE_WIDTH, false)
+	player_row.add_child(_player_hive.get_parent())
+
 	_player_hand = _make_scrolling_row()
 	_match_root.add_child(_player_hand.get_parent())
 
@@ -1006,15 +1001,77 @@ func _on_log_entry(text: String, kind: String) -> void:
 	_log_display.append_text("[color=%s]%s[/color]\n" % [color, text.replace("[", "(").replace("]", ")")])
 	_refresh()
 
-func _make_scrolling_row(height: int = 200) -> HBoxContainer:
+## `width` > 0 gives the row a fixed horizontal footprint (the Hive zone —
+## a modest fixed chunk on the right when present); `expand_h` lets it grow
+## to fill whatever space is left in its parent row (the creature board,
+## which should reclaim the Hive zone's space the instant that zone hides).
+func _make_scrolling_row(height: int = 200, width: int = 0, expand_h: bool = false) -> HBoxContainer:
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, height)
+	scroll.custom_minimum_size = Vector2(width, height)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	if expand_h:
+		scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	scroll.add_child(row)
 	return row
+
+## Builds one side's "identity cluster" (§ user request): the Leader always
+## shown in its enlarged state (via EnlargedCardView — the same rendering
+## the hover-preview popup uses), its info line, and its deck/discard
+## piles. The player's cluster additionally carries the Hero Power/
+## Ultimate buttons (only ever usable by the human) and puts its Leader
+## closest to the hand below it — mirroring the opponent's cluster, which
+## puts its Leader at the very top — so both sides read outward from the
+## shared battlefield in the middle the same way.
+func _build_identity_cluster(is_player: bool) -> VBoxContainer:
+	var cluster := VBoxContainer.new()
+	cluster.custom_minimum_size = Vector2(EnlargedCardView.SIZE.x + 16, 0)
+	cluster.add_theme_constant_override("separation", 4)
+
+	var leader_view := EnlargedCardView.new()
+
+	var info := Label.new()
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	var deck_pile := Control.new()
+	deck_pile.custom_minimum_size = PILE_SIZE
+	var discard_btn := Button.new()
+	discard_btn.custom_minimum_size = PILE_SIZE
+	var piles := HBoxContainer.new()
+	piles.alignment = BoxContainer.ALIGNMENT_CENTER
+	piles.add_theme_constant_override("separation", 6)
+	piles.add_child(deck_pile)
+	piles.add_child(discard_btn)
+
+	if is_player:
+		_player_leader_view = leader_view
+		_player_info = info
+		_player_deck_pile = deck_pile
+		_player_discard_btn = discard_btn
+		_player_discard_btn.pressed.connect(_on_player_discard_pressed)
+		cluster.add_child(piles)
+		_hero_power_btn = Button.new()
+		_hero_power_btn.pressed.connect(_on_hero_power_pressed)
+		cluster.add_child(_hero_power_btn)
+		_ultimate_btn = Button.new()
+		_ultimate_btn.pressed.connect(_on_ultimate_pressed)
+		cluster.add_child(_ultimate_btn)
+		cluster.add_child(info)
+		cluster.add_child(leader_view)
+	else:
+		_opponent_leader_view = leader_view
+		_opponent_info = info
+		_opponent_deck_pile = deck_pile
+		_opponent_discard_btn = discard_btn
+		_opponent_discard_btn.pressed.connect(_on_opponent_discard_pressed)
+		cluster.add_child(leader_view)
+		cluster.add_child(info)
+		cluster.add_child(piles)
+
+	return cluster
 
 func _build_block_popup() -> void:
 	_block_popup = PanelContainer.new()
@@ -1514,21 +1571,22 @@ func _refresh() -> void:
 	var human := GameState.players[HUMAN]
 	var ai := GameState.players[AI]
 
-	_opponent_info.text = "%s — Health %d | Larva %d/%d | Hand %d | Deck %d" % [
-		ai.leader.data.card_name, ai.health, ai.current_larva, ai.max_larva, ai.hand.size(), ai.deck.size()
+	_opponent_info.text = "%s\nHealth %d | Larva %d/%d | Hand %d" % [
+		ai.leader.data.card_name, ai.health, ai.current_larva, ai.max_larva, ai.hand.size()
 	]
 	var opp_tex := CardDatabase.get_illustration_texture(ai.leader.data)
-	_opponent_portrait.texture = opp_tex
-	_opponent_portrait.visible = opp_tex != null
-	_opponent_discard_btn.text = "Discard (%d)" % ai.graveyard.size()
-	_player_info.text = "%s — Health %d | Larva %d/%d | Turn %d (%s) | Deck %d" % [
+	_opponent_leader_view.set_content(ai.leader.data, opp_tex, 0, CardRenderUtil.card_full_text(ai.leader.data), "")
+	_refresh_pile(_opponent_deck_pile, ai.deck.size())
+	_refresh_pile(_opponent_discard_btn, ai.graveyard.size())
+
+	_player_info.text = "%s\nHealth %d | Larva %d/%d | Turn %d (%s)" % [
 		human.leader.data.card_name, human.health, human.current_larva, human.max_larva,
-		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn", human.deck.size()
+		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn"
 	]
 	var player_tex := CardDatabase.get_illustration_texture(human.leader.data)
-	_player_portrait.texture = player_tex
-	_player_portrait.visible = player_tex != null
-	_player_discard_btn.text = "Discard (%d)" % human.graveyard.size()
+	_player_leader_view.set_content(human.leader.data, player_tex, 0, CardRenderUtil.card_full_text(human.leader.data), "")
+	_refresh_pile(_player_deck_pile, human.deck.size())
+	_refresh_pile(_player_discard_btn, human.graveyard.size())
 
 	_render_row(_opponent_board, ai.board, false)
 	_render_row(_player_board, human.board, true)
@@ -1544,6 +1602,18 @@ func _refresh() -> void:
 	_ultimate_btn.text = "Ultimate (%d): %s" % [human.leader.data.ultimate_cost, human.leader.data.ultimate_text]
 	_end_turn_btn.disabled = not can_act or targeting
 	_cancel_btn.visible = targeting or _selected_attacker_id != -1
+
+## Rebuilds a deck/discard pile widget's visual (§ user request: "a spot
+## that shows the deck, the discard pile") — `container` is either a plain
+## Control (the deck, not interactive) or a Button (the discard pile, kept
+## clickable to open its existing list popup); either way the pile visual
+## itself is just added as a child on top of it.
+func _refresh_pile(container: Control, count: int) -> void:
+	for child in container.get_children():
+		child.queue_free()
+	var visual := CardRenderUtil.build_pile_visual(PILE_SIZE, count)
+	container.add_child(visual)
+	LayoutUtil.fill_parent(visual)
 
 func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool) -> void:
 	for child in row.get_children():

@@ -16,11 +16,16 @@ extends CardData
 ## passed through as ctx.larva_spent for effects like
 ## buff_friendly_per_larva_spent to scale by.
 @export var ultimate_variable_cost: bool = false
-## Path to a 4x4 sprite-sheet animation (§ user request), resolved by
+## Path to a sprite-sheet animation (§ user request), resolved by
 ## CardDatabase alongside illustration_path — plays once over the portrait
 ## when this Leader's enlarged hover card is shown, then disappears. Empty
-## if this Leader's art folder has no "*animation*"-named file yet.
+## if this Leader's art folder has no animation sheet yet. animation_cols/
+## animation_rows default to 4x4 but are read from the filename when it
+## encodes its own grid (e.g. Orchid Manta's 6x6 sheet) — see
+## CardDatabase._parse_anim_grid — since not every sheet is built the same size.
 @export var animation_sprite_path: String = ""
+@export var animation_cols: int = 4
+@export var animation_rows: int = 4
 
 func _init() -> void:
 	card_type = CardTypes.LEADER

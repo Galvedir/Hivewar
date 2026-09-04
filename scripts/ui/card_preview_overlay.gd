@@ -25,8 +25,6 @@ extends Control
 const PREVIEW_SIZE := Vector2(260, 340)
 const ART_HEIGHT := 170.0
 const GAP := 12.0
-const LEADER_ANIM_COLS := 4
-const LEADER_ANIM_ROWS := 4
 const LEADER_ANIM_FPS := 8.0
 
 var _frame_rect: TextureRect
@@ -36,6 +34,8 @@ var _anim_rect: TextureRect
 var _anim_atlas: AtlasTexture
 var _anim_timer: Timer
 var _anim_frame := 0
+var _anim_cols := 4 # this Leader's own grid size (not every animation is 4x4 — see CardDatabase._parse_anim_grid), set fresh each _start_leader_animation
+var _anim_rows := 4
 var _anim_texture_cache: Dictionary = {} # path -> Texture2D
 var _name_label: Label
 var _cost_circle: Panel
@@ -201,22 +201,27 @@ func hide_preview() -> void:
 	visible = false
 	_anim_timer.stop()
 
-## Plays a Leader's 4x4 sprite-sheet animation once over its portrait (§
-## user request), then hides itself when the last frame's played — the
-## same play-once-and-disappear pattern the main menu's overlay originally
-## used. Resets/no-ops (clearing any previous animation) for anything that
-## isn't a Leader with an animation sprite matched to it.
+## Plays a Leader's sprite-sheet animation once over its portrait (§ user
+## request), then hides itself when the last frame's played — the same
+## play-once-and-disappear pattern the main menu's overlay originally
+## used. Grid size comes from the Leader's own animation_cols/
+## animation_rows (not every sheet is 4x4 — see CardDatabase.
+## _parse_anim_grid). Resets/no-ops (clearing any previous animation) for
+## anything that isn't a Leader with an animation sprite matched to it.
 func _start_leader_animation(card_data: CardData) -> void:
 	_anim_timer.stop()
 	_anim_rect.visible = false
 	if not (card_data is LeaderData):
 		return
-	var path: String = (card_data as LeaderData).animation_sprite_path
+	var leader := card_data as LeaderData
+	var path: String = leader.animation_sprite_path
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
+	_anim_cols = leader.animation_cols
+	_anim_rows = leader.animation_rows
 	var sheet := _load_anim_texture(path)
-	var frame_w := sheet.get_width() / LEADER_ANIM_COLS
-	var frame_h := sheet.get_height() / LEADER_ANIM_ROWS
+	var frame_w := sheet.get_width() / _anim_cols
+	var frame_h := sheet.get_height() / _anim_rows
 	_anim_atlas = AtlasTexture.new()
 	_anim_atlas.atlas = sheet
 	_anim_atlas.region = Rect2(0, 0, frame_w, frame_h)
@@ -231,16 +236,16 @@ func _load_anim_texture(path: String) -> Texture2D:
 	return _anim_texture_cache[path]
 
 func _on_anim_tick() -> void:
-	var total_frames := LEADER_ANIM_COLS * LEADER_ANIM_ROWS
+	var total_frames := _anim_cols * _anim_rows
 	_anim_frame += 1
 	if _anim_frame >= total_frames:
 		_anim_timer.stop()
 		_anim_rect.visible = false
 		return
-	var frame_w := _anim_atlas.atlas.get_width() / LEADER_ANIM_COLS
-	var frame_h := _anim_atlas.atlas.get_height() / LEADER_ANIM_ROWS
-	var col := _anim_frame % LEADER_ANIM_COLS
-	var row := _anim_frame / LEADER_ANIM_COLS
+	var frame_w := _anim_atlas.atlas.get_width() / _anim_cols
+	var frame_h := _anim_atlas.atlas.get_height() / _anim_rows
+	var col := _anim_frame % _anim_cols
+	var row := _anim_frame / _anim_cols
 	_anim_atlas.region = Rect2(col * frame_w, row * frame_h, frame_w, frame_h)
 
 func _position_near(anchor_rect: Rect2) -> void:

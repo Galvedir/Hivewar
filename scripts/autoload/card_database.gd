@@ -78,6 +78,8 @@ func _load_leaders(art_map: Dictionary) -> void:
 		var art: Dictionary = art_map.get(_normalize_name(leader.card_name), {})
 		leader.illustration_path = art.get("portrait", "")
 		leader.animation_sprite_path = art.get("animation", "")
+		leader.animation_cols = art.get("anim_cols", 4)
+		leader.animation_rows = art.get("anim_rows", 4)
 		_leaders[leader.id] = leader
 
 func _is_image_file(file_name: String) -> bool:
@@ -106,15 +108,18 @@ func _scan_illustrations(dir_path: String) -> Dictionary:
 
 ## Leader art (§ user request) lives one subfolder per Leader under
 ## art/leaders/ — e.g. "Hesper_The_Hourglass_Weaver/" — each holding a
-## portrait image and optionally a second file with "animation" in its
-## name: a 4x4 sprite sheet that plays once over the portrait when that
-## Leader's enlarged hover card is shown (see CardPreviewOverlay). The
-## subfolder name is matched to a Leader the same fuzzy way filenames are
-## elsewhere (see _normalize_name) — e.g. "One_From_The_Square_Mound"
-## matches "One, from the Square Mound". A flat image file placed directly
-## in art/leaders/ (no subfolder) still works too, for a Leader that
-## hasn't been moved into its own folder yet. Returns
-## {normalized_leader_name: {"portrait": path, "animation": path_or_empty}}.
+## portrait image and optionally a second file that's the sprite sheet: a
+## grid of frames that plays once over the portrait when that Leader's
+## enlarged hover card is shown (see CardPreviewOverlay). Grid size
+## defaults to 4x4 but is read from the filename when present (see
+## _parse_anim_grid), since different animations aren't necessarily built
+## to the same grid — e.g. Orchid Manta's is 6x6. The subfolder name is
+## matched to a Leader the same fuzzy way filenames are elsewhere (see
+## _normalize_name) — e.g. "One_From_The_Square_Mound" matches "One, from
+## the Square Mound". A flat image file placed directly in art/leaders/
+## (no subfolder) still works too, for a Leader that hasn't been moved
+## into its own folder yet. Returns {normalized_leader_name: {"portrait":
+## path, "animation": path_or_empty, "anim_cols": int, "anim_rows": int}}.
 func _scan_leader_art(dir_path: String) -> Dictionary:
 	var out := {}
 	var dir := DirAccess.open(dir_path)
@@ -130,30 +135,60 @@ func _scan_leader_art(dir_path: String) -> Dictionary:
 				if found.get("portrait", "") != "":
 					out[_normalize_name(entry)] = found
 		elif _is_image_file(entry):
-			out[_normalize_name(entry.get_basename())] = {"portrait": dir_path + entry, "animation": ""}
+			out[_normalize_name(entry.get_basename())] = {"portrait": dir_path + entry, "animation": "", "anim_cols": 4, "anim_rows": 4}
 		entry = dir.get_next()
 	dir.list_dir_end()
 	return out
 
-## Within one Leader's art subfolder: whichever image file's name contains
-## "animation" is the sprite sheet, the other is the static portrait.
+## Within one Leader's art subfolder: whichever image file looks like a
+## sprite sheet (see _looks_like_animation_sheet) is the animation, the
+## other is the static portrait.
 func _scan_leader_folder(sub_path: String) -> Dictionary:
 	var portrait := ""
 	var animation := ""
+	var anim_cols := 4
+	var anim_rows := 4
 	var dir := DirAccess.open(sub_path)
 	if dir == null:
-		return {"portrait": portrait, "animation": animation}
+		return {"portrait": portrait, "animation": animation, "anim_cols": anim_cols, "anim_rows": anim_rows}
 	dir.list_dir_begin()
 	var file_name := dir.get_next()
 	while file_name != "":
 		if not dir.current_is_dir() and _is_image_file(file_name):
-			if file_name.to_lower().contains("animation"):
+			if _looks_like_animation_sheet(file_name):
 				animation = sub_path + file_name
+				var grid := _parse_anim_grid(file_name)
+				anim_cols = grid.x
+				anim_rows = grid.y
 			else:
 				portrait = sub_path + file_name
 		file_name = dir.get_next()
 	dir.list_dir_end()
-	return {"portrait": portrait, "animation": animation}
+	return {"portrait": portrait, "animation": animation, "anim_cols": anim_cols, "anim_rows": anim_rows}
+
+## A sprite sheet is identified either by the word "animation" in its
+## filename (the original convention) or by an embedded "rows-N-cols-M" /
+## "frames-N" marker (e.g. an image generator's auto-named export like
+## "...frames-36-rows-6-cols-6.png") — whichever an artist happens to use.
+func _looks_like_animation_sheet(file_name: String) -> bool:
+	var lower := file_name.to_lower()
+	if lower.contains("animation"):
+		return true
+	var regex := RegEx.new()
+	regex.compile("rows[_-]\\d+[_-]cols[_-]\\d+|frames[_-]\\d+")
+	return regex.search(lower) != null
+
+## Reads a sprite sheet's actual grid size out of a "rows-N-cols-M"
+## marker in its filename, defaulting to 4x4 (the original convention) for
+## a sheet that doesn't encode one — e.g. "*_animation.png". Returns
+## Vector2i(cols, rows).
+func _parse_anim_grid(file_name: String) -> Vector2i:
+	var regex := RegEx.new()
+	regex.compile("rows[_-](\\d+)[_-]cols[_-](\\d+)")
+	var m := regex.search(file_name.to_lower())
+	if m != null:
+		return Vector2i(int(m.get_string(2)), int(m.get_string(1)))
+	return Vector2i(4, 4)
 
 ## Kingdom card-frame backgrounds (§ user request): one image per Kingdom,
 ## dropped into art/cards/frames/ as e.g. "Monogyne_Card_background.png" —

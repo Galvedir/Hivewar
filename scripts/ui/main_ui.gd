@@ -71,7 +71,7 @@ const HAND_PLAY_LIFT_THRESHOLD := 90.0 # how far above the hand tray's own top e
 ## Larva higher than that (nothing does yet). Uses the dedicated hive-cell
 ## artwork if present, falling back to a plain drawn circle (same fail-safe
 ## pattern as every other optional art asset in this file) if not.
-const LARVA_PIP_SIZE := Vector2(48, 48)
+const LARVA_PIP_SIZE := Vector2(96, 96)
 const LARVA_PIP_EMPTY_PATH := "res://art/ui/panels/Empty_Larva.png"
 const LARVA_PIP_FILLED_PATH := "res://art/ui/panels/Filled_Larva.png"
 

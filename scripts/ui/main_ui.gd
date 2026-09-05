@@ -1431,6 +1431,7 @@ func _build_board_zone(is_player: bool) -> Control:
 func _build_log_panel() -> void:
 	_log_panel = PanelContainer.new()
 	_log_panel.custom_minimum_size = Vector2(320, 0)
+	_log_panel.visible = false # § user request: closed by default, opened via the Escape pause menu's Show/Hide Log button
 	_match_view.add_child(_log_panel)
 	var box := VBoxContainer.new()
 	_log_panel.add_child(box)

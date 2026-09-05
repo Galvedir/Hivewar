@@ -76,6 +76,11 @@ func end_turn() -> void:
 	GameState.active_player_index = 1 - player_index
 	start_turn(GameState.active_player_index)
 
+## Forfeits the match on `player_id`'s behalf (§ user request: a Concede
+## option in the pause menu).
+func concede(player_id: int) -> void:
+	GameState.concede(player_id)
+
 ## --- Player actions --------------------------------------------------------
 
 ## Legend Rule (§4): if a second copy of a Legendary name would enter play,

@@ -61,6 +61,16 @@ const FALLBACK_PILE_SIZE := Vector2(60, 84)
 const HAND_CARD_ASPECT := 0.72 # width = height * this, matching a real card's proportions
 const HAND_PLAY_LIFT_THRESHOLD := 90.0 # how far above the hand tray's own top edge a card must be dragged before releasing it counts as playing it instead of reordering — "pick up cards and place them in the play area to play them"
 
+## Larva pips (§ user request): a row of circles above the player's hand
+## showing how much Larva is available to spend right now — always at
+## least TurnManager.MAX_LARVA_CAP (10) of them shown empty, filling in as
+## many as the player currently has available (not the printed max — the
+## *available*, i.e. unspent, amount, which drains toward empty over the
+## turn as it's spent and refills to the new max at the start of the next
+## one), and growing past 10 only if some future effect ever pushes max
+## Larva higher than that (nothing does yet).
+const LARVA_PIP_SIZE := Vector2(16, 16)
+
 ## Effect ids that need a chosen creature target rather than an auto-pick,
 ## and which side of the board is legal to click for each (§ user request:
 ## targeted effects should let the player choose, not silently pick for
@@ -111,13 +121,12 @@ var _match_view: HBoxContainer
 var _match_bg: ColorRect
 var _battlefield_root: VBoxContainer
 var _log_panel: PanelContainer
-var _log_toggle_btn: Button
 var _log_display: RichTextLabel
+var _pause_menu: PanelContainer
 var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
 var _opponent_board_zone: Control # the play-area's own zone Control, read for its real width when sizing creature cards
 var _opponent_hand: Control
-var _opponent_info: Label
 var _opponent_leader_btn: Button
 var _opponent_leader_view: EnlargedCardView
 var _opponent_deck_pile: Control
@@ -126,7 +135,7 @@ var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
 var _player_board_zone: Control
 var _player_hand: Control
-var _player_info: Label
+var _player_larva_row: HBoxContainer
 var _player_leader_btn: Button
 var _player_leader_view: EnlargedCardView
 var _player_leader_zone: Control # glowed as a whole when an ability is usable — see _refresh's own comment for why not _player_leader_btn
@@ -1107,34 +1116,6 @@ func _build_match_view() -> void:
 	LayoutUtil.fill_parent(_match_bg)
 	add_child(_match_bg)
 
-	# § user request: a toggle to collapse the Action Log so it can reclaim
-	# the battlefield's width. A child of _match_bg (a plain Control, not a
-	# Container) rather than of _match_view itself specifically so it can
-	# sit at a fixed screen corner via anchors without a Container fighting
-	# that position every layout pass — and so its effective visibility
-	# rides along with _match_bg's automatically (a hidden parent hides an
-	# otherwise-visible child too) instead of needing to be synced at every
-	# place that shows/hides the match view. z_index is set high (and
-	# z_as_relative, the default, makes it stack on top of _match_bg's own
-	# z_index too) since _match_bg itself is added to the tree BEFORE
-	# _match_view — without an explicit z_index this button, sitting in the
-	# same top-right corner the Action Log panel occupies, silently
-	# rendered underneath that panel's opaque background and was
-	# completely invisible (§ user bug report — "I do not see a button to
-	# close/open the log").
-	_log_toggle_btn = Button.new()
-	_log_toggle_btn.text = "Log"
-	_log_toggle_btn.tooltip_text = "Show/hide the Action Log"
-	_log_toggle_btn.z_index = 100
-	_log_toggle_btn.pressed.connect(_on_log_toggle_pressed)
-	_log_toggle_btn.anchor_left = 1.0
-	_log_toggle_btn.anchor_right = 1.0
-	_log_toggle_btn.offset_left = -70.0
-	_log_toggle_btn.offset_right = -8.0
-	_log_toggle_btn.offset_top = 8.0
-	_log_toggle_btn.offset_bottom = 36.0
-	_match_bg.add_child(_log_toggle_btn)
-
 	_battlefield_root = VBoxContainer.new()
 	_match_view = HBoxContainer.new()
 	LayoutUtil.fill_parent(_match_view)
@@ -1179,6 +1160,7 @@ func _build_match_view() -> void:
 	_build_hud_row(player_hud, true)
 
 	_build_log_panel()
+	_build_pause_menu()
 	_build_block_popup()
 	_build_attack_confirm_popup()
 	_build_x_cost_popup()
@@ -1243,12 +1225,29 @@ func _build_piles_zone(is_player: bool) -> HBoxContainer:
 ## clip_contents stays off so a lifted card can rise above the tray's own
 ## bounds while dragging.
 func _build_hand_zone(is_player: bool) -> Control:
+	if not is_player:
+		var opp_zone := Control.new()
+		_opponent_hand = opp_zone
+		return opp_zone
+
+	# The player's hand zone additionally carries the larva pips (§ user
+	# request) in a thin strip directly above the hand tray. A VBoxContainer
+	# is fine for these two specifically (unlike the free-floating hand
+	# cards inside the tray itself) since neither the pip row nor the tray
+	# as a WHOLE needs manual positioning — only the individual cards inside
+	# the tray do.
+	var outer := VBoxContainer.new()
+	_player_larva_row = HBoxContainer.new()
+	_player_larva_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_player_larva_row.add_theme_constant_override("separation", 4)
+	_player_larva_row.custom_minimum_size = Vector2(0, LARVA_PIP_SIZE.y + 6.0)
+	outer.add_child(_player_larva_row)
+
 	var zone := Control.new()
-	if is_player:
-		_player_hand = zone
-	else:
-		_opponent_hand = zone
-	return zone
+	_stretch_v(zone, 1.0)
+	_player_hand = zone
+	outer.add_child(zone)
+	return outer
 
 ## § user request: End Turn by default; Cancel (plus, for the specific
 ## action in progress, whichever of Attack Leader or the Leader's Hero
@@ -1322,25 +1321,24 @@ func _build_play_row(row: HBoxContainer, is_player: bool) -> void:
 		_stretch_h(leader_zone, OPP_PLAY_LEADER_RATIO)
 		row.add_child(leader_zone)
 
-## Height reserved below the Leader's card view for its live info line
-## (health/larva/turn) — the card view itself only ever shows the Leader's
-## *printed* stats (life total, Hero Power/Ultimate wording), never live
-## state, so that line still needs to exist separately.
-const LEADER_INFO_HEIGHT := 64.0
-
 ## The always-visible Leader panel (§ user request: "the leader card should
-## always be shown... enlarged" — and, per a follow-up, showing its full
-## rules text always rather than only on hover, "since it's always in that
-## state on the field"): the same EnlargedCardView the docked hover-preview
-## uses (art, name, life badge, and — unlike every other card widget in
-## this file — its full rules text box, since a Leader's Hero Power/
-## Ultimate wording is exactly the point of always showing it), scaled
-## (see _fit_view_to_region) to fit whatever this zone's real proportional
-## size turns out to be instead of a fixed pixel size (§ the previous
-## fixed-size version is exactly what caused the last layout bug). A plain
-## flat Button sits underneath it purely for click/hover handling, since
-## EnlargedCardView itself ignores mouse input (see its own _ready). The
-## player's Leader is also clickable (§ user request): it highlights
+## always be shown... enlarged" — and, per follow-ups, showing its full
+## rules text always rather than only on hover "since it's always in that
+## state on the field", and — later still — with no separate info line at
+## all so the card itself can be bigger: its current health lives directly
+## on the card's own life-total badge instead, via _refresh_leader_panel's
+## life_override, and larva/hand-size/turn are all visible elsewhere
+## already (the new larva pips, the opponent's own visible hand, the
+## Action Log)). The same EnlargedCardView the docked hover-preview uses
+## (art, name, life badge, and — unlike every other card widget in this
+## file — its full rules text box, since a Leader's Hero Power/Ultimate
+## wording is exactly the point of always showing it), scaled (see
+## _fit_view_to_region) to fit whatever this zone's real proportional size
+## turns out to be instead of a fixed pixel size (§ the previous
+## fixed-size version is exactly what caused an earlier layout bug). A
+## plain flat Button sits underneath it purely for click/hover handling,
+## since EnlargedCardView itself ignores mouse input (see its own _ready).
+## The player's Leader is also clickable (§ user request): it highlights
 ## whenever an ability is usable, and opens both as buttons in the action
 ## zone.
 func _build_leader_zone(is_player: bool) -> Control:
@@ -1356,26 +1354,14 @@ func _build_leader_zone(is_player: bool) -> Control:
 	leader_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	zone.add_child(leader_view)
 
-	var info := Label.new()
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD
-	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info.add_theme_font_size_override("font_size", 12)
-	info.anchor_right = 1.0
-	info.anchor_top = 1.0
-	info.anchor_bottom = 1.0
-	info.offset_top = -LEADER_INFO_HEIGHT
-	zone.add_child(info)
-
 	if is_player:
 		_player_leader_btn = leader_btn
 		_player_leader_view = leader_view
 		_player_leader_zone = zone
-		_player_info = info
 		leader_btn.pressed.connect(_on_leader_clicked)
 	else:
 		_opponent_leader_btn = leader_btn
 		_opponent_leader_view = leader_view
-		_opponent_info = info
 	leader_btn.mouse_entered.connect(_show_leader_preview.bind(is_player))
 	leader_btn.mouse_exited.connect(_hide_docked_preview)
 	return zone
@@ -1444,6 +1430,47 @@ func _build_log_panel() -> void:
 ## toggling .visible here is the only piece actually needed.
 func _on_log_toggle_pressed() -> void:
 	_log_panel.visible = not _log_panel.visible
+
+## § user request: "Add a small menu when escape is pressed where the
+## show/hide log button lives as well as a concede match button" — replaces
+## the old standalone corner "Log" button entirely (folded in here instead).
+func _build_pause_menu() -> void:
+	_pause_menu = PanelContainer.new()
+	_pause_menu.visible = false
+	_pause_menu.set_anchors_preset(Control.PRESET_CENTER)
+	_pause_menu.z_index = 100
+	add_child(_pause_menu)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	_pause_menu.add_child(box)
+	var title := Label.new()
+	title.text = "Menu"
+	title.add_theme_font_size_override("font_size", 18)
+	box.add_child(title)
+	var log_btn := Button.new()
+	log_btn.text = "Show/Hide Log"
+	log_btn.pressed.connect(_on_log_toggle_pressed)
+	box.add_child(log_btn)
+	var resume_btn := Button.new()
+	resume_btn.text = "Resume"
+	resume_btn.pressed.connect(_toggle_pause_menu)
+	box.add_child(resume_btn)
+	var concede_btn := Button.new()
+	concede_btn.text = "Concede Match"
+	concede_btn.pressed.connect(_on_concede_pressed)
+	box.add_child(concede_btn)
+
+func _toggle_pause_menu() -> void:
+	_pause_menu.visible = not _pause_menu.visible
+
+## Forfeits the current match (§ user request) — TurnManager.concede ends
+## the game the same way a normal loss does, so the existing
+## game_ended -> _on_game_ended -> game-over-popup -> _on_new_game_pressed
+## chain is what actually returns the player to deck selection; this just
+## triggers that chain and closes the menu that opened it.
+func _on_concede_pressed() -> void:
+	_pause_menu.visible = false
+	TurnManager.concede(HUMAN)
 
 ## GameLog.entry_added fires for essentially every game action (draws,
 ## plays, attacks, damage, hero powers, ...), so re-rendering the board
@@ -1599,6 +1626,7 @@ func _build_game_over_popup() -> void:
 
 func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
+	_pause_menu.visible = false
 	_match_view.visible = false
 	_match_bg.visible = false
 	_hide_docked_preview()
@@ -2092,22 +2120,17 @@ func _refresh() -> void:
 	var human := GameState.players[HUMAN]
 	var ai := GameState.players[AI]
 
-	# § "make this more like MTG Arena": the Leader's name is already on its
-	# own card art (add_name_label) directly above this — repeating it here
-	# as its own line was extra vertical space this compact HUD can't
-	# spare, especially wrapped across several lines in a narrow column.
-	_opponent_info.text = "Health %d | Larva %d/%d | Hand %d" % [
-		ai.health, ai.current_larva, ai.max_larva, ai.hand.size()
-	]
-	_refresh_leader_panel(_opponent_leader_btn, _opponent_leader_view, ai.leader.data)
+	# § user request: no separate info line anymore — the Leader's name is
+	# already on its own card art, its current health now lives directly on
+	# the card's own life-total badge (see _refresh_leader_panel's
+	# life_override), and larva/hand-size/turn are all visible elsewhere
+	# already (the larva pips above the hand, the opponent's own visible
+	# hand, and the Action Log, respectively).
+	_refresh_leader_panel(_opponent_leader_btn, _opponent_leader_view, ai.leader.data, ai.health)
 	_refresh_pile(_opponent_deck_pile, ai.deck.size())
 	_refresh_pile(_opponent_discard_btn, ai.graveyard.size())
 
-	_player_info.text = "Health %d | Larva %d/%d | Turn %d (%s)" % [
-		human.health, human.current_larva, human.max_larva,
-		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn"
-	]
-	_refresh_leader_panel(_player_leader_btn, _player_leader_view, human.leader.data)
+	_refresh_leader_panel(_player_leader_btn, _player_leader_view, human.leader.data, human.health)
 	_refresh_pile(_player_deck_pile, human.deck.size())
 	_refresh_pile(_player_discard_btn, human.graveyard.size())
 
@@ -2117,6 +2140,7 @@ func _refresh() -> void:
 	_render_hive_row(_player_hive, human.hive_zone, true)
 	_render_hand()
 	_render_opponent_hand()
+	_refresh_larva_pips(human.current_larva, human.max_larva)
 
 	var can_act := GameState.active_player_index == HUMAN and not _busy and not GameState.is_over
 	var targeting := _selected_hand_index != -1 or _pending_power_kind != ""
@@ -2199,6 +2223,25 @@ func _refresh_pile(container: Control, count: int) -> void:
 	container.add_child(visual)
 	LayoutUtil.fill_parent(visual)
 
+## Rebuilds the Larva-pip row (§ LARVA_PIP_SIZE's own comment) — `current`
+## of the pips are filled (available to spend right now), the rest of the
+## row (always at least MAX_LARVA_CAP, more if `max_larva` itself is ever
+## pushed higher) are left empty outlines.
+func _refresh_larva_pips(current: int, max_larva: int) -> void:
+	for child in _player_larva_row.get_children():
+		child.queue_free()
+	var total := maxi(TurnManager.MAX_LARVA_CAP, max_larva)
+	for i in range(total):
+		var pip := Panel.new()
+		pip.custom_minimum_size = LARVA_PIP_SIZE
+		var style := StyleBoxFlat.new()
+		style.set_corner_radius_all(int(LARVA_PIP_SIZE.x / 2.0))
+		style.border_color = Color(0.75, 0.6, 0.95)
+		style.set_border_width_all(2)
+		style.bg_color = Color(0.6, 0.4, 0.9, 0.95) if i < current else Color(0, 0, 0, 0)
+		pip.add_theme_stylebox_override("panel", style)
+		_player_larva_row.add_child(pip)
+
 ## Uniformly scales+centers an EnlargedCardView to fit `region` — shared by
 ## the docked hover-preview and the always-visible Leader panel (§ user
 ## request: the Leader should show its full rules text "always... since
@@ -2214,26 +2257,30 @@ func _fit_view_to_region(view: EnlargedCardView, region: Vector2) -> void:
 
 ## Refreshes the always-visible Leader panel's content and fit. `btn`'s own
 ## size mirrors the zone's (it fills it — see _build_leader_zone), so it
-## doubles as the "how much room is there" read; LEADER_INFO_HEIGHT is
-## reserved below the card for the live info line, which the card view
-## itself never shows (only the Leader's printed stats).
-func _refresh_leader_panel(btn: Button, view: EnlargedCardView, leader_data: LeaderData) -> void:
+## doubles as the "how much room is there" read — the card view now gets
+## the whole thing (§ user request: no more separate info line reserving
+## space below it). `current_health` overrides the life-total badge, which
+## would otherwise show the Leader's *printed* starting_health like every
+## other context that renders a Leader (Collection, the hover preview
+## elsewhere) — here specifically it should track the Leader's actual
+## current health, going up and down as the match plays out.
+func _refresh_leader_panel(btn: Button, view: EnlargedCardView, leader_data: LeaderData, current_health: int) -> void:
 	var tex := CardDatabase.get_illustration_texture(leader_data)
-	view.set_content(leader_data, tex, 0, CardRenderUtil.card_full_text(leader_data), "")
-	var full_zone := _current_zone_size(btn, FALLBACK_LEADER_ZONE_SIZE)
-	var region := Vector2(full_zone.x, maxf(full_zone.y - LEADER_INFO_HEIGHT, 40.0))
-	_fit_view_to_region(view, region)
+	view.set_content(leader_data, tex, 0, CardRenderUtil.card_full_text(leader_data), "", current_health)
+	_fit_view_to_region(view, _current_zone_size(btn, FALLBACK_LEADER_ZONE_SIZE))
 
 ## Hover handler for a Leader panel, wired once per side in
 ## _build_leader_zone rather than per-refresh like every other card (the
 ## Leader panel button is persistent instead of rebuilt each time, and
 ## _wire_docked_preview's closure would capture stale values if reconnected
 ## on top of itself every refresh instead of leaving one connection that
-## reads the current Leader fresh at hover time).
+## reads the current Leader fresh at hover time). Shows current health too,
+## same as the always-visible panel, for consistency.
 func _show_leader_preview(is_player: bool) -> void:
-	var data: LeaderData = GameState.players[HUMAN].leader.data if is_player else GameState.players[AI].leader.data
+	var player := GameState.players[HUMAN] if is_player else GameState.players[AI]
+	var data: LeaderData = player.leader.data
 	var tex := CardDatabase.get_illustration_texture(data)
-	_show_docked_preview(data, tex, 0, CardRenderUtil.card_full_text(data), "")
+	_show_docked_preview(data, tex, 0, CardRenderUtil.card_full_text(data), "", player.health)
 
 ## Wires the docked hover-preview (§ user request: "instead of showing it
 ## near the card you are hovering over") onto a freshly-built card widget —
@@ -2242,15 +2289,16 @@ func _show_leader_preview(is_player: bool) -> void:
 ## call every refresh since these widgets (unlike the Leader panel) are
 ## torn down and rebuilt fresh each time.
 func _wire_docked_preview(widget: Control, card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String) -> void:
-	widget.mouse_entered.connect(_show_docked_preview.bind(card_data, tex, cost, bbcode_text, badge_text))
+	widget.mouse_entered.connect(_show_docked_preview.bind(card_data, tex, cost, bbcode_text, badge_text, -1))
 	widget.mouse_exited.connect(_hide_docked_preview)
 
 ## Shows a card in the docked preview panel, scaled to fill whatever the
 ## panel's real proportional region turns out to be (§ user request: the
 ## preview panel "scale[s] to fill the region") rather than staying a fixed
-## size.
-func _show_docked_preview(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String) -> void:
-	_preview_view.set_content(card_data, tex, cost, bbcode_text, badge_text)
+## size. `life_override` (a Leader's current health) defaults to -1 (use
+## the card's own printed stat) for every non-Leader caller.
+func _show_docked_preview(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String, life_override: int = -1) -> void:
+	_preview_view.set_content(card_data, tex, cost, bbcode_text, badge_text, life_override)
 	_fit_view_to_region(_preview_view, _current_zone_size(_preview_dock, FALLBACK_LEADER_ZONE_SIZE))
 	_preview_view.visible = true
 
@@ -2499,6 +2547,11 @@ func _begin_hand_drag(btn: Control, instance_id: int, can_play: bool, mouse_glob
 ## Only main_ui itself needs this (there's exactly one drag at a time), so
 ## it's cheap to leave this a near-instant no-op the rest of the time.
 func _input(event: InputEvent) -> void:
+	# § user request: Escape opens a small in-match menu (log toggle +
+	# concede) — only meaningful while a match is actually on screen.
+	if _match_view.visible and event.is_action_pressed("ui_cancel"):
+		_toggle_pause_menu()
+		return
 	if _drag_btn == null:
 		return
 	if event is InputEventMouseMotion:

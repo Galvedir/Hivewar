@@ -195,15 +195,19 @@ func _fit_font_size(bbcode_text: String) -> int:
 
 ## Fills in this view's content. `card_data` supplies the name/cost
 ## decorations directly (Leaders show their starting health instead of a
-## cost, same as the base card face); `bbcode_text`/`badge_text` are still
-## caller-supplied since they differ between printed CardData and a live
+## cost, same as the base card face) unless `life_override` is >= 0 (§ user
+## request — the always-visible battlefield Leader panel shows *current*
+## health there instead, going up and down as the match plays out, not the
+## printed starting_health every other context still wants);
+## `bbcode_text`/`badge_text` are still caller-supplied since they differ
+## between printed CardData and a live
 ## CardInstance's current stats/status. The Leader animation only (re)plays
 ## when `card_data` differs from the last call — a transient hover popup
 ## naturally passes a different card most of the time, but a persistent
 ## embedding (the always-visible Leader panel) calls this on every refresh
 ## with the same Leader, and re-triggering a "plays once" animation on every
 ## refresh would just make it loop forever instead of ever finishing.
-func set_content(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String) -> void:
+func set_content(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String, life_override: int = -1) -> void:
 	# Leaders skip the Kingdom-frame background entirely ("Leaders should use
 	# the full card art, not the background art"): a Leader without a
 	# personal portrait just shows no art here rather than borrowing the
@@ -217,7 +221,7 @@ func set_content(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: St
 	_art.visible = tex != null
 	_name_label.text = card_data.card_name
 	_cost_circle.visible = true
-	_cost_label.text = str(CardRenderUtil.badge_value(card_data, cost))
+	_cost_label.text = str(life_override if life_override >= 0 else CardRenderUtil.badge_value(card_data, cost))
 	_text.add_theme_font_size_override("normal_font_size", _fit_font_size(bbcode_text))
 	_text.text = bbcode_text
 	_badge.text = badge_text

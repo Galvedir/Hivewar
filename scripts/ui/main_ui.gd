@@ -61,15 +61,19 @@ const FALLBACK_PILE_SIZE := Vector2(60, 84)
 const HAND_CARD_ASPECT := 0.72 # width = height * this, matching a real card's proportions
 const HAND_PLAY_LIFT_THRESHOLD := 90.0 # how far above the hand tray's own top edge a card must be dragged before releasing it counts as playing it instead of reordering — "pick up cards and place them in the play area to play them"
 
-## Larva pips (§ user request): a row of circles above the player's hand
+## Larva pips (§ user request): a row of icons above the player's hand
 ## showing how much Larva is available to spend right now — always at
 ## least TurnManager.MAX_LARVA_CAP (10) of them shown empty, filling in as
 ## many as the player currently has available (not the printed max — the
 ## *available*, i.e. unspent, amount, which drains toward empty over the
 ## turn as it's spent and refills to the new max at the start of the next
 ## one), and growing past 10 only if some future effect ever pushes max
-## Larva higher than that (nothing does yet).
-const LARVA_PIP_SIZE := Vector2(16, 16)
+## Larva higher than that (nothing does yet). Uses the dedicated hive-cell
+## artwork if present, falling back to a plain drawn circle (same fail-safe
+## pattern as every other optional art asset in this file) if not.
+const LARVA_PIP_SIZE := Vector2(24, 24)
+const LARVA_PIP_EMPTY_PATH := "res://art/ui/panels/Empty_Larva.png"
+const LARVA_PIP_FILLED_PATH := "res://art/ui/panels/Filled_Larva.png"
 
 ## Effect ids that need a chosen creature target rather than an auto-pick,
 ## and which side of the board is legal to click for each (§ user request:
@@ -127,6 +131,7 @@ var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
 var _opponent_board_zone: Control # the play-area's own zone Control, read for its real width when sizing creature cards
 var _opponent_hand: Control
+var _opponent_larva_row: HBoxContainer
 var _opponent_leader_btn: Button
 var _opponent_leader_view: EnlargedCardView
 var _opponent_deck_pile: Control
@@ -301,12 +306,15 @@ func _apply_audio_settings() -> void:
 		_menu_music_player.volume_db = _linear_to_volume_db(_music_volume)
 	if _sfx_player != null:
 		_sfx_player.volume_db = _linear_to_volume_db(_sfx_volume)
-	# The Collection screen's music (§ user request — it wasn't respecting
-	# the Music Volume slider at all, since CollectionUI's player never had
-	# its volume_db touched) uses its own AudioStreamPlayer, so it needs to
-	# be kept in sync here too, same as the ambient track above.
+	# The Collection and Deck Builder screens' music (§ user request — it
+	# wasn't respecting the Music Volume slider at all, since neither
+	# screen's player ever had its volume_db touched) each use their own
+	# AudioStreamPlayer, so they need to be kept in sync here too, same as
+	# the ambient track above.
 	if _collection != null:
 		_collection.set_music_volume_db(_linear_to_volume_db(_music_volume))
+	if _deck_builder != null:
+		_deck_builder.set_music_volume_db(_linear_to_volume_db(_music_volume))
 
 func _apply_graphics_settings() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if _fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
@@ -992,9 +1000,14 @@ func _on_open_deck_builder(from: Control) -> void:
 	_hide_screen(from)
 	_deck_builder.refresh_on_show()
 	_deck_builder.visible = true
+	# § user request: the Deck Builder has its own music, same as the
+	# Collection screen — pause the ambient menu track while it's open.
+	_stop_ambient_music()
+	_deck_builder.start_music()
 
 func _on_deck_builder_closed() -> void:
 	_deck_builder.visible = false
+	_resume_ambient_music()
 	_refresh_saved_decks_menu()
 	if _deck_builder_return_target != null:
 		_show_screen(_deck_builder_return_target)
@@ -1141,6 +1154,16 @@ func _build_match_view() -> void:
 	_battlefield_root.add_child(opponent_hud)
 	_build_hud_row(opponent_hud, false)
 
+	# § user request (follow-up): the Larva pip row sits "on the line
+	# between the top and bottom section" for EACH side, horizontally
+	# centered across the whole battlefield — not confined to just the hand
+	# column above it, and not player-only. For the opponent (whose HUD is
+	# mirrored to the top edge) that seam is right here, between their HUD
+	# and their play row; for the player it's the mirror image, between
+	# their play row and their HUD (see below).
+	_opponent_larva_row = _build_larva_row()
+	_battlefield_root.add_child(_opponent_larva_row)
+
 	var opponent_play := HBoxContainer.new()
 	opponent_play.add_theme_constant_override("separation", 8)
 	_stretch_v(opponent_play, TOP_RATIO)
@@ -1152,6 +1175,9 @@ func _build_match_view() -> void:
 	_stretch_v(player_play, TOP_RATIO)
 	_battlefield_root.add_child(player_play)
 	_build_play_row(player_play, true)
+
+	_player_larva_row = _build_larva_row()
+	_battlefield_root.add_child(_player_larva_row)
 
 	var player_hud := HBoxContainer.new()
 	player_hud.add_theme_constant_override("separation", 8)
@@ -1167,6 +1193,19 @@ func _build_match_view() -> void:
 	_build_legend_popup()
 	_build_discard_popup()
 	_build_game_over_popup()
+
+## A thin, fixed-height, horizontally-centered strip for one side's Larva
+## pips (§ user request — "on the line between the top and bottom section
+## ... horizontally centered for both players"): a plain sibling row of
+## _battlefield_root rather than nested in either the play or HUD row, so
+## it spans and centers across the FULL battlefield width regardless of
+## either row's own internal column layout.
+func _build_larva_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 4)
+	row.custom_minimum_size = Vector2(0, LARVA_PIP_SIZE.y + 4.0)
+	return row
 
 ## One side's HUD strip (§ user request), left to right: deck+discard piles
 ## / hand / action buttons for the player; mirrored on both axes for the
@@ -1225,29 +1264,12 @@ func _build_piles_zone(is_player: bool) -> HBoxContainer:
 ## clip_contents stays off so a lifted card can rise above the tray's own
 ## bounds while dragging.
 func _build_hand_zone(is_player: bool) -> Control:
-	if not is_player:
-		var opp_zone := Control.new()
-		_opponent_hand = opp_zone
-		return opp_zone
-
-	# The player's hand zone additionally carries the larva pips (§ user
-	# request) in a thin strip directly above the hand tray. A VBoxContainer
-	# is fine for these two specifically (unlike the free-floating hand
-	# cards inside the tray itself) since neither the pip row nor the tray
-	# as a WHOLE needs manual positioning — only the individual cards inside
-	# the tray do.
-	var outer := VBoxContainer.new()
-	_player_larva_row = HBoxContainer.new()
-	_player_larva_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_player_larva_row.add_theme_constant_override("separation", 4)
-	_player_larva_row.custom_minimum_size = Vector2(0, LARVA_PIP_SIZE.y + 6.0)
-	outer.add_child(_player_larva_row)
-
 	var zone := Control.new()
-	_stretch_v(zone, 1.0)
-	_player_hand = zone
-	outer.add_child(zone)
-	return outer
+	if is_player:
+		_player_hand = zone
+	else:
+		_opponent_hand = zone
+	return zone
 
 ## § user request: End Turn by default; Cancel (plus, for the specific
 ## action in progress, whichever of Attack Leader or the Leader's Hero
@@ -2124,7 +2146,7 @@ func _refresh() -> void:
 	# already on its own card art, its current health now lives directly on
 	# the card's own life-total badge (see _refresh_leader_panel's
 	# life_override), and larva/hand-size/turn are all visible elsewhere
-	# already (the larva pips above the hand, the opponent's own visible
+	# already (each side's own Larva pip row, the opponent's own visible
 	# hand, and the Action Log, respectively).
 	_refresh_leader_panel(_opponent_leader_btn, _opponent_leader_view, ai.leader.data, ai.health)
 	_refresh_pile(_opponent_deck_pile, ai.deck.size())
@@ -2140,7 +2162,8 @@ func _refresh() -> void:
 	_render_hive_row(_player_hive, human.hive_zone, true)
 	_render_hand()
 	_render_opponent_hand()
-	_refresh_larva_pips(human.current_larva, human.max_larva)
+	_refresh_larva_pips(_player_larva_row, human.current_larva, human.max_larva)
+	_refresh_larva_pips(_opponent_larva_row, ai.current_larva, ai.max_larva)
 
 	var can_act := GameState.active_player_index == HUMAN and not _busy and not GameState.is_over
 	var targeting := _selected_hand_index != -1 or _pending_power_kind != ""
@@ -2223,24 +2246,35 @@ func _refresh_pile(container: Control, count: int) -> void:
 	container.add_child(visual)
 	LayoutUtil.fill_parent(visual)
 
-## Rebuilds the Larva-pip row (§ LARVA_PIP_SIZE's own comment) — `current`
-## of the pips are filled (available to spend right now), the rest of the
-## row (always at least MAX_LARVA_CAP, more if `max_larva` itself is ever
-## pushed higher) are left empty outlines.
-func _refresh_larva_pips(current: int, max_larva: int) -> void:
-	for child in _player_larva_row.get_children():
+## Rebuilds one side's Larva-pip row (§ LARVA_PIP_SIZE's own comment, and §
+## _build_larva_row's — this now runs for both `_player_larva_row` and
+## `_opponent_larva_row`) — `current` of the pips are filled (available to
+## spend right now), the rest of the row (always at least MAX_LARVA_CAP,
+## more if `max_larva` itself is ever pushed higher) are left empty.
+func _refresh_larva_pips(row: HBoxContainer, current: int, max_larva: int) -> void:
+	for child in row.get_children():
 		child.queue_free()
 	var total := maxi(TurnManager.MAX_LARVA_CAP, max_larva)
+	var have_art := ResourceLoader.exists(LARVA_PIP_EMPTY_PATH) and ResourceLoader.exists(LARVA_PIP_FILLED_PATH)
 	for i in range(total):
-		var pip := Panel.new()
-		pip.custom_minimum_size = LARVA_PIP_SIZE
-		var style := StyleBoxFlat.new()
-		style.set_corner_radius_all(int(LARVA_PIP_SIZE.x / 2.0))
-		style.border_color = Color(0.75, 0.6, 0.95)
-		style.set_border_width_all(2)
-		style.bg_color = Color(0.6, 0.4, 0.9, 0.95) if i < current else Color(0, 0, 0, 0)
-		pip.add_theme_stylebox_override("panel", style)
-		_player_larva_row.add_child(pip)
+		var filled := i < current
+		if have_art:
+			var pip := TextureRect.new()
+			pip.texture = load(LARVA_PIP_FILLED_PATH if filled else LARVA_PIP_EMPTY_PATH)
+			pip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			pip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			pip.custom_minimum_size = LARVA_PIP_SIZE
+			row.add_child(pip)
+		else:
+			var panel := Panel.new()
+			panel.custom_minimum_size = LARVA_PIP_SIZE
+			var style := StyleBoxFlat.new()
+			style.set_corner_radius_all(int(LARVA_PIP_SIZE.x / 2.0))
+			style.border_color = Color(0.75, 0.6, 0.95)
+			style.set_border_width_all(2)
+			style.bg_color = Color(0.6, 0.4, 0.9, 0.95) if filled else Color(0, 0, 0, 0)
+			panel.add_theme_stylebox_override("panel", style)
+			row.add_child(panel)
 
 ## Uniformly scales+centers an EnlargedCardView to fit `region` — shared by
 ## the docked hover-preview and the always-visible Leader panel (§ user

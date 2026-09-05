@@ -11,6 +11,15 @@ signal open_rules
 const HERO_POWER_COLOR := "#8fd0ff"
 const ULTIMATE_COLOR := "#ffcc33"
 
+## Deck Builder screen music (§ user request): alternates 1, 2, 1, 2, ...
+## forever — unlike the Collection screen's "1 once, then 2 loops forever"
+## (see collection_ui.gd), both tracks here keep taking turns instead of
+## one ever looping solo. Only plays while this screen is the active one
+## (main_ui.gd pauses the ambient menu track for the duration, same pattern
+## as Collection's).
+const MUSIC_1_PATH := "res://music/deck_builder_menu_music_1.mp3"
+const MUSIC_2_PATH := "res://music/deck_builder_menu_music_2.mp3"
+
 var _leader_id := ""
 var _cards := {} # card_id (String) -> count (int)
 var _editing_name := "" # name of the saved deck being edited, "" if unsaved/new
@@ -45,6 +54,9 @@ var _deck_size_label: Label
 var _status_label: Label
 var _saved_decks_box: VBoxContainer
 var _overlay: CardPreviewOverlay
+var _music_player: AudioStreamPlayer
+var _music_volume_db := 0.0 # kept in sync by main_ui.gd's _apply_audio_settings, same as the ambient track
+var _music_next_is_2 := true # which track plays next once the current one finishes
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -64,6 +76,7 @@ func _build_ui() -> void:
 	back_btn.pressed.connect(func() -> void:
 		_overlay.hide_preview()
 		_reset_filters() # § user request: filters shouldn't persist once you navigate away
+		stop_music()
 		closed.emit())
 	top.add_child(back_btn)
 
@@ -178,6 +191,48 @@ func _build_ui() -> void:
 	# manually-set global_position isn't fought by a Container layout pass.
 	_overlay = CardPreviewOverlay.new()
 	add_child(_overlay)
+
+	_music_player = AudioStreamPlayer.new()
+	_music_player.finished.connect(_on_music_finished)
+	add_child(_music_player)
+
+## Starts this screen's alternating music (§ MUSIC_1_PATH's own comment) —
+## called by main_ui.gd when this screen becomes the active one. Fails safe
+## (no-op) if Music 1 isn't present yet, same pattern as every other
+## optional art/audio asset.
+func start_music() -> void:
+	if not ResourceLoader.exists(MUSIC_1_PATH):
+		return
+	_music_next_is_2 = true
+	_play_track(MUSIC_1_PATH)
+
+func stop_music() -> void:
+	_music_player.stop()
+
+## Keeps this screen's music in sync with the Options screen's Music Volume
+## slider, same pattern as CollectionUI.set_music_volume_db.
+func set_music_volume_db(db: float) -> void:
+	_music_volume_db = db
+	_music_player.volume_db = db
+
+func _play_track(path: String) -> void:
+	var stream: AudioStream = load(path)
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = false
+	_music_player.volume_db = _music_volume_db
+	_music_player.stream = stream
+	_music_player.play()
+
+## Neither track ever loops on its own (see _play_track) — instead each
+## `finished` signal hands off to the other track, alternating 1, 2, 1, 2,
+## ... for as long as this screen stays open (§ user request — distinct
+## from the Collection screen's one-shot-then-loop-forever handoff).
+func _on_music_finished() -> void:
+	var next_path := MUSIC_2_PATH if _music_next_is_2 else MUSIC_1_PATH
+	if not ResourceLoader.exists(next_path):
+		return
+	_music_next_is_2 = not _music_next_is_2
+	_play_track(next_path)
 
 ## Builds a dropdown that lets the player check any number of `options`
 ## (§ user request — deck-builder filters used to be single-select only).

@@ -590,7 +590,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Decay: draw a card.",
 	},
 	{
-		"id": "pit_viper_centipede", "name": "Pit Viper Centipede", "type": "Creature",
+		"id": "pit_viper_centipede", "name": "Sanoran Centipede", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 2, "health": 2, "creature_type": "Centipede", "keywords": [],
 		"text": "",
@@ -714,13 +714,13 @@ const BLACK: Array[Dictionary] = [
 		"text": "Equipped creature gets +1/+0 and Poison.",
 	},
 	{
-		"id": "plague_pit", "name": "Plague Pit", "type": "Hive",
+		"id": "plague_pit", "name": "Spider Pit", "type": "Hive",
 		"cost": 4, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.DECAY, "attack": 1}],
 		"text": "Your Decay creatures have +1/+0.",
 	},
 	{
-		"id": "ossuary_of_the_fallen", "name": "Ossuary of the Fallen", "type": "Hive",
+		"id": "ossuary_of_the_fallen", "name": "Eaten Alive", "type": "Hive",
 		"cost": 4, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"static_modifiers": [{"type": "keyword_stat_bonus", "filter_keyword": Keywords.DECAY, "health": 1}],
 		"text": "Your Decay creatures have +0/+1.",
@@ -733,7 +733,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Venomstrike. Decay: deal 5 damage to the strongest enemy creature.",
 	},
 	{
-		"id": "moth_of_shadows", "name": "Moth of Shadows", "type": "Creature",
+		"id": "moth_of_shadows", "name": "Sphinx Moth", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 2, "creature_type": "Moth", "keywords": [Keywords.STEALTH],
 		"text": "Camouflage.",

@@ -266,7 +266,7 @@ func _ready() -> void:
 	_setup_menu_audio()
 	_apply_audio_settings()
 	_apply_graphics_settings()
-	_show_splash_screen()
+	_show_studio_splash()
 
 ## --- Options / settings persistence -----------------------------------------
 
@@ -402,6 +402,15 @@ const LOADING_SPRITE_ROWS := 4
 const LOADING_SPRITE_FPS := 8.0
 const LOADING_SCREEN_DURATION := 1.0
 
+## Studio/credits splash (§ user request) — a 6x6 sprite sheet, shown once
+## at boot BEFORE the title splash, looping a few times to fill a few
+## seconds before moving on.
+const STUDIO_SPLASH_PATH := "res://art/branding/loading/studio_loading_sprite.png"
+const STUDIO_SPLASH_COLS := 6
+const STUDIO_SPLASH_ROWS := 6
+const STUDIO_SPLASH_FPS := 15.0
+const STUDIO_SPLASH_LOOPS := 2
+
 ## Main-menu-only audio (§ user request) — no general audio system yet,
 ## just background music that plays while the deck-select screen is the
 ## active screen, and a click SFX for its buttons. Both fail safe (no
@@ -517,6 +526,72 @@ func _anchor_bottom_right(control: Control, size: Vector2, margin: float = 16.0)
 	control.offset_top = -size.y - margin
 	control.offset_right = -margin
 	control.offset_bottom = -margin
+
+## A studio/credits splash (§ user request) shown once at boot, BEFORE the
+## title splash — loops its 6x6 animation a few times (STUDIO_SPLASH_LOOPS)
+## to fill a few seconds, then hands off to _show_splash_screen. Skipped
+## straight to that title splash if the art isn't present yet, same
+## fail-safe pattern as every other optional branding asset here.
+## Dismissible early by click/tap, matching the title splash right after it.
+func _show_studio_splash() -> void:
+	if not ResourceLoader.exists(STUDIO_SPLASH_PATH):
+		_show_splash_screen()
+		return
+	var overlay := ColorRect.new()
+	overlay.color = Color.BLACK
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	LayoutUtil.fill_parent(overlay)
+	add_child(overlay)
+
+	var sheet: Texture2D = load(STUDIO_SPLASH_PATH)
+	var frame_w := sheet.get_width() / STUDIO_SPLASH_COLS
+	var frame_h := sheet.get_height() / STUDIO_SPLASH_ROWS
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	atlas.region = Rect2(0, 0, frame_w, frame_h)
+
+	var rect := TextureRect.new()
+	rect.texture = atlas
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# § user request: "take up a pretty good portion of the screen, but
+	# also be both vertically and horizontally centered" — an 80%-of-the-
+	# viewport centered box (anchors, not a fixed pixel size) so it scales
+	# sensibly across window sizes instead of being calibrated to one.
+	rect.anchor_left = 0.1
+	rect.anchor_top = 0.1
+	rect.anchor_right = 0.9
+	rect.anchor_bottom = 0.9
+	overlay.add_child(rect)
+
+	var total_frames := STUDIO_SPLASH_COLS * STUDIO_SPLASH_ROWS
+	var frame_index := [0] # array wrapper — lambdas capture outer locals by value, not reference
+	var loops_done := [0]
+	var timer := Timer.new()
+	timer.wait_time = 1.0 / STUDIO_SPLASH_FPS
+	timer.autostart = true
+	overlay.add_child(timer)
+
+	var dismiss := func() -> void:
+		if is_instance_valid(overlay):
+			overlay.queue_free()
+		_show_splash_screen()
+	timer.timeout.connect(func() -> void:
+		var next: int = (int(frame_index[0]) + 1) % total_frames
+		if next == 0:
+			loops_done[0] = int(loops_done[0]) + 1
+			if int(loops_done[0]) >= STUDIO_SPLASH_LOOPS:
+				dismiss.call()
+				return
+		frame_index[0] = next
+		var col: int = next % STUDIO_SPLASH_COLS
+		var row: int = next / STUDIO_SPLASH_COLS
+		atlas.region = Rect2(col * frame_w, row * frame_h, frame_w, frame_h))
+	overlay.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			dismiss.call()
+	)
 
 ## A brief title-screen splash (§ user request) shown once at boot, layered
 ## on top of the deck-select menu that's already built underneath it, before
@@ -976,6 +1051,21 @@ func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
 	await _show_loading_screen()
 	_match_view.visible = true
 	_match_bg.visible = true
+	# § user bug report — "leader cards start very small during some
+	# matches": every zone that sizes itself from its own real,
+	# already-laid-out dimensions (the Leader panel, hand cards, piles —
+	# see _current_zone_size) falls back to a small placeholder size
+	# whenever that real size reads as zero, which it always does right
+	# here — _match_view was invisible (and thus never laid out at all)
+	# until the line just above, and Container/anchor layout is resolved
+	# on the next idle step, not synchronously the instant .visible flips.
+	# TurnManager.start_game below fires GameLog entries and (for an AI
+	# player) can even resolve a whole turn synchronously, each of which
+	# calls _refresh() well before that first real layout pass — so
+	# without this wait, the very first several refreshes of a match all
+	# compute sizes from zero instead of the real, final layout.
+	await get_tree().process_frame
+	await get_tree().process_frame
 	_stop_ambient_music()
 	_selected_hand_index = -1
 	_selected_attacker_id = -1

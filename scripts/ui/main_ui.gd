@@ -119,6 +119,7 @@ var _opponent_board_zone: Control # the play-area's own zone Control, read for i
 var _opponent_hand: Control
 var _opponent_info: Label
 var _opponent_leader_btn: Button
+var _opponent_leader_view: EnlargedCardView
 var _opponent_deck_pile: Control
 var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
@@ -127,6 +128,8 @@ var _player_board_zone: Control
 var _player_hand: Control
 var _player_info: Label
 var _player_leader_btn: Button
+var _player_leader_view: EnlargedCardView
+var _player_leader_zone: Control # glowed as a whole when an ability is usable — see _refresh's own comment for why not _player_leader_btn
 var _player_deck_pile: Control
 var _player_discard_btn: Button
 var _discard_popup: PanelContainer
@@ -1221,39 +1224,62 @@ func _build_play_row(row: HBoxContainer, is_player: bool) -> void:
 		_stretch_h(leader_zone, OPP_PLAY_LEADER_RATIO)
 		row.add_child(leader_zone)
 
+## Height reserved below the Leader's card view for its live info line
+## (health/larva/turn) — the card view itself only ever shows the Leader's
+## *printed* stats (life total, Hero Power/Ultimate wording), never live
+## state, so that line still needs to exist separately.
+const LEADER_INFO_HEIGHT := 64.0
+
 ## The always-visible Leader panel (§ user request: "the leader card should
-## always be shown... enlarged"): a compact portrait — the same
-## style_card_face rendering every hand/board/hive card uses, filling
-## whatever this zone's real proportional size turns out to be instead of
-## a fixed pixel size (§ the previous fixed-size version is exactly what
-## caused the last layout bug) — with the full card, including Hero Power/
-## Ultimate text, available via the docked preview on hover. The player's
-## Leader is also clickable (§ user request): it highlights whenever an
-## ability is usable, and opens both as buttons in the action zone.
+## always be shown... enlarged" — and, per a follow-up, showing its full
+## rules text always rather than only on hover, "since it's always in that
+## state on the field"): the same EnlargedCardView the docked hover-preview
+## uses (art, name, life badge, and — unlike every other card widget in
+## this file — its full rules text box, since a Leader's Hero Power/
+## Ultimate wording is exactly the point of always showing it), scaled
+## (see _fit_view_to_region) to fit whatever this zone's real proportional
+## size turns out to be instead of a fixed pixel size (§ the previous
+## fixed-size version is exactly what caused the last layout bug). A plain
+## flat Button sits underneath it purely for click/hover handling, since
+## EnlargedCardView itself ignores mouse input (see its own _ready). The
+## player's Leader is also clickable (§ user request): it highlights
+## whenever an ability is usable, and opens both as buttons in the action
+## zone.
 func _build_leader_zone(is_player: bool) -> Control:
-	var zone := VBoxContainer.new()
-	zone.add_theme_constant_override("separation", 4)
+	var zone := Control.new()
 
 	var leader_btn := Button.new()
-	_stretch_v(leader_btn, 1.0)
+	leader_btn.flat = true
 	leader_btn.focus_mode = Control.FOCUS_NONE
+	LayoutUtil.fill_parent(leader_btn)
+	zone.add_child(leader_btn)
+
+	var leader_view := EnlargedCardView.new()
+	leader_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	zone.add_child(leader_view)
 
 	var info := Label.new()
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info.add_theme_font_size_override("font_size", 12)
+	info.anchor_right = 1.0
+	info.anchor_top = 1.0
+	info.anchor_bottom = 1.0
+	info.offset_top = -LEADER_INFO_HEIGHT
+	zone.add_child(info)
 
 	if is_player:
 		_player_leader_btn = leader_btn
+		_player_leader_view = leader_view
+		_player_leader_zone = zone
 		_player_info = info
 		leader_btn.pressed.connect(_on_leader_clicked)
 	else:
 		_opponent_leader_btn = leader_btn
+		_opponent_leader_view = leader_view
 		_opponent_info = info
 	leader_btn.mouse_entered.connect(_show_leader_preview.bind(is_player))
 	leader_btn.mouse_exited.connect(_hide_docked_preview)
-	zone.add_child(leader_btn)
-	zone.add_child(info)
 	return zone
 
 ## The play area (§ user request): creatures front-and-center, Hive (non-
@@ -1560,7 +1586,7 @@ func _apply_ai_action_visual(action: Dictionary) -> void:
 			if widget != null:
 				_start_lunge_animation(widget)
 		"hero_power", "ultimate":
-			_start_pulse_animation(_opponent_leader_btn)
+			_start_pulse_animation(_opponent_leader_view)
 
 func _find_widget_by_instance(container: Node, instance_id: int) -> Control:
 	for child in container.get_children():
@@ -1589,14 +1615,19 @@ func _start_lunge_animation(widget: Control) -> void:
 	tween.tween_property(widget, "position", start + Vector2(0, 24), 0.12)
 	tween.tween_property(widget, "position", start, 0.15)
 
-## A brief scale pulse on the Leader panel for Hero Power/Ultimate.
+## A brief scale pulse on the Leader panel for Hero Power/Ultimate —
+## relative to whatever scale it's already sitting at (the Leader view is
+## always fit-scaled to its zone via _fit_view_to_region, so animating to
+## an absolute Vector2.ONE would snap it to native 1:1 size instead of back
+## to its correct fit).
 func _start_pulse_animation(view: Control) -> void:
 	if view == null:
 		return
 	view.pivot_offset = view.size * 0.5
+	var base_scale := view.scale
 	var tween := create_tween()
-	tween.tween_property(view, "scale", Vector2(1.08, 1.08), 0.15)
-	tween.tween_property(view, "scale", Vector2.ONE, 0.15)
+	tween.tween_property(view, "scale", base_scale * 1.08, 0.15)
+	tween.tween_property(view, "scale", base_scale, 0.15)
 
 ## Gang-blocking (§ user request): any number of legal blockers can be
 ## toggled on before confirming, instead of picking exactly one. Each
@@ -1970,7 +2001,7 @@ func _refresh() -> void:
 	_opponent_info.text = "Health %d | Larva %d/%d | Hand %d" % [
 		ai.health, ai.current_larva, ai.max_larva, ai.hand.size()
 	]
-	_refresh_leader_panel(_opponent_leader_btn, ai.leader.data)
+	_refresh_leader_panel(_opponent_leader_btn, _opponent_leader_view, ai.leader.data)
 	_refresh_pile(_opponent_deck_pile, ai.deck.size())
 	_refresh_pile(_opponent_discard_btn, ai.graveyard.size())
 
@@ -1978,7 +2009,7 @@ func _refresh() -> void:
 		human.health, human.current_larva, human.max_larva,
 		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn"
 	]
-	_refresh_leader_panel(_player_leader_btn, human.leader.data)
+	_refresh_leader_panel(_player_leader_btn, _player_leader_view, human.leader.data)
 	_refresh_pile(_player_deck_pile, human.deck.size())
 	_refresh_pile(_player_discard_btn, human.graveyard.size())
 
@@ -2008,9 +2039,19 @@ func _refresh() -> void:
 
 	# § user request: the Leader highlights whenever an ability is
 	# available, and clicking it (_on_leader_clicked) opens both as buttons
-	# down in the action zone.
+	# down in the action zone. Glowing the zone itself (not _player_leader_btn)
+	# since the always-visible EnlargedCardView now sits on top of that flat
+	# button with an opaque background of its own — a glow added to the
+	# button would render underneath it and never actually be seen. The
+	# glow panel is tagged so it can be found and cleared before adding a
+	# fresh one, since _player_leader_zone (unlike most other card widgets)
+	# is persistent instead of torn down and rebuilt every refresh.
+	for child in _player_leader_zone.get_children():
+		if child.has_meta("_glow"):
+			child.queue_free()
 	if (hero_usable or ultimate_usable) and not _leader_menu_open:
-		CardRenderUtil.add_playable_glow(_player_leader_btn)
+		CardRenderUtil.add_playable_glow(_player_leader_zone)
+		_player_leader_zone.get_child(_player_leader_zone.get_child_count() - 1).set_meta("_glow", true)
 
 	# --- Action zone (§ user request): End Turn by default; Cancel plus
 	# whichever of {Hero Power+Ultimate, Attack Leader} applies to the
@@ -2060,20 +2101,30 @@ func _refresh_pile(container: Control, count: int) -> void:
 	container.add_child(visual)
 	LayoutUtil.fill_parent(visual)
 
-## Restyles the always-visible Leader panel — the same art+name+life-total-
-## badge rendering every hand/board/hive card gets, filling whatever this
-## zone's real proportional size turns out to be (§ LEADER_PANEL_SIZE's old
-## comment: a fixed pixel size here is exactly what caused the last layout
-## bug), with the full card (including Hero Power/Ultimate text) available
-## on hover via the docked preview, exactly like every other card in the
-## game. `btn` is persistent (built once, unlike every other card widget
-## which is torn down and rebuilt each refresh), so its previous
-## decorations are cleared first — but NOT its hover/click wiring, which
-## _build_leader_zone connects exactly once.
-func _refresh_leader_panel(btn: Button, leader_data: LeaderData) -> void:
-	for child in btn.get_children():
-		child.queue_free()
-	CardRenderUtil.style_card_face(btn, leader_data, 0)
+## Uniformly scales+centers an EnlargedCardView to fit `region` — shared by
+## the docked hover-preview and the always-visible Leader panel (§ user
+## request: the Leader should show its full rules text "always... since
+## it's always in that state on the field", not just on hover). Uniform
+## scale rather than stretching keeps everything inside proportional
+## (EnlargedCardView's own internal layout is already anchor/percentage-
+## based, so this is the only transform needed to resize it cleanly).
+func _fit_view_to_region(view: EnlargedCardView, region: Vector2) -> void:
+	var native: Vector2 = EnlargedCardView.SIZE
+	var scale_factor: float = clampf(minf(region.x / native.x, region.y / native.y), 0.1, 4.0)
+	view.scale = Vector2(scale_factor, scale_factor)
+	view.position = (region - native * scale_factor) * 0.5
+
+## Refreshes the always-visible Leader panel's content and fit. `btn`'s own
+## size mirrors the zone's (it fills it — see _build_leader_zone), so it
+## doubles as the "how much room is there" read; LEADER_INFO_HEIGHT is
+## reserved below the card for the live info line, which the card view
+## itself never shows (only the Leader's printed stats).
+func _refresh_leader_panel(btn: Button, view: EnlargedCardView, leader_data: LeaderData) -> void:
+	var tex := CardDatabase.get_illustration_texture(leader_data)
+	view.set_content(leader_data, tex, 0, CardRenderUtil.card_full_text(leader_data), "")
+	var full_zone := _current_zone_size(btn, FALLBACK_LEADER_ZONE_SIZE)
+	var region := Vector2(full_zone.x, maxf(full_zone.y - LEADER_INFO_HEIGHT, 40.0))
+	_fit_view_to_region(view, region)
 
 ## Hover handler for a Leader panel, wired once per side in
 ## _build_leader_zone rather than per-refresh like every other card (the
@@ -2099,16 +2150,10 @@ func _wire_docked_preview(widget: Control, card_data: CardData, tex: Texture2D, 
 ## Shows a card in the docked preview panel, scaled to fill whatever the
 ## panel's real proportional region turns out to be (§ user request: the
 ## preview panel "scale[s] to fill the region") rather than staying a fixed
-## size — EnlargedCardView's own internal layout is all anchor/percentage-
-## based already, so a uniform scale transform on the whole node is enough
-## to resize it without distorting anything inside it.
+## size.
 func _show_docked_preview(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String) -> void:
 	_preview_view.set_content(card_data, tex, cost, bbcode_text, badge_text)
-	var region := _current_zone_size(_preview_dock, FALLBACK_LEADER_ZONE_SIZE)
-	var native: Vector2 = EnlargedCardView.SIZE
-	var scale_factor: float = clampf(minf(region.x / native.x, region.y / native.y), 0.1, 4.0)
-	_preview_view.scale = Vector2(scale_factor, scale_factor)
-	_preview_view.position = (region - native * scale_factor) * 0.5
+	_fit_view_to_region(_preview_view, _current_zone_size(_preview_dock, FALLBACK_LEADER_ZONE_SIZE))
 	_preview_view.visible = true
 
 func _hide_docked_preview() -> void:

@@ -16,8 +16,8 @@ const AI := 1
 ## caused the last layout bug: it didn't adapt to the actual window size)
 ## drive every zone below, so this is genuinely responsive instead of
 ## calibrated-and-hoped for one particular window size.
-const TOP_RATIO := 7.0
-const HUD_RATIO := 3.0
+const TOP_RATIO := 6.0
+const HUD_RATIO := 4.0
 ## Player HUD row, left to right: deck+discard / hand / action buttons.
 const HUD_PILES_RATIO := 2.0
 const HUD_HAND_RATIO := 6.0
@@ -1024,10 +1024,18 @@ func _build_match_view() -> void:
 	# that position every layout pass — and so its effective visibility
 	# rides along with _match_bg's automatically (a hidden parent hides an
 	# otherwise-visible child too) instead of needing to be synced at every
-	# place that shows/hides the match view.
+	# place that shows/hides the match view. z_index is set high (and
+	# z_as_relative, the default, makes it stack on top of _match_bg's own
+	# z_index too) since _match_bg itself is added to the tree BEFORE
+	# _match_view — without an explicit z_index this button, sitting in the
+	# same top-right corner the Action Log panel occupies, silently
+	# rendered underneath that panel's opaque background and was
+	# completely invisible (§ user bug report — "I do not see a button to
+	# close/open the log").
 	_log_toggle_btn = Button.new()
 	_log_toggle_btn.text = "Log"
 	_log_toggle_btn.tooltip_text = "Show/hide the Action Log"
+	_log_toggle_btn.z_index = 100
 	_log_toggle_btn.pressed.connect(_on_log_toggle_pressed)
 	_log_toggle_btn.anchor_left = 1.0
 	_log_toggle_btn.anchor_right = 1.0

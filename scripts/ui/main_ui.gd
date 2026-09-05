@@ -61,17 +61,21 @@ const FALLBACK_PILE_SIZE := Vector2(60, 84)
 const HAND_CARD_ASPECT := 0.72 # width = height * this, matching a real card's proportions
 const HAND_PLAY_LIFT_THRESHOLD := 90.0 # how far above the hand tray's own top edge a card must be dragged before releasing it counts as playing it instead of reordering — "pick up cards and place them in the play area to play them"
 
-## Larva pips (§ user request): a row of icons above the player's hand
-## showing how much Larva is available to spend right now — always at
-## least TurnManager.MAX_LARVA_CAP (10) of them shown empty, filling in as
-## many as the player currently has available (not the printed max — the
-## *available*, i.e. unspent, amount, which drains toward empty over the
-## turn as it's spent and refills to the new max at the start of the next
-## one), and growing past 10 only if some future effect ever pushes max
-## Larva higher than that (nothing does yet). Uses the dedicated hive-cell
-## artwork if present, falling back to a plain drawn circle (same fail-safe
-## pattern as every other optional art asset in this file) if not.
+## Larva pips (§ user request): a floating row per side, overlaid on the
+## seam between that side's play row and HUD row, showing how much Larva
+## is available to spend right now — always at least TurnManager.MAX_LARVA_CAP
+## (10) of them shown empty, filling in as many as the player currently has
+## available (not the printed max — the *available*, i.e. unspent, amount,
+## which drains toward empty over the turn as it's spent and refills to the
+## new max at the start of the next one), and growing past 10 only if some
+## future effect ever pushes max Larva higher than that (nothing does yet).
+## Uses the dedicated hive-cell artwork if present, falling back to a plain
+## drawn circle (same fail-safe pattern as every other optional art asset
+## in this file) if not. Negative separation (§ user request: "make them
+## much closer together") is safe here because the artwork's actual ring is
+## a good deal smaller than its full transparent-padded canvas.
 const LARVA_PIP_SIZE := Vector2(96, 96)
+const LARVA_PIP_SEPARATION := -30
 const LARVA_PIP_EMPTY_PATH := "res://art/ui/panels/Empty_Larva.png"
 const LARVA_PIP_FILLED_PATH := "res://art/ui/panels/Filled_Larva.png"
 
@@ -1154,16 +1158,6 @@ func _build_match_view() -> void:
 	_battlefield_root.add_child(opponent_hud)
 	_build_hud_row(opponent_hud, false)
 
-	# § user request (follow-up): the Larva pip row sits "on the line
-	# between the top and bottom section" for EACH side, horizontally
-	# centered across the whole battlefield — not confined to just the hand
-	# column above it, and not player-only. For the opponent (whose HUD is
-	# mirrored to the top edge) that seam is right here, between their HUD
-	# and their play row; for the player it's the mirror image, between
-	# their play row and their HUD (see below).
-	_opponent_larva_row = _build_larva_row()
-	_battlefield_root.add_child(_opponent_larva_row)
-
 	var opponent_play := HBoxContainer.new()
 	opponent_play.add_theme_constant_override("separation", 8)
 	_stretch_v(opponent_play, TOP_RATIO)
@@ -1176,14 +1170,24 @@ func _build_match_view() -> void:
 	_battlefield_root.add_child(player_play)
 	_build_play_row(player_play, true)
 
-	_player_larva_row = _build_larva_row()
-	_battlefield_root.add_child(_player_larva_row)
-
 	var player_hud := HBoxContainer.new()
 	player_hud.add_theme_constant_override("separation", 8)
 	_stretch_v(player_hud, HUD_RATIO)
 	_battlefield_root.add_child(player_hud)
 	_build_hud_row(player_hud, true)
+
+	# § user request (follow-up): the Larva pips shouldn't occupy a row in
+	# the layout grid at all ("should not interact with the areas and take
+	# up any space in that grid") — they now float on top of everything
+	# instead (anchored to _match_bg, a plain Control the VBox/HBox layout
+	# containers above can't fight, same reason CardPreviewOverlay-style
+	# widgets always parent there instead of into a Container), positioned
+	# at the same seam between each side's play/HUD rows as before, purely
+	# via anchor fractions computed from the ratio constants so they track
+	# the layout if those ever change. mouse_filter IGNORE (row and every
+	# pip) so they never intercept clicks meant for whatever's underneath.
+	_opponent_larva_row = _build_larva_overlay_row(HUD_RATIO / (2.0 * (TOP_RATIO + HUD_RATIO)))
+	_player_larva_row = _build_larva_overlay_row(1.0 - HUD_RATIO / (2.0 * (TOP_RATIO + HUD_RATIO)))
 
 	_build_log_panel()
 	_build_pause_menu()
@@ -1194,17 +1198,32 @@ func _build_match_view() -> void:
 	_build_discard_popup()
 	_build_game_over_popup()
 
-## A thin, fixed-height, horizontally-centered strip for one side's Larva
-## pips (§ user request — "on the line between the top and bottom section
-## ... horizontally centered for both players"): a plain sibling row of
-## _battlefield_root rather than nested in either the play or HUD row, so
-## it spans and centers across the FULL battlefield width regardless of
-## either row's own internal column layout.
-func _build_larva_row() -> HBoxContainer:
+## A floating, horizontally-centered strip for one side's Larva pips (§
+## user request — "on the line between the top and bottom section...
+## horizontally centered for both players", then a follow-up: "should not
+## interact with the areas and take up any space in that grid, they should
+## exist on top of everything else"): anchored into `_match_bg` (a plain
+## Control, not a layout Container — see CardPreviewOverlay-style widgets
+## elsewhere for why) at `y_frac` of the full battlefield height instead of
+## being a sibling row inside `_battlefield_root`, so it neither reserves
+## nor is resized by any of that VBox's own layout math. `y_frac` is a
+## fraction of the full height (0 = top edge, 1 = bottom edge) — the seam
+## between a side's play row and HUD row, computed from the same
+## TOP_RATIO/HUD_RATIO stretch ratios those rows use, so this keeps
+## tracking the seam if those ratios ever change.
+func _build_larva_overlay_row(y_frac: float) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 4)
-	row.custom_minimum_size = Vector2(0, LARVA_PIP_SIZE.y + 4.0)
+	row.add_theme_constant_override("separation", LARVA_PIP_SEPARATION)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.z_index = 100
+	row.anchor_left = 0.0
+	row.anchor_right = 1.0
+	row.anchor_top = y_frac
+	row.anchor_bottom = y_frac
+	row.offset_top = -(LARVA_PIP_SIZE.y * 0.5 + 2.0)
+	row.offset_bottom = LARVA_PIP_SIZE.y * 0.5 + 2.0
+	_match_bg.add_child(row)
 	return row
 
 ## One side's HUD strip (§ user request), left to right: deck+discard piles
@@ -2247,10 +2266,13 @@ func _refresh_pile(container: Control, count: int) -> void:
 	LayoutUtil.fill_parent(visual)
 
 ## Rebuilds one side's Larva-pip row (§ LARVA_PIP_SIZE's own comment, and §
-## _build_larva_row's — this now runs for both `_player_larva_row` and
-## `_opponent_larva_row`) — `current` of the pips are filled (available to
-## spend right now), the rest of the row (always at least MAX_LARVA_CAP,
-## more if `max_larva` itself is ever pushed higher) are left empty.
+## _build_larva_overlay_row's — this now runs for both `_player_larva_row`
+## and `_opponent_larva_row`) — `current` of the pips are filled (available
+## to spend right now), the rest of the row (always at least MAX_LARVA_CAP,
+## more if `max_larva` itself is ever pushed higher) are left empty. Every
+## pip ignores the mouse (§ user request — the row floats on top of
+## everything else now and "should not interact with the areas"), same as
+## the row itself.
 func _refresh_larva_pips(row: HBoxContainer, current: int, max_larva: int) -> void:
 	for child in row.get_children():
 		child.queue_free()
@@ -2264,10 +2286,12 @@ func _refresh_larva_pips(row: HBoxContainer, current: int, max_larva: int) -> vo
 			pip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			pip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			pip.custom_minimum_size = LARVA_PIP_SIZE
+			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			row.add_child(pip)
 		else:
 			var panel := Panel.new()
 			panel.custom_minimum_size = LARVA_PIP_SIZE
+			panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			var style := StyleBoxFlat.new()
 			style.set_corner_radius_all(int(LARVA_PIP_SIZE.x / 2.0))
 			style.border_color = Color(0.75, 0.6, 0.95)

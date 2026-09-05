@@ -61,21 +61,33 @@ const FALLBACK_PILE_SIZE := Vector2(60, 84)
 const HAND_CARD_ASPECT := 0.72 # width = height * this, matching a real card's proportions
 const HAND_PLAY_LIFT_THRESHOLD := 90.0 # how far above the hand tray's own top edge a card must be dragged before releasing it counts as playing it instead of reordering — "pick up cards and place them in the play area to play them"
 
-## Larva pips (§ user request): a floating row per side, overlaid on the
-## seam between that side's play row and HUD row, showing how much Larva
-## is available to spend right now — always at least TurnManager.MAX_LARVA_CAP
-## (10) of them shown empty, filling in as many as the player currently has
-## available (not the printed max — the *available*, i.e. unspent, amount,
-## which drains toward empty over the turn as it's spent and refills to the
-## new max at the start of the next one), and growing past 10 only if some
-## future effect ever pushes max Larva higher than that (nothing does yet).
-## Uses the dedicated hive-cell artwork if present, falling back to a plain
-## drawn circle (same fail-safe pattern as every other optional art asset
-## in this file) if not. Negative separation (§ user request: "make them
-## much closer together") is safe here because the artwork's actual ring is
-## a good deal smaller than its full transparent-padded canvas.
+## Larva pips (§ user request): a floating column per side, positioned
+## beside that side's Leader/discard pile (see _build_larva_overlay_column
+## and _refresh_larva_pips), showing how much Larva is available to spend
+## right now — always at least TurnManager.MAX_LARVA_CAP (10) of them shown
+## empty, filling in as many as the player currently has available (not the
+## printed max — the *available*, i.e. unspent, amount, which drains toward
+## empty over the turn as it's spent and refills to the new max at the
+## start of the next one), and growing past 10 only if some future effect
+## ever pushes max Larva higher than that (nothing does yet). Uses the
+## dedicated hive-cell artwork if present, falling back to a plain drawn
+## circle (same fail-safe pattern as every other optional art asset in this
+## file) if not.
 const LARVA_PIP_SIZE := Vector2(96, 96)
-const LARVA_PIP_SEPARATION := -30
+## Gap between the pip column and the Leader zone it's positioned beside.
+const LARVA_COLUMN_GAP := 8.0
+## The column's own BoxContainer separation is computed fresh each refresh
+## to exactly fit however many pips there are into that side's available
+## height — the vertical span between its Leader zone and discard pile (see
+## _refresh_larva_pips) — these just bound how far that computation is
+## allowed to go: never spread out further apart than LARVA_PIP_SEPARATION_MAX
+## (§ user request: "make them much closer together" — keep them at least
+## that close even when there's room to spare) and never overlap tighter
+## than LARVA_PIP_SEPARATION_MIN (so a very large pip count still reads as
+## separate icons instead of a single blob — real overflow past that floor
+## is what clip_contents is for).
+const LARVA_PIP_SEPARATION_MAX := -30.0
+const LARVA_PIP_SEPARATION_MIN := -72.0
 const LARVA_PIP_EMPTY_PATH := "res://art/ui/panels/Empty_Larva.png"
 const LARVA_PIP_FILLED_PATH := "res://art/ui/panels/Filled_Larva.png"
 
@@ -135,19 +147,20 @@ var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
 var _opponent_board_zone: Control # the play-area's own zone Control, read for its real width when sizing creature cards
 var _opponent_hand: Control
-var _opponent_larva_row: HBoxContainer
+var _opponent_larva_row: VBoxContainer
 var _opponent_leader_btn: Button
 var _opponent_leader_view: EnlargedCardView
+var _opponent_leader_zone: Control # read for its real position when placing the Larva column beside it — see _refresh_larva_pips
 var _opponent_deck_pile: Control
 var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
 var _player_board_zone: Control
 var _player_hand: Control
-var _player_larva_row: HBoxContainer
+var _player_larva_row: VBoxContainer
 var _player_leader_btn: Button
 var _player_leader_view: EnlargedCardView
-var _player_leader_zone: Control # glowed as a whole when an ability is usable — see _refresh's own comment for why not _player_leader_btn
+var _player_leader_zone: Control # the button+view's shared parent, read for its real size when fitting the view — see _refresh_leader_panel
 var _player_deck_pile: Control
 var _player_discard_btn: Button
 var _discard_popup: PanelContainer
@@ -1176,18 +1189,18 @@ func _build_match_view() -> void:
 	_battlefield_root.add_child(player_hud)
 	_build_hud_row(player_hud, true)
 
-	# § user request (follow-up): the Larva pips shouldn't occupy a row in
+	# § user request (follow-up): the Larva pips shouldn't occupy space in
 	# the layout grid at all ("should not interact with the areas and take
-	# up any space in that grid") — they now float on top of everything
-	# instead (anchored to _match_bg, a plain Control the VBox/HBox layout
+	# up any space in that grid") — they float on top of everything instead
+	# (anchored to _match_bg, a plain Control the VBox/HBox layout
 	# containers above can't fight, same reason CardPreviewOverlay-style
-	# widgets always parent there instead of into a Container), positioned
-	# at the same seam between each side's play/HUD rows as before, purely
-	# via anchor fractions computed from the ratio constants so they track
-	# the layout if those ever change. mouse_filter IGNORE (row and every
-	# pip) so they never intercept clicks meant for whatever's underneath.
-	_opponent_larva_row = _build_larva_overlay_row(HUD_RATIO / (2.0 * (TOP_RATIO + HUD_RATIO)))
-	_player_larva_row = _build_larva_overlay_row(1.0 - HUD_RATIO / (2.0 * (TOP_RATIO + HUD_RATIO)))
+	# widgets always parent there instead of into a Container). A further
+	# follow-up moved them from a full-width horizontal strip on the
+	# play/HUD seam to a vertical column "just to the right of the discard
+	# pile, going upwards... do not go into the other player's side" — see
+	# _build_larva_overlay_column's own comment.
+	_opponent_larva_row = _build_larva_overlay_column(false)
+	_player_larva_row = _build_larva_overlay_column(true)
 
 	_build_log_panel()
 	_build_pause_menu()
@@ -1198,33 +1211,29 @@ func _build_match_view() -> void:
 	_build_discard_popup()
 	_build_game_over_popup()
 
-## A floating, horizontally-centered strip for one side's Larva pips (§
-## user request — "on the line between the top and bottom section...
-## horizontally centered for both players", then a follow-up: "should not
-## interact with the areas and take up any space in that grid, they should
-## exist on top of everything else"): anchored into `_match_bg` (a plain
-## Control, not a layout Container — see CardPreviewOverlay-style widgets
-## elsewhere for why) at `y_frac` of the full battlefield height instead of
-## being a sibling row inside `_battlefield_root`, so it neither reserves
-## nor is resized by any of that VBox's own layout math. `y_frac` is a
-## fraction of the full height (0 = top edge, 1 = bottom edge) — the seam
-## between a side's play row and HUD row, computed from the same
-## TOP_RATIO/HUD_RATIO stretch ratios those rows use, so this keeps
-## tracking the seam if those ratios ever change.
-func _build_larva_overlay_row(y_frac: float) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", LARVA_PIP_SEPARATION)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.z_index = 100
-	row.anchor_left = 0.0
-	row.anchor_right = 1.0
-	row.anchor_top = y_frac
-	row.anchor_bottom = y_frac
-	row.offset_top = -(LARVA_PIP_SIZE.y * 0.5 + 2.0)
-	row.offset_bottom = LARVA_PIP_SIZE.y * 0.5 + 2.0
-	_match_bg.add_child(row)
-	return row
+## A floating vertical column of one side's Larva pips (§ user request,
+## through several follow-ups — final form: "directly next to the leader
+## and discard pile... the opponent's larva column should be on the left
+## side of the leader not the right side") — a plain VBoxContainer parented
+## into `_match_bg` (a plain Control, not a layout Container, so nothing
+## here fights the VBox/HBox layout above — same reason CardPreviewOverlay-
+## style widgets elsewhere always parent there too) with no anchors set, so
+## its position/size are entirely manual — computed fresh every refresh in
+## _refresh_larva_pips from the real, already-laid-out rects of that side's
+## Leader zone and discard pile (see its own comment for why), not from any
+## ratio math here. `alignment` only needs setting once: END packs the
+## pips flush against the BOTTOM of whatever rect gets assigned each
+## refresh (the player's discard pile sits below their Leader), BEGIN packs
+## them flush against the TOP (the opponent's discard pile sits above
+## theirs, mirrored).
+func _build_larva_overlay_column(is_player: bool) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.z_index = 100
+	col.clip_contents = true
+	col.alignment = BoxContainer.ALIGNMENT_END if is_player else BoxContainer.ALIGNMENT_BEGIN
+	_match_bg.add_child(col)
+	return col
 
 ## One side's HUD strip (§ user request), left to right: deck+discard piles
 ## / hand / action buttons for the player; mirrored on both axes for the
@@ -1403,6 +1412,7 @@ func _build_leader_zone(is_player: bool) -> Control:
 	else:
 		_opponent_leader_btn = leader_btn
 		_opponent_leader_view = leader_view
+		_opponent_leader_zone = zone
 	leader_btn.mouse_entered.connect(_show_leader_preview.bind(is_player))
 	leader_btn.mouse_exited.connect(_hide_docked_preview)
 	return zone
@@ -2181,8 +2191,8 @@ func _refresh() -> void:
 	_render_hive_row(_player_hive, human.hive_zone, true)
 	_render_hand()
 	_render_opponent_hand()
-	_refresh_larva_pips(_player_larva_row, human.current_larva, human.max_larva)
-	_refresh_larva_pips(_opponent_larva_row, ai.current_larva, ai.max_larva)
+	_refresh_larva_pips(_player_larva_row, human.current_larva, human.max_larva, true)
+	_refresh_larva_pips(_opponent_larva_row, ai.current_larva, ai.max_larva, false)
 
 	var can_act := GameState.active_player_index == HUMAN and not _busy and not GameState.is_over
 	var targeting := _selected_hand_index != -1 or _pending_power_kind != ""
@@ -2203,19 +2213,28 @@ func _refresh() -> void:
 
 	# § user request: the Leader highlights whenever an ability is
 	# available, and clicking it (_on_leader_clicked) opens both as buttons
-	# down in the action zone. Glowing the zone itself (not _player_leader_btn)
-	# since the always-visible EnlargedCardView now sits on top of that flat
-	# button with an opaque background of its own — a glow added to the
-	# button would render underneath it and never actually be seen. The
+	# down in the action zone. Glowing _player_leader_view itself (not the
+	# zone, and not _player_leader_btn) — the view is fit-scaled to however
+	# much of the zone's rectangle its own aspect ratio actually fills (see
+	# _fit_view_to_region), so glowing the zone highlighted that whole
+	# rectangle, letterbox space and all, rather than just the card (§ user
+	# report: "just the leader should highlight, not the entire area"). A
+	# glow added as a CHILD of the view inherits the view's own
+	# position/scale transform, so it tracks the card's actual on-screen
+	# bounds exactly regardless of the fit scale — and it renders on top of
+	# the view's own content (bg/art/text) since it's appended after those
+	# already-built children, avoiding the button/glow draw-order problem a
+	# glow at the button level would hit instead (the opaque EnlargedCardView
+	# sits on top of that flat button, hiding anything drawn behind it). The
 	# glow panel is tagged so it can be found and cleared before adding a
-	# fresh one, since _player_leader_zone (unlike most other card widgets)
+	# fresh one, since _player_leader_view (unlike most other card widgets)
 	# is persistent instead of torn down and rebuilt every refresh.
-	for child in _player_leader_zone.get_children():
+	for child in _player_leader_view.get_children():
 		if child.has_meta("_glow"):
 			child.queue_free()
 	if (hero_usable or ultimate_usable) and not _leader_menu_open:
-		CardRenderUtil.add_playable_glow(_player_leader_zone)
-		_player_leader_zone.get_child(_player_leader_zone.get_child_count() - 1).set_meta("_glow", true)
+		CardRenderUtil.add_playable_glow(_player_leader_view)
+		_player_leader_view.get_child(_player_leader_view.get_child_count() - 1).set_meta("_glow", true)
 
 	# --- Action zone (§ user request): End Turn by default; Cancel plus
 	# whichever of {Hero Power+Ultimate, Attack Leader} applies to the
@@ -2265,20 +2284,67 @@ func _refresh_pile(container: Control, count: int) -> void:
 	container.add_child(visual)
 	LayoutUtil.fill_parent(visual)
 
-## Rebuilds one side's Larva-pip row (§ LARVA_PIP_SIZE's own comment, and §
-## _build_larva_overlay_row's — this now runs for both `_player_larva_row`
-## and `_opponent_larva_row`) — `current` of the pips are filled (available
-## to spend right now), the rest of the row (always at least MAX_LARVA_CAP,
-## more if `max_larva` itself is ever pushed higher) are left empty. Every
-## pip ignores the mouse (§ user request — the row floats on top of
-## everything else now and "should not interact with the areas"), same as
-## the row itself.
-func _refresh_larva_pips(row: HBoxContainer, current: int, max_larva: int) -> void:
+## Rebuilds and repositions one side's Larva-pip column (§ LARVA_PIP_SIZE's
+## own comment, and § _build_larva_overlay_column's — this now runs for
+## both `_player_larva_row` and `_opponent_larva_row`) — `current` of the
+## pips are filled (available to spend right now), the rest of the column
+## (always at least MAX_LARVA_CAP, more if `max_larva` itself is ever
+## pushed higher) are left empty. Every pip ignores the mouse (§ user
+## request — the column floats on top of everything else and "should not
+## interact with the areas"), same as the column itself.
+##
+## Position (§ user request: "directly next to the leader and discard
+## pile... the opponent's larva column should be on the left side of the
+## leader not the right side") is computed fresh every refresh from the
+## real, already-laid-out rects of that side's Leader zone and discard
+## pile — not from ratio math against the full window, which doesn't
+## account for the Action Log panel narrowing the actual battlefield width
+## when it's open. The column's vertical span is the union of those two
+## rects (Leader zone above discard pile for the player, discard pile above
+## Leader zone for the mirrored opponent), which is always entirely within
+## that side's own half of the battlefield by construction — no separate
+## "don't cross into the other side" check needed. `is_player` decides
+## which side of that span the column sits on (right for the player, left
+## for the opponent) and which pip ends up nearest the discard pile: pip 0
+## is added LAST for the player so it lands flush against the bottom of the
+## packed group (ALIGNMENT_END, discard sits below the Leader there), and
+## FIRST for the opponent so it lands flush against the top (ALIGNMENT_BEGIN,
+## discard sits above the Leader there, mirrored).
+func _refresh_larva_pips(row: VBoxContainer, current: int, max_larva: int, is_player: bool) -> void:
+	# remove_child (not just queue_free, which only detaches at end of
+	# frame) so a pip about to be freed can never still count toward this
+	# Container's own minimum-size calculation during a same-frame rebuild
+	# — GameLog entries can trigger several refreshes per frame during
+	# setup, and a stale pip surviving into that calculation was inflating
+	# row's forced minimum size (and clamping the .size set below upward
+	# with it) well past what the current pip count actually needs.
 	for child in row.get_children():
+		row.remove_child(child)
 		child.queue_free()
 	var total := maxi(TurnManager.MAX_LARVA_CAP, max_larva)
+
+	var leader_zone: Control = _player_leader_zone if is_player else _opponent_leader_zone
+	var discard_btn: Control = _player_discard_btn if is_player else _opponent_discard_btn
+	var leader_rect := leader_zone.get_global_rect()
+	var discard_rect := discard_btn.get_global_rect()
+	var top_y := minf(leader_rect.position.y, discard_rect.position.y)
+	var bottom_y := maxf(leader_rect.position.y + leader_rect.size.y, discard_rect.position.y + discard_rect.size.y)
+	var available_height := bottom_y - top_y
+	var x := leader_rect.position.x + leader_rect.size.x + LARVA_COLUMN_GAP if is_player \
+		else leader_rect.position.x - LARVA_COLUMN_GAP - LARVA_PIP_SIZE.x
+	row.position = Vector2(x, top_y)
+	row.size = Vector2(LARVA_PIP_SIZE.x, available_height)
+
+	var separation := LARVA_PIP_SEPARATION_MAX
+	if total > 1:
+		var fit_separation := (available_height - LARVA_PIP_SIZE.y) / float(total - 1) - LARVA_PIP_SIZE.y
+		separation = clampf(fit_separation, LARVA_PIP_SEPARATION_MIN, LARVA_PIP_SEPARATION_MAX)
+	row.add_theme_constant_override("separation", int(separation))
 	var have_art := ResourceLoader.exists(LARVA_PIP_EMPTY_PATH) and ResourceLoader.exists(LARVA_PIP_FILLED_PATH)
-	for i in range(total):
+	var indices: Array = range(total)
+	if is_player:
+		indices.reverse()
+	for i: int in indices:
 		var filled := i < current
 		if have_art:
 			var pip := TextureRect.new()

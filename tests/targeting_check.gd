@@ -105,7 +105,11 @@ func _ready() -> void:
 	GameLog.log("test event to trigger a mid-turn refresh", "system")
 	for i in range(2):
 		await get_tree().process_frame
-	_check(main._opponent_board.get_child_count() == ai.board.size() + 1, "Any GameLog entry immediately refreshes the opponent board (+1 for the 'Attack Leader' button), not just at turn start/end")
+	# § the "Attack Leader" button used to be appended directly inside this
+	# row (hence the historical +1 here); it now lives in the action zone
+	# instead (§ user request: a single contextual button area), so the
+	# board row holds exactly one widget per creature.
+	_check(main._opponent_board.get_child_count() == ai.board.size(), "Any GameLog entry immediately refreshes the opponent board, not just at turn start/end")
 
 	# --- The block popup shows the attacker's own attack/health (§ user request) ---
 	var big_attacker := CardDatabase.create_instance("apex_bloodhunter", 1) # 10/6

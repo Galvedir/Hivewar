@@ -8,32 +8,58 @@ extends Control
 const HUMAN := 0
 const AI := 1
 
-## Battlefield HUD zone sizing (§ user request — MTG-Arena-style layout):
-## the deck/discard pile art, and the width reserved for the Hive zone
-## (non-creature permanents that stick to the field) when it isn't empty.
-const PILE_SIZE := Vector2(60, 84)
-const HIVE_ZONE_WIDTH := 190
+## Battlefield layout (§ user request — an exact percentage spec, mirrored
+## for the opponent): each side's own area splits vertically into a play
+## row (leader/board/hive, TOP_RATIO share) and a HUD row (deck+discard/
+## hand/action-buttons, HUD_RATIO share); BoxContainer stretch ratios (not
+## fixed pixel sizes — the earlier fixed-size Leader panel is exactly what
+## caused the last layout bug: it didn't adapt to the actual window size)
+## drive every zone below, so this is genuinely responsive instead of
+## calibrated-and-hoped for one particular window size.
+const TOP_RATIO := 7.0
+const HUD_RATIO := 3.0
+## Player HUD row, left to right: deck+discard / hand / action buttons.
+const HUD_PILES_RATIO := 2.0
+const HUD_HAND_RATIO := 6.0
+const HUD_ACTIONS_RATIO := 2.0
+## Player play row, left to right: Leader / play area / card preview.
+const PLAY_LEADER_RATIO := 2.0
+const PLAY_BOARD_RATIO := 6.0
+const PLAY_PREVIEW_RATIO := 2.0
+## Play area itself, left to right: creatures / Hive (non-creature
+## permanents that stick to the field) — hidden entirely, freeing its
+## share back to the creature zone, whenever Hive is empty.
+const BOARD_CREATURES_RATIO := 8.0
+const BOARD_HIVE_RATIO := 2.0
+## The opponent's HUD/play rows are mirrored on BOTH axes (§ user request:
+## "as though I am sitting across from them") — not just top-to-bottom but
+## left-to-right too — and drop the preview/action-button columns entirely
+## (§ user request — those only ever matter for the player's own
+## interaction, even in future multiplayer), with hand/play area
+## absorbing that freed share instead of leaving it blank.
+const OPP_HUD_HAND_RATIO := HUD_HAND_RATIO + HUD_ACTIONS_RATIO
+const OPP_HUD_PILES_RATIO := HUD_PILES_RATIO
+const OPP_PLAY_BOARD_RATIO := PLAY_BOARD_RATIO + PLAY_PREVIEW_RATIO
+const OPP_PLAY_LEADER_RATIO := PLAY_LEADER_RATIO
 
-## The always-visible Leader panel's size (§ user request: "the leader card
-## should always be shown... enlarged state"). Deliberately NOT the full
-## 260x340 hover-preview size (EnlargedCardView.SIZE): two of those stacked
-## vertically, plus the board rows, plus the hand tray, comfortably
-## exceeded any real window height and pushed the hand tray off-screen
-## entirely (§ user bug report — "I cannot see my hand of cards"). This is
-## the same style_card_face rendering every other card uses, just bigger
-## than a hand/board card — the full card (art, name, life total, Hero
-## Power/Ultimate text) is still one hover away, exactly like every other
-## card already works.
-const LEADER_PANEL_SIZE := Vector2(125, 140)
+## Creature card sizing (§ user request: "current sizes... seems ok, we can
+## start to shrink them if we get too many... so they can all still be
+## shown"): natural size used whenever everything fits; shrinks toward the
+## floor as more creatures need to fit in the same space, then (below the
+## floor) falls back to the board's existing horizontal scrolling instead
+## of shrinking further.
+const CREATURE_CARD_NATURAL_SIZE := Vector2(150, 150)
+const CREATURE_CARD_MIN_SIZE := Vector2(80, 80)
+const CREATURE_ROW_SPACING := 6.0
 
-## Hand tray sizing (§ user request: cards "fanned out at the bottom" of
-## the screen). HAND_PLAY_LIFT_THRESHOLD is how far above the tray's own
-## top edge a card has to be dragged before releasing it counts as playing
-## it instead of just reordering it within the hand — "pick up cards and
-## place them in the play area to play them".
-const HAND_CARD_SIZE := Vector2(140, 195)
-const HAND_TRAY_HEIGHT := 210
-const HAND_PLAY_LIFT_THRESHOLD := 90.0
+## Fallback sizes used only before the real layout has ever run a pass
+## (so an actual Control's .size is still zero) — every zone otherwise
+## sizes itself from its own real, already-laid-out dimensions.
+const FALLBACK_HAND_ZONE_SIZE := Vector2(900, 190)
+const FALLBACK_LEADER_ZONE_SIZE := Vector2(180, 260)
+const FALLBACK_PILE_SIZE := Vector2(60, 84)
+const HAND_CARD_ASPECT := 0.72 # width = height * this, matching a real card's proportions
+const HAND_PLAY_LIFT_THRESHOLD := 90.0 # how far above the hand tray's own top edge a card must be dragged before releasing it counts as playing it instead of reordering — "pick up cards and place them in the play area to play them"
 
 ## Effect ids that need a chosen creature target rather than an auto-pick,
 ## and which side of the board is legal to click for each (§ user request:
@@ -83,16 +109,21 @@ var _deck_builder_return_target: Control # whichever screen was open before Deck
 var _collection_return_target: Control # whichever screen was open before Collection — main menu or Practice
 var _match_view: HBoxContainer
 var _match_bg: ColorRect
-var _match_root: VBoxContainer
+var _battlefield_root: VBoxContainer
+var _log_panel: PanelContainer
+var _log_toggle_btn: Button
 var _log_display: RichTextLabel
 var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
+var _opponent_board_zone: Control # the play-area's own zone Control, read for its real width when sizing creature cards
+var _opponent_hand: Control
 var _opponent_info: Label
 var _opponent_leader_btn: Button
 var _opponent_deck_pile: Control
 var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
+var _player_board_zone: Control
 var _player_hand: Control
 var _player_info: Label
 var _player_leader_btn: Button
@@ -105,6 +136,7 @@ var _hero_power_btn: Button
 var _ultimate_btn: Button
 var _end_turn_btn: Button
 var _cancel_btn: Button
+var _attack_leader_btn: Button
 var _block_popup: PanelContainer
 var _block_popup_box: VBoxContainer
 var _attack_confirm_popup: PanelContainer
@@ -115,8 +147,20 @@ var _legend_popup: PanelContainer
 var _legend_popup_box: VBoxContainer
 var _game_over_popup: PanelContainer
 var _game_over_label: Label
-var _card_preview_overlay: CardPreviewOverlay
+## The card-preview panel (§ user request: "instead of showing it near the
+## card you are hovering over") — docked in a fixed region of the player's
+## own play row (see PLAY_PREVIEW_RATIO) instead of floating near whatever
+## was hovered. Every hoverable card (either side's) routes here now, so
+## CardPreviewOverlay's floating-popup behavior is unused in the match view
+## (Collection/Deck Builder still use it as before — this is match-view-only).
+var _preview_dock: Control
+var _preview_view: EnlargedCardView
 
+## § user request: clicking the Leader (when a Hero Power/Ultimate is
+## available) opens both as buttons in the action zone (only the actually-
+## usable one clickable) plus a Cancel there to back out — see
+## _on_leader_clicked/_on_cancel_pressed.
+var _leader_menu_open := false
 var _selected_hand_index := -1
 var _selected_attacker_id := -1
 var _pending_attack_target = null # null / "leader" / CardInstance — awaiting the attack-confirm popup
@@ -189,10 +233,10 @@ func _ready() -> void:
 	_match_view.visible = false
 	_match_bg.visible = false
 
-	# Added directly to self (a plain Control, not a Container) so its
-	# manually-set global_position isn't fought by a Container layout pass.
-	_card_preview_overlay = CardPreviewOverlay.new()
-	add_child(_card_preview_overlay)
+	# § note: the match view no longer uses a floating CardPreviewOverlay —
+	# every hoverable card there routes into the docked preview panel
+	# instead (see _preview_dock/_preview_view, built in _build_play_row).
+	# CardPreviewOverlay itself is still used by Collection/Deck Builder.
 
 	_deck_builder = DeckBuilderUI.new()
 	_deck_builder.visible = false
@@ -925,7 +969,7 @@ func _show_loading_screen() -> void:
 func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
 	_practice_screen.visible = false
 	_main_menu.visible = false # defensive — normally already hidden by the Practice-screen navigation that got here, but a match should never show the menu bleeding through regardless of how it was reached
-	_card_preview_overlay.hide_preview()
+	_hide_docked_preview()
 	await _show_loading_screen()
 	_match_view.visible = true
 	_match_bg.visible = true
@@ -942,13 +986,27 @@ func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
 
 ## --- Match view scaffolding --------------------------------------------------
 
+func _stretch_h(c: Control, ratio: float) -> void:
+	c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c.size_flags_stretch_ratio = ratio
+
+func _stretch_v(c: Control, ratio: float) -> void:
+	c.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	c.size_flags_stretch_ratio = ratio
+
+## `.size` before a Control has ever been through a real layout pass reads
+## as (0,0) — this is the fallback used everywhere a zone's own current
+## size drives how something inside it is sized (piles, hand cards, Leader
+## preview scale, creature shrink-to-fit).
+func _current_zone_size(zone: Control, fallback: Vector2) -> Vector2:
+	var s: Vector2 = zone.size
+	return Vector2(s.x if s.x > 1.0 else fallback.x, s.y if s.y > 1.0 else fallback.y)
+
 func _build_match_view() -> void:
 	# An opaque battlefield background (§ user bug report — the main menu
 	# was visible bleeding through the match view wherever no widget
 	# happened to cover that exact pixel, since the layout containers
-	# themselves are fully transparent) — kept in sync with _match_view's
-	# own visibility below rather than depending on every part of the
-	# layout perfectly tiling the screen.
+	# themselves are fully transparent).
 	_match_bg = ColorRect.new()
 	_match_bg.color = Color(0.08, 0.08, 0.1)
 	_match_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -956,73 +1014,68 @@ func _build_match_view() -> void:
 	LayoutUtil.fill_parent(_match_bg)
 	add_child(_match_bg)
 
-	_match_root = VBoxContainer.new()
+	# § user request: a toggle to collapse the Action Log so it can reclaim
+	# the battlefield's width. A child of _match_bg (a plain Control, not a
+	# Container) rather than of _match_view itself specifically so it can
+	# sit at a fixed screen corner via anchors without a Container fighting
+	# that position every layout pass — and so its effective visibility
+	# rides along with _match_bg's automatically (a hidden parent hides an
+	# otherwise-visible child too) instead of needing to be synced at every
+	# place that shows/hides the match view.
+	_log_toggle_btn = Button.new()
+	_log_toggle_btn.text = "Log"
+	_log_toggle_btn.tooltip_text = "Show/hide the Action Log"
+	_log_toggle_btn.pressed.connect(_on_log_toggle_pressed)
+	_log_toggle_btn.anchor_left = 1.0
+	_log_toggle_btn.anchor_right = 1.0
+	_log_toggle_btn.offset_left = -70.0
+	_log_toggle_btn.offset_right = -8.0
+	_log_toggle_btn.offset_top = 8.0
+	_log_toggle_btn.offset_bottom = 36.0
+	_match_bg.add_child(_log_toggle_btn)
+
+	_battlefield_root = VBoxContainer.new()
 	_match_view = HBoxContainer.new()
 	LayoutUtil.fill_parent(_match_view)
 	_match_view.add_theme_constant_override("separation", 10)
 	add_child(_match_view)
 
-	_match_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_match_root.add_theme_constant_override("separation", 8)
-	_match_view.add_child(_match_root)
+	_stretch_h(_battlefield_root, 1.0)
+	_battlefield_root.add_theme_constant_override("separation", 4)
+	_match_view.add_child(_battlefield_root)
 
-	# Opponent battlefield row (§ user request — MTG-Arena-style zones):
-	# identity (Leader, always shown enlarged, + deck/discard piles) on the
-	# left, creatures front-and-center (expands to fill remaining space),
-	# permanents that stick to the field but aren't creatures (Hive) in
-	# their own area to the right — hidden entirely, freeing its space back
-	# to the creature zone, whenever it's empty (see _render_hive_row).
-	var opponent_row := HBoxContainer.new()
-	opponent_row.add_theme_constant_override("separation", 8)
-	_match_root.add_child(opponent_row)
-	opponent_row.add_child(_build_identity_cluster(false))
-	_opponent_board = _make_scrolling_row(200, 0, true)
-	opponent_row.add_child(_opponent_board.get_parent())
-	_opponent_hive = _make_scrolling_row(200, HIVE_ZONE_WIDTH, false)
-	opponent_row.add_child(_opponent_hive.get_parent())
+	# § user request — an exact percentage spec, mirrored on BOTH axes for
+	# the opponent ("as though I am sitting across from them... except I
+	# should still be able to read their stuff" — positions mirror, but
+	# nothing is actually rendered upside down): reading top to bottom,
+	# the opponent's HUD strip sits at the very top edge (mirroring the
+	# player's, which sits at the very bottom edge), then the opponent's
+	# play row, then the player's play row, then the player's HUD strip —
+	# so the two play rows meet in the screen's vertical middle and the two
+	# HUD strips sit at the outer top/bottom edges.
+	var opponent_hud := HBoxContainer.new()
+	opponent_hud.add_theme_constant_override("separation", 8)
+	_stretch_v(opponent_hud, HUD_RATIO)
+	_battlefield_root.add_child(opponent_hud)
+	_build_hud_row(opponent_hud, false)
 
-	_status_label = Label.new()
-	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_match_root.add_child(_status_label)
+	var opponent_play := HBoxContainer.new()
+	opponent_play.add_theme_constant_override("separation", 8)
+	_stretch_v(opponent_play, TOP_RATIO)
+	_battlefield_root.add_child(opponent_play)
+	_build_play_row(opponent_play, false)
 
-	# Turn-flow controls only — Hero Power/Ultimate now live on the player's
-	# own identity cluster below, right next to the Leader they belong to.
-	var mid := HBoxContainer.new()
-	mid.alignment = BoxContainer.ALIGNMENT_CENTER
-	_match_root.add_child(mid)
-	_end_turn_btn = Button.new()
-	_end_turn_btn.text = "End Turn"
-	_end_turn_btn.pressed.connect(_on_end_turn_pressed)
-	mid.add_child(_end_turn_btn)
-	_cancel_btn = Button.new()
-	_cancel_btn.text = "Cancel"
-	_cancel_btn.visible = false
-	_cancel_btn.pressed.connect(_on_cancel_pressed)
-	mid.add_child(_cancel_btn)
+	var player_play := HBoxContainer.new()
+	player_play.add_theme_constant_override("separation", 8)
+	_stretch_v(player_play, TOP_RATIO)
+	_battlefield_root.add_child(player_play)
+	_build_play_row(player_play, true)
 
-	# Mirrored player battlefield row — same left-to-right zone order
-	# (identity, creatures, Hive) as the opponent's, so both sides read the
-	# same way at a glance.
-	var player_row := HBoxContainer.new()
-	player_row.add_theme_constant_override("separation", 8)
-	_match_root.add_child(player_row)
-	player_row.add_child(_build_identity_cluster(true))
-	_player_board = _make_scrolling_row(200, 0, true)
-	player_row.add_child(_player_board.get_parent())
-	_player_hive = _make_scrolling_row(200, HIVE_ZONE_WIDTH, false)
-	player_row.add_child(_player_hive.get_parent())
-
-	# Hand tray (§ user request): a plain Control, not a layout Container —
-	# cards are free-floating widgets positioned/rotated into a fan by
-	# _position_hand_slot and dragged freely by _begin_hand_drag/_input,
-	# neither of which a Container would tolerate (it would fight both the
-	# fan's per-card offsets and a drag's manually-set global_position every
-	# layout pass — the exact bug EnlargedCardView's header comment
-	# documents for the same reason). clip_contents stays off so a lifted
-	# card can rise above the tray's own bounds while dragging.
-	_player_hand = Control.new()
-	_player_hand.custom_minimum_size = Vector2(0, HAND_TRAY_HEIGHT)
-	_match_root.add_child(_player_hand)
+	var player_hud := HBoxContainer.new()
+	player_hud.add_theme_constant_override("separation", 8)
+	_stretch_v(player_hud, HUD_RATIO)
+	_battlefield_root.add_child(player_hud)
+	_build_hud_row(player_hud, true)
 
 	_build_log_panel()
 	_build_block_popup()
@@ -1032,12 +1085,222 @@ func _build_match_view() -> void:
 	_build_discard_popup()
 	_build_game_over_popup()
 
+## One side's HUD strip (§ user request), left to right: deck+discard piles
+## / hand / action buttons for the player; mirrored on both axes for the
+## opponent (hand / deck+discard), with the action-button column dropped
+## and its share folded into the hand column instead of left blank (§ user
+## request — the opponent never needs it, even in future multiplayer).
+func _build_hud_row(row: HBoxContainer, is_player: bool) -> void:
+	var piles_zone := _build_piles_zone(is_player)
+	var hand_zone := _build_hand_zone(is_player)
+	if is_player:
+		_stretch_h(piles_zone, HUD_PILES_RATIO)
+		row.add_child(piles_zone)
+		_stretch_h(hand_zone, HUD_HAND_RATIO)
+		row.add_child(hand_zone)
+		var actions_zone := _build_action_zone()
+		_stretch_h(actions_zone, HUD_ACTIONS_RATIO)
+		row.add_child(actions_zone)
+	else:
+		_stretch_h(hand_zone, OPP_HUD_HAND_RATIO)
+		row.add_child(hand_zone)
+		_stretch_h(piles_zone, OPP_HUD_PILES_RATIO)
+		row.add_child(piles_zone)
+
+## Deck + discard piles (§ user request: "fill the area as much as you
+## can") — each pile is an equal EXPAND_FILL share of this zone instead of
+## a fixed pixel size, so _refresh_pile can size the pile art from each
+## button's own real, already-laid-out dimensions.
+func _build_piles_zone(is_player: bool) -> HBoxContainer:
+	var zone := HBoxContainer.new()
+	zone.add_theme_constant_override("separation", 6)
+	var deck_pile := Control.new()
+	_stretch_h(deck_pile, 1.0)
+	var discard_btn := Button.new()
+	_stretch_h(discard_btn, 1.0)
+	if is_player:
+		_player_deck_pile = deck_pile
+		_player_discard_btn = discard_btn
+		_player_discard_btn.pressed.connect(_on_player_discard_pressed)
+		zone.add_child(deck_pile)
+		zone.add_child(discard_btn)
+	else:
+		_opponent_deck_pile = deck_pile
+		_opponent_discard_btn = discard_btn
+		_opponent_discard_btn.pressed.connect(_on_opponent_discard_pressed)
+		zone.add_child(discard_btn)
+		zone.add_child(deck_pile)
+	return zone
+
+## The hand zone: a plain Control, not a layout Container — cards are
+## free-floating widgets positioned/rotated into a fan by
+## _position_hand_slot, and the player's are dragged freely by
+## _begin_hand_drag/_input, neither of which a Container would tolerate
+## (it would fight both the fan's per-card offsets and a drag's manually-
+## set global_position every layout pass — the exact bug
+## EnlargedCardView's header comment documents for the same reason).
+## clip_contents stays off so a lifted card can rise above the tray's own
+## bounds while dragging.
+func _build_hand_zone(is_player: bool) -> Control:
+	var zone := Control.new()
+	if is_player:
+		_player_hand = zone
+	else:
+		_opponent_hand = zone
+	return zone
+
+## § user request: End Turn by default; Cancel (plus, for the specific
+## action in progress, whichever of Attack Leader or the Leader's Hero
+## Power/Ultimate applies) once the player has clicked into something —
+## see _refresh's own "action zone" section for the actual state machine.
+func _build_action_zone() -> Control:
+	var zone := VBoxContainer.new()
+	zone.alignment = BoxContainer.ALIGNMENT_CENTER
+	zone.add_theme_constant_override("separation", 6)
+
+	_end_turn_btn = Button.new()
+	_end_turn_btn.text = "End Turn"
+	_end_turn_btn.pressed.connect(_on_end_turn_pressed)
+	zone.add_child(_end_turn_btn)
+
+	_attack_leader_btn = Button.new()
+	_attack_leader_btn.text = "Attack Leader"
+	_attack_leader_btn.visible = false
+	_attack_leader_btn.pressed.connect(_on_enemy_leader_pressed)
+	zone.add_child(_attack_leader_btn)
+
+	_hero_power_btn = Button.new()
+	_hero_power_btn.clip_text = true
+	_hero_power_btn.visible = false
+	_hero_power_btn.pressed.connect(_on_hero_power_pressed)
+	zone.add_child(_hero_power_btn)
+
+	_ultimate_btn = Button.new()
+	_ultimate_btn.clip_text = true
+	_ultimate_btn.visible = false
+	_ultimate_btn.pressed.connect(_on_ultimate_pressed)
+	zone.add_child(_ultimate_btn)
+
+	_cancel_btn = Button.new()
+	_cancel_btn.text = "Cancel"
+	_cancel_btn.visible = false
+	_cancel_btn.pressed.connect(_on_cancel_pressed)
+	zone.add_child(_cancel_btn)
+
+	_status_label = Label.new()
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	zone.add_child(_status_label)
+
+	return zone
+
+## One side's play row (§ user request), left to right: Leader / play area
+## (creatures + Hive) / card preview for the player; mirrored on both axes
+## for the opponent (play area / Leader), with the preview column dropped
+## and its share folded into the play area instead of left blank (§ user
+## request).
+func _build_play_row(row: HBoxContainer, is_player: bool) -> void:
+	var leader_zone := _build_leader_zone(is_player)
+	var board_zone := _build_board_zone(is_player)
+	if is_player:
+		_stretch_h(leader_zone, PLAY_LEADER_RATIO)
+		row.add_child(leader_zone)
+		_stretch_h(board_zone, PLAY_BOARD_RATIO)
+		row.add_child(board_zone)
+		var preview_zone := Control.new()
+		_preview_dock = preview_zone
+		_preview_view = EnlargedCardView.new()
+		_preview_view.visible = false
+		_preview_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		preview_zone.add_child(_preview_view)
+		_stretch_h(preview_zone, PLAY_PREVIEW_RATIO)
+		row.add_child(preview_zone)
+	else:
+		_stretch_h(board_zone, OPP_PLAY_BOARD_RATIO)
+		row.add_child(board_zone)
+		_stretch_h(leader_zone, OPP_PLAY_LEADER_RATIO)
+		row.add_child(leader_zone)
+
+## The always-visible Leader panel (§ user request: "the leader card should
+## always be shown... enlarged"): a compact portrait — the same
+## style_card_face rendering every hand/board/hive card uses, filling
+## whatever this zone's real proportional size turns out to be instead of
+## a fixed pixel size (§ the previous fixed-size version is exactly what
+## caused the last layout bug) — with the full card, including Hero Power/
+## Ultimate text, available via the docked preview on hover. The player's
+## Leader is also clickable (§ user request): it highlights whenever an
+## ability is usable, and opens both as buttons in the action zone.
+func _build_leader_zone(is_player: bool) -> Control:
+	var zone := VBoxContainer.new()
+	zone.add_theme_constant_override("separation", 4)
+
+	var leader_btn := Button.new()
+	_stretch_v(leader_btn, 1.0)
+	leader_btn.focus_mode = Control.FOCUS_NONE
+
+	var info := Label.new()
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.add_theme_font_size_override("font_size", 12)
+
+	if is_player:
+		_player_leader_btn = leader_btn
+		_player_info = info
+		leader_btn.pressed.connect(_on_leader_clicked)
+	else:
+		_opponent_leader_btn = leader_btn
+		_opponent_info = info
+	leader_btn.mouse_entered.connect(_show_leader_preview.bind(is_player))
+	leader_btn.mouse_exited.connect(_hide_docked_preview)
+	zone.add_child(leader_btn)
+	zone.add_child(info)
+	return zone
+
+## The play area (§ user request): creatures front-and-center, Hive (non-
+## creature permanents that stick to the field) in its own area — hidden
+## entirely, freeing its share back to the creature zone, whenever it's
+## empty (see _render_hive_row). Mirrored on both axes for the opponent
+## (Hive on the left, creatures on the right) to match the outer mirroring.
+func _build_board_zone(is_player: bool) -> Control:
+	var zone := HBoxContainer.new()
+	zone.add_theme_constant_override("separation", 8)
+
+	var board_scroll := ScrollContainer.new()
+	board_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	board_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_stretch_h(board_scroll, BOARD_CREATURES_RATIO)
+	var board_row := HBoxContainer.new()
+	board_row.add_theme_constant_override("separation", CREATURE_ROW_SPACING)
+	board_scroll.add_child(board_row)
+
+	var hive_scroll := ScrollContainer.new()
+	hive_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	hive_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_stretch_h(hive_scroll, BOARD_HIVE_RATIO)
+	var hive_row := HBoxContainer.new()
+	hive_row.add_theme_constant_override("separation", 6)
+	hive_scroll.add_child(hive_row)
+
+	if is_player:
+		_player_board = board_row
+		_player_board_zone = board_scroll
+		_player_hive = hive_row
+		zone.add_child(board_scroll)
+		zone.add_child(hive_scroll)
+	else:
+		_opponent_board = board_row
+		_opponent_board_zone = board_scroll
+		_opponent_hive = hive_row
+		zone.add_child(hive_scroll)
+		zone.add_child(board_scroll)
+	return zone
+
 func _build_log_panel() -> void:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(320, 0)
-	_match_view.add_child(panel)
+	_log_panel = PanelContainer.new()
+	_log_panel.custom_minimum_size = Vector2(320, 0)
+	_match_view.add_child(_log_panel)
 	var box := VBoxContainer.new()
-	panel.add_child(box)
+	_log_panel.add_child(box)
 	var title := Label.new()
 	title.text = "Action Log"
 	title.add_theme_font_size_override("font_size", 18)
@@ -1048,6 +1311,15 @@ func _build_log_panel() -> void:
 	_log_display.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_log_display.custom_minimum_size = Vector2(300, 200)
 	box.add_child(_log_display)
+
+## § user request: closed, the battlefield takes the whole screen; open, it
+## shrinks to make room rather than overlapping — both already fall out of
+## _log_panel being a normal HBoxContainer sibling of _battlefield_root
+## (a hidden Container child is skipped entirely during layout, so
+## _battlefield_root's own EXPAND_FILL reclaims the space for free) —
+## toggling .visible here is the only piece actually needed.
+func _on_log_toggle_pressed() -> void:
+	_log_panel.visible = not _log_panel.visible
 
 ## GameLog.entry_added fires for essentially every game action (draws,
 ## plays, attacks, damage, hero powers, ...), so re-rendering the board
@@ -1073,97 +1345,6 @@ func _on_log_entry(text: String, kind: String) -> void:
 	_log_display.append_text("[color=%s]%s[/color]\n" % [color, text.replace("[", "(").replace("]", ")")])
 	_refresh()
 
-## `width` > 0 gives the row a fixed horizontal footprint (the Hive zone —
-## a modest fixed chunk on the right when present); `expand_h` lets it grow
-## to fill whatever space is left in its parent row (the creature board,
-## which should reclaim the Hive zone's space the instant that zone hides).
-func _make_scrolling_row(height: int = 200, width: int = 0, expand_h: bool = false) -> HBoxContainer:
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(width, height)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	if expand_h:
-		scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	scroll.add_child(row)
-	return row
-
-## Builds one side's "identity cluster" (§ user request): the Leader always
-## shown (a compact portrait — the same style_card_face rendering every
-## hand/board/hive card uses, just larger — with the full card, including
-## Hero Power/Ultimate text, available via the usual hover preview; see
-## LEADER_PANEL_SIZE's own comment for why this isn't the full
-## hover-preview-sized card), its info line, and its deck/discard piles.
-## The player's cluster additionally carries the Hero Power/Ultimate
-## buttons (only ever usable by the human) and puts its Leader closest to
-## the hand below it — mirroring the opponent's cluster, which puts its
-## Leader at the very top — so both sides read outward from the shared
-## battlefield in the middle the same way.
-func _build_identity_cluster(is_player: bool) -> VBoxContainer:
-	var cluster := VBoxContainer.new()
-	cluster.custom_minimum_size = Vector2(LEADER_PANEL_SIZE.x + 16, 0)
-	cluster.add_theme_constant_override("separation", 4)
-
-	var leader_btn := Button.new()
-	leader_btn.custom_minimum_size = LEADER_PANEL_SIZE
-	leader_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	leader_btn.focus_mode = Control.FOCUS_NONE
-	leader_btn.mouse_entered.connect(_show_leader_preview.bind(is_player, leader_btn))
-	leader_btn.mouse_exited.connect(func() -> void: _card_preview_overlay.hide_preview())
-
-	var info := Label.new()
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD
-	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info.add_theme_font_size_override("font_size", 12)
-
-	var deck_pile := Control.new()
-	deck_pile.custom_minimum_size = PILE_SIZE
-	var discard_btn := Button.new()
-	discard_btn.custom_minimum_size = PILE_SIZE
-	var piles := HBoxContainer.new()
-	piles.alignment = BoxContainer.ALIGNMENT_CENTER
-	piles.add_theme_constant_override("separation", 6)
-	piles.add_child(deck_pile)
-	piles.add_child(discard_btn)
-
-	if is_player:
-		_player_leader_btn = leader_btn
-		_player_info = info
-		_player_deck_pile = deck_pile
-		_player_discard_btn = discard_btn
-		_player_discard_btn.pressed.connect(_on_player_discard_pressed)
-		cluster.add_child(piles)
-		# § "make this more like MTG Arena": short button labels (full
-		# ability wording used to be baked into the button text itself,
-		# which — especially the Ultimate's — could be a full sentence wide
-		# enough to blow out this whole column's width and, since the
-		# Leader panel defaults to filling whatever width its siblings
-		# demand, stretch it into a giant misshapen box). The full wording
-		# is still there, just as a tooltip instead of the button's own text.
-		_hero_power_btn = Button.new()
-		_hero_power_btn.clip_text = true
-		_hero_power_btn.custom_minimum_size = Vector2(LEADER_PANEL_SIZE.x, 0)
-		_hero_power_btn.pressed.connect(_on_hero_power_pressed)
-		cluster.add_child(_hero_power_btn)
-		_ultimate_btn = Button.new()
-		_ultimate_btn.clip_text = true
-		_ultimate_btn.custom_minimum_size = Vector2(LEADER_PANEL_SIZE.x, 0)
-		_ultimate_btn.pressed.connect(_on_ultimate_pressed)
-		cluster.add_child(_ultimate_btn)
-		cluster.add_child(info)
-		cluster.add_child(leader_btn)
-	else:
-		_opponent_leader_btn = leader_btn
-		_opponent_info = info
-		_opponent_deck_pile = deck_pile
-		_opponent_discard_btn = discard_btn
-		_opponent_discard_btn.pressed.connect(_on_opponent_discard_pressed)
-		cluster.add_child(leader_btn)
-		cluster.add_child(info)
-		cluster.add_child(piles)
-
-	return cluster
 
 func _build_block_popup() -> void:
 	_block_popup = PanelContainer.new()
@@ -1296,7 +1477,7 @@ func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
 	_match_view.visible = false
 	_match_bg.visible = false
-	_card_preview_overlay.hide_preview()
+	_hide_docked_preview()
 	_resume_ambient_music()
 	_refresh_saved_decks_menu()
 	_practice_screen.visible = true
@@ -1575,6 +1756,21 @@ func _clear_selection() -> void:
 	_pending_target_effect_id = ""
 	_pending_power_kind = ""
 	_pending_ultimate_larva_spend = -1
+	_leader_menu_open = false
+
+## § user request: clicking the Leader opens Hero Power/Ultimate as buttons
+## in the action zone (see _refresh's "action zone" section for which of
+## those two actually end up clickable) plus a Cancel there to back out.
+## Ignored while another action is already in progress rather than
+## interrupting it, since there's no spec for what should happen to that
+## other action if the Leader is clicked mid-way through it.
+func _on_leader_clicked() -> void:
+	if _busy or GameState.active_player_index != HUMAN:
+		return
+	if _selected_hand_index != -1 or _pending_power_kind != "" or _selected_attacker_id != -1:
+		return
+	_leader_menu_open = true
+	_refresh()
 
 func _on_hand_card_pressed(index: int) -> void:
 	if _busy or GameState.active_player_index != HUMAN:
@@ -1770,7 +1966,7 @@ func _refresh() -> void:
 	# § "make this more like MTG Arena": the Leader's name is already on its
 	# own card art (add_name_label) directly above this — repeating it here
 	# as its own line was extra vertical space this compact HUD can't
-	# spare, especially wrapped across several lines in a ~110px-wide column.
+	# spare, especially wrapped across several lines in a narrow column.
 	_opponent_info.text = "Health %d | Larva %d/%d | Hand %d" % [
 		ai.health, ai.current_larva, ai.max_larva, ai.hand.size()
 	]
@@ -1786,99 +1982,166 @@ func _refresh() -> void:
 	_refresh_pile(_player_deck_pile, human.deck.size())
 	_refresh_pile(_player_discard_btn, human.graveyard.size())
 
-	_render_row(_opponent_board, ai.board, false)
-	_render_row(_player_board, human.board, true)
+	_render_row(_opponent_board, ai.board, false, _opponent_board_zone)
+	_render_row(_player_board, human.board, true, _player_board_zone)
 	_render_hive_row(_opponent_hive, ai.hive_zone, false)
 	_render_hive_row(_player_hive, human.hive_zone, true)
 	_render_hand()
+	_render_opponent_hand()
 
 	var can_act := GameState.active_player_index == HUMAN and not _busy and not GameState.is_over
 	var targeting := _selected_hand_index != -1 or _pending_power_kind != ""
-	_hero_power_btn.disabled = not can_act or targeting or human.leader.hero_power_used_this_turn or human.leader.data.hero_power_cost > human.current_larva
+	var hero_usable := can_act and not targeting and not human.leader.hero_power_used_this_turn and human.leader.data.hero_power_cost <= human.current_larva
+	var ultimate_usable := can_act and not targeting and not human.leader.ultimate_used and human.leader.data.ultimate_cost <= human.current_larva
 	# § "make this more like MTG Arena": short button labels — the full
 	# ability wording used to be baked into the button's own text, long
 	# enough (especially the Ultimate's) to blow out this column's width
 	# and, since the Leader panel used to default to filling whatever width
 	# its siblings demanded, stretch it into a giant misshapen box (§ user
 	# bug report). The full wording is a tooltip instead now.
+	_hero_power_btn.disabled = not hero_usable
 	_hero_power_btn.text = "Hero Power (%d)" % human.leader.data.hero_power_cost
 	_hero_power_btn.tooltip_text = human.leader.data.hero_power_text
-	_ultimate_btn.disabled = not can_act or targeting or human.leader.ultimate_used or human.leader.data.ultimate_cost > human.current_larva
+	_ultimate_btn.disabled = not ultimate_usable
 	_ultimate_btn.text = "Ultimate (%d)" % human.leader.data.ultimate_cost
 	_ultimate_btn.tooltip_text = human.leader.data.ultimate_text
-	_end_turn_btn.disabled = not can_act or targeting
-	_cancel_btn.visible = targeting or _selected_attacker_id != -1
 
-	# § user request: glow whichever abilities are actually usable right now.
-	# These two buttons are persistent (rebuilt widgets elsewhere just get
-	# a fresh glow child each render; these get their old one cleared first
-	# so it doesn't stack a new one on top every single refresh).
+	# § user request: the Leader highlights whenever an ability is
+	# available, and clicking it (_on_leader_clicked) opens both as buttons
+	# down in the action zone.
+	if (hero_usable or ultimate_usable) and not _leader_menu_open:
+		CardRenderUtil.add_playable_glow(_player_leader_btn)
+
+	# --- Action zone (§ user request): End Turn by default; Cancel plus
+	# whichever of {Hero Power+Ultimate, Attack Leader} applies to the
+	# action actually in progress. Exactly one of these three states is
+	# active at a time. ---
+	var show_leader_menu := _leader_menu_open and can_act
+	var show_attack_leader := not show_leader_menu and not targeting and _selected_attacker_id != -1
+	var show_end_turn := not show_leader_menu and not targeting and _selected_attacker_id == -1
+
+	_end_turn_btn.visible = show_end_turn
+	_end_turn_btn.disabled = not can_act
+
+	_attack_leader_btn.visible = show_attack_leader
+	for child in _attack_leader_btn.get_children():
+		child.queue_free()
+	if show_attack_leader:
+		var attacker := human.find_on_board(_selected_attacker_id)
+		_attack_leader_btn.disabled = attacker == null or not CombatResolver.is_legal_leader_target(attacker, ai)
+		if not _attack_leader_btn.disabled:
+			CardRenderUtil.add_playable_glow(_attack_leader_btn)
+
+	_hero_power_btn.visible = show_leader_menu
+	_ultimate_btn.visible = show_leader_menu
 	for child in _hero_power_btn.get_children():
 		child.queue_free()
-	if not _hero_power_btn.disabled:
+	if show_leader_menu and not _hero_power_btn.disabled:
 		CardRenderUtil.add_playable_glow(_hero_power_btn)
 	for child in _ultimate_btn.get_children():
 		child.queue_free()
-	if not _ultimate_btn.disabled:
+	if show_leader_menu and not _ultimate_btn.disabled:
 		CardRenderUtil.add_playable_glow(_ultimate_btn)
 
+	_cancel_btn.visible = show_leader_menu or targeting or _selected_attacker_id != -1
+
 ## Rebuilds a deck/discard pile widget's visual (§ user request: "a spot
-## that shows the deck, the discard pile") — `container` is either a plain
-## Control (the deck, not interactive) or a Button (the discard pile, kept
-## clickable to open its existing list popup); either way the pile visual
-## itself is just added as a child on top of it.
+## that shows the deck, the discard pile... fill the area as much as you
+## can") — `container` is either a plain Control (the deck, not
+## interactive) or a Button (the discard pile, kept clickable to open its
+## existing list popup); either way this sizes the pile art to the
+## container's own real, already-laid-out size (an equal share of the
+## piles zone — see _build_piles_zone) instead of a fixed pixel size.
 func _refresh_pile(container: Control, count: int) -> void:
 	for child in container.get_children():
 		child.queue_free()
-	var visual := CardRenderUtil.build_pile_visual(PILE_SIZE, count)
+	var size := _current_zone_size(container, FALLBACK_PILE_SIZE)
+	var visual := CardRenderUtil.build_pile_visual(size, count)
 	container.add_child(visual)
 	LayoutUtil.fill_parent(visual)
 
-## Restyles the always-visible Leader panel (§ LEADER_PANEL_SIZE's own
-## comment) — the same art+name+life-total-badge rendering every hand/
-## board/hive card gets, with the full card (including Hero Power/Ultimate
-## text) available on hover via the usual CardPreviewOverlay, exactly like
-## every other card in the game. `btn` is persistent (built once, unlike
-## every other card widget which is torn down and rebuilt each refresh), so
-## its previous decorations are cleared first — but NOT its hover wiring,
-## which _build_identity_cluster connects exactly once (see
-## _show_leader_preview for why: CardRenderUtil.wire_hover_preview's
-## closure captures its card/texture/text arguments by value, so calling it
-## again on every refresh would stack a fresh duplicate connection each
-## time instead of updating anything).
+## Restyles the always-visible Leader panel — the same art+name+life-total-
+## badge rendering every hand/board/hive card gets, filling whatever this
+## zone's real proportional size turns out to be (§ LEADER_PANEL_SIZE's old
+## comment: a fixed pixel size here is exactly what caused the last layout
+## bug), with the full card (including Hero Power/Ultimate text) available
+## on hover via the docked preview, exactly like every other card in the
+## game. `btn` is persistent (built once, unlike every other card widget
+## which is torn down and rebuilt each refresh), so its previous
+## decorations are cleared first — but NOT its hover/click wiring, which
+## _build_leader_zone connects exactly once.
 func _refresh_leader_panel(btn: Button, leader_data: LeaderData) -> void:
 	for child in btn.get_children():
 		child.queue_free()
 	CardRenderUtil.style_card_face(btn, leader_data, 0)
 
 ## Hover handler for a Leader panel, wired once per side in
-## _build_identity_cluster rather than via CardRenderUtil.wire_hover_preview
-## (which would need rewiring — and thus stacking a duplicate connection —
-## on every refresh, since the Leader panel button is persistent instead of
-## rebuilt each time like every other card widget). Reads the current
-## Leader fresh at hover time instead of closing over stale values.
-func _show_leader_preview(is_player: bool, widget: Control) -> void:
+## _build_leader_zone rather than per-refresh like every other card (the
+## Leader panel button is persistent instead of rebuilt each time, and
+## _wire_docked_preview's closure would capture stale values if reconnected
+## on top of itself every refresh instead of leaving one connection that
+## reads the current Leader fresh at hover time).
+func _show_leader_preview(is_player: bool) -> void:
 	var data: LeaderData = GameState.players[HUMAN].leader.data if is_player else GameState.players[AI].leader.data
 	var tex := CardDatabase.get_illustration_texture(data)
-	_card_preview_overlay.show_for(data, tex, 0, CardRenderUtil.card_full_text(data), "", widget.get_global_rect())
+	_show_docked_preview(data, tex, 0, CardRenderUtil.card_full_text(data), "")
 
-func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool) -> void:
+## Wires the docked hover-preview (§ user request: "instead of showing it
+## near the card you are hovering over") onto a freshly-built card widget —
+## same closure-capture pattern CardRenderUtil.wire_hover_preview uses,
+## just targeting the docked panel instead of a floating popup. Safe to
+## call every refresh since these widgets (unlike the Leader panel) are
+## torn down and rebuilt fresh each time.
+func _wire_docked_preview(widget: Control, card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String) -> void:
+	widget.mouse_entered.connect(_show_docked_preview.bind(card_data, tex, cost, bbcode_text, badge_text))
+	widget.mouse_exited.connect(_hide_docked_preview)
+
+## Shows a card in the docked preview panel, scaled to fill whatever the
+## panel's real proportional region turns out to be (§ user request: the
+## preview panel "scale[s] to fill the region") rather than staying a fixed
+## size — EnlargedCardView's own internal layout is all anchor/percentage-
+## based already, so a uniform scale transform on the whole node is enough
+## to resize it without distorting anything inside it.
+func _show_docked_preview(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String) -> void:
+	_preview_view.set_content(card_data, tex, cost, bbcode_text, badge_text)
+	var region := _current_zone_size(_preview_dock, FALLBACK_LEADER_ZONE_SIZE)
+	var native: Vector2 = EnlargedCardView.SIZE
+	var scale_factor: float = clampf(minf(region.x / native.x, region.y / native.y), 0.1, 4.0)
+	_preview_view.scale = Vector2(scale_factor, scale_factor)
+	_preview_view.position = (region - native * scale_factor) * 0.5
+	_preview_view.visible = true
+
+func _hide_docked_preview() -> void:
+	_preview_view.visible = false
+	_preview_view.stop_animation()
+
+## Creature card sizing (§ user request: "current sizes... seems ok, we can
+## start to shrink them if we get too many... so they can all still be
+## shown"): the natural size as long as everything fits `available_width`
+## without it, otherwise shrunk down toward the floor — below the floor,
+## the board's existing horizontal scrolling takes over instead of
+## shrinking further.
+func _creature_card_size(available_width: float, count: int) -> Vector2:
+	if count <= 0 or available_width <= 1.0:
+		return CREATURE_CARD_NATURAL_SIZE
+	var natural_total: float = CREATURE_CARD_NATURAL_SIZE.x * count + CREATURE_ROW_SPACING * maxi(count - 1, 0)
+	if natural_total <= available_width:
+		return CREATURE_CARD_NATURAL_SIZE
+	var fit: float = (available_width - CREATURE_ROW_SPACING * maxi(count - 1, 0)) / count
+	var size: float = maxf(fit, CREATURE_CARD_MIN_SIZE.x)
+	return Vector2(size, size)
+
+func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool, board_zone: Control) -> void:
 	for child in row.get_children():
 		child.queue_free()
+	var visible_board: Array[CardInstance] = []
 	for c: CardInstance in board:
 		if not friendly and _ai_reveal_active and not _ai_reveal_set.has(c.instance_id):
 			continue # § user request — not revealed by the AI turn replay yet
-		row.add_child(_make_creature_widget(c, friendly))
-	if not friendly:
-		var leader_btn := Button.new()
-		leader_btn.text = "Attack Leader"
-		leader_btn.custom_minimum_size = Vector2(100, 60)
-		leader_btn.pressed.connect(_on_enemy_leader_pressed)
-		if _selected_attacker_id != -1 and not _busy and GameState.active_player_index == HUMAN:
-			var attacker := GameState.players[HUMAN].find_on_board(_selected_attacker_id)
-			if attacker != null and CombatResolver.is_legal_leader_target(attacker, GameState.players[AI]):
-				CardRenderUtil.add_playable_glow(leader_btn)
-		row.add_child(leader_btn)
+		visible_board.append(c)
+	var card_size := _creature_card_size(board_zone.size.x, visible_board.size())
+	for c: CardInstance in visible_board:
+		row.add_child(_make_creature_widget(c, friendly, card_size))
 
 ## Whether a board creature widget should show the "usable" glow (§ user
 ## request: "activate abilities, such as clicking on cards that are able to
@@ -1919,7 +2182,7 @@ func _make_hive_widget(c: CardInstance) -> Control:
 	btn.set_meta("instance_id", c.instance_id) # § lets _find_widget_by_instance locate this for the AI turn-animation hook
 	btn.custom_minimum_size = Vector2(160, 90)
 	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)
-	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, c.data, tex, c.data.cost, CardRenderUtil.card_full_text(c.data), "")
+	_wire_docked_preview(btn, c.data, tex, c.data.cost, CardRenderUtil.card_full_text(c.data), "")
 	return btn
 
 ## Player's hand: fanned out along the bottom (§ user request — "should
@@ -1932,12 +2195,21 @@ func _make_hive_widget(c: CardInstance) -> Control:
 ## only interaction wired onto these widgets now; _on_hand_card_pressed is
 ## still the function that actually plays one, just invoked from a
 ## completed drag (_finish_hand_drag) instead of a Button's pressed signal.
+## Hand card size (§ user request: hand cards "spread... to fill the
+## area") — derived from the hand zone's own real, already-laid-out height
+## instead of a fixed pixel size, at roughly a real card's aspect ratio.
+func _hand_card_size(tray_size: Vector2) -> Vector2:
+	var h: float = maxf(tray_size.y - 20.0, 60.0)
+	return Vector2(h * HAND_CARD_ASPECT, h)
+
 func _render_hand() -> void:
 	for child in _player_hand.get_children():
 		child.queue_free()
 	var human := GameState.players[HUMAN]
 	_sync_hand_display_order(human.hand)
 	var n := _hand_display_order.size()
+	var tray_size := _current_zone_size(_player_hand, FALLBACK_HAND_ZONE_SIZE)
+	var card_size := _hand_card_size(tray_size)
 	for slot in range(n):
 		var iid: int = _hand_display_order[slot]
 		var card := _find_in_hand(human.hand, iid)
@@ -1945,9 +2217,9 @@ func _render_hand() -> void:
 			continue
 		var cost := CostCalculator.calculate_cost(card.data, human.leader.data)
 		var btn := Button.new()
-		btn.custom_minimum_size = HAND_CARD_SIZE
-		btn.size = HAND_CARD_SIZE
-		btn.pivot_offset = HAND_CARD_SIZE * 0.5
+		btn.custom_minimum_size = card_size
+		btn.size = card_size
+		btn.pivot_offset = card_size * 0.5
 		var tex := CardRenderUtil.style_card_face(btn, card.data, cost)
 		var can_play := _can_play_from_hand(card, cost, human)
 		if can_play:
@@ -1959,10 +2231,25 @@ func _render_hand() -> void:
 			var cd := card.data as CreatureData
 			badge_text = "%d/%d" % [cd.attack, cd.health]
 			CardRenderUtil.add_corner_badge(btn, badge_text)
-		CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, card.data, tex, cost, CardRenderUtil.card_full_text(card.data), badge_text)
-		_position_hand_slot(btn, slot, n)
+		_wire_docked_preview(btn, card.data, tex, cost, CardRenderUtil.card_full_text(card.data), badge_text)
+		_position_hand_slot(btn, slot, n, tray_size, card_size)
 		_wire_hand_drag(btn, iid, can_play)
 		_player_hand.add_child(btn)
+
+## The opponent's hand (§ user request — mirrored HUD strip): the same fan
+## treatment as the player's, but face-down (hidden information) and with
+## no interactivity at all — no drag, no hover-preview.
+func _render_opponent_hand() -> void:
+	for child in _opponent_hand.get_children():
+		child.queue_free()
+	var n := GameState.players[AI].hand.size()
+	var tray_size := _current_zone_size(_opponent_hand, FALLBACK_HAND_ZONE_SIZE)
+	var card_size := _hand_card_size(tray_size)
+	for slot in range(n):
+		var back := CardRenderUtil.build_card_back(card_size)
+		back.pivot_offset = card_size * 0.5
+		_position_hand_slot(back, slot, n, tray_size, card_size)
+		_opponent_hand.add_child(back)
 
 func _find_in_hand(hand: Array[CardInstance], iid: int) -> CardInstance:
 	for c: CardInstance in hand:
@@ -2002,14 +2289,16 @@ func _can_play_from_hand(card: CardInstance, cost: int, human: PlayerState) -> b
 
 ## Fan slot geometry, shared between rendering (_position_hand_slot) and
 ## resolving a reorder drop (_reorder_hand_to) so the two can never drift
-## out of sync with each other.
-func _hand_slot_layout(n: int, tray_width: float) -> Dictionary:
-	var overlap := HAND_CARD_SIZE.x * 0.55
-	var natural_spacing := HAND_CARD_SIZE.x - overlap
+## out of sync with each other. Takes `card_width` explicitly (rather than
+## reading a fixed constant) since hand card size is now derived from the
+## tray's own real height (§ user request — see _hand_card_size).
+func _hand_slot_layout(n: int, tray_width: float, card_width: float) -> Dictionary:
+	var overlap := card_width * 0.55
+	var natural_spacing := card_width - overlap
 	var total_span := natural_spacing * maxi(n - 1, 0)
-	var max_span := tray_width - HAND_CARD_SIZE.x - 40.0
+	var max_span := tray_width - card_width - 40.0
 	var spacing: float = natural_spacing if (n <= 1 or total_span <= max_span) else max_span / maxi(n - 1, 1)
-	var start_x: float = (tray_width - (HAND_CARD_SIZE.x + spacing * maxi(n - 1, 0))) * 0.5
+	var start_x: float = (tray_width - (card_width + spacing * maxi(n - 1, 0))) * 0.5
 	return {"spacing": spacing, "start_x": start_x}
 
 ## A gentle arc (§ user request: cards "fanned out") — the middle of the
@@ -2020,21 +2309,21 @@ func _hand_slot_rise(offset_from_mid: float, n: int) -> float:
 	var t: float = offset_from_mid / (n * 0.5)
 	return (1.0 - t * t) * 18.0
 
-func _hand_slot_position(slot: int, n: int) -> Vector2:
-	var tray_width: float = maxf(_player_hand.size.x, 400.0)
-	var layout := _hand_slot_layout(n, tray_width)
+func _hand_slot_position(slot: int, n: int, tray_size: Vector2, card_size: Vector2) -> Vector2:
+	var tray_width: float = maxf(tray_size.x, 400.0)
+	var layout := _hand_slot_layout(n, tray_width, card_size.x)
 	var mid: float = (n - 1) / 2.0
 	var offset_from_mid: float = slot - mid
 	var x: float = layout["start_x"] + layout["spacing"] * slot
-	var y: float = HAND_TRAY_HEIGHT - HAND_CARD_SIZE.y - 10.0 - _hand_slot_rise(offset_from_mid, n)
+	var y: float = tray_size.y - card_size.y - 10.0 - _hand_slot_rise(offset_from_mid, n)
 	return Vector2(x, y)
 
 func _hand_slot_rotation(slot: int, n: int) -> float:
 	var mid: float = (n - 1) / 2.0
 	return deg_to_rad(clampf((slot - mid) * 4.0, -22.0, 22.0))
 
-func _position_hand_slot(btn: Control, slot: int, n: int) -> void:
-	btn.position = _hand_slot_position(slot, n)
+func _position_hand_slot(btn: Control, slot: int, n: int, tray_size: Vector2, card_size: Vector2) -> void:
+	btn.position = _hand_slot_position(slot, n, tray_size, card_size)
 	btn.rotation = _hand_slot_rotation(slot, n)
 	btn.z_index = slot
 
@@ -2051,7 +2340,7 @@ func _wire_hand_drag(btn: Control, instance_id: int, can_play: bool) -> void:
 func _begin_hand_drag(btn: Control, instance_id: int, can_play: bool, mouse_global: Vector2) -> void:
 	if _busy or _drag_btn != null:
 		return
-	_card_preview_overlay.hide_preview()
+	_hide_docked_preview()
 	_drag_btn = btn
 	_drag_instance_id = instance_id
 	_drag_can_play = can_play
@@ -2108,7 +2397,9 @@ func _finish_hand_drag(mouse_global: Vector2) -> void:
 	var slot := _hand_display_order.find(instance_id)
 	var n := _hand_display_order.size()
 	if slot != -1 and btn != null and is_instance_valid(btn):
-		var target := _player_hand.get_global_rect().position + _hand_slot_position(slot, n)
+		var tray_size := _current_zone_size(_player_hand, FALLBACK_HAND_ZONE_SIZE)
+		var card_size := _hand_card_size(tray_size)
+		var target := _player_hand.get_global_rect().position + _hand_slot_position(slot, n, tray_size, card_size)
 		var tween := create_tween()
 		tween.set_parallel(true)
 		tween.tween_property(btn, "global_position", target, 0.15)
@@ -2130,17 +2421,19 @@ func _reorder_hand_to(instance_id: int, drop_x: float) -> void:
 		return
 	var tray_rect := _player_hand.get_global_rect()
 	var local_x := drop_x - tray_rect.position.x
+	var tray_size := _current_zone_size(_player_hand, FALLBACK_HAND_ZONE_SIZE)
+	var card_size := _hand_card_size(tray_size)
 	# Same width floor _hand_slot_position uses (§ bug caught by a throwaway
 	# diagnostic) — without it, the two disagree on every slot's center
 	# whenever the tray hasn't been laid out to a real width yet (0), and a
 	# drop would never match the slot _position_hand_slot actually drew it at.
-	var layout := _hand_slot_layout(n, maxf(tray_rect.size.x, 400.0))
+	var layout := _hand_slot_layout(n, maxf(tray_rect.size.x, 400.0), card_size.x)
 	var spacing: float = layout["spacing"]
 	var start_x: float = layout["start_x"]
 	var best_slot := 0
 	var best_dist := INF
 	for slot in range(n):
-		var center := start_x + spacing * slot + HAND_CARD_SIZE.x * 0.5
+		var center := start_x + spacing * slot + card_size.x * 0.5
 		var dist := absf(local_x - center)
 		if dist < best_dist:
 			best_dist = dist
@@ -2151,11 +2444,11 @@ func _reorder_hand_to(instance_id: int, drop_x: float) -> void:
 	_hand_display_order.remove_at(from_slot)
 	_hand_display_order.insert(best_slot, instance_id)
 
-func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
+func _make_creature_widget(c: CardInstance, friendly: bool, card_size: Vector2) -> Control:
 	var box := VBoxContainer.new()
 	box.set_meta("instance_id", c.instance_id) # § lets _find_widget_by_instance locate this for the AI turn-animation hook
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(150, 150)
+	btn.custom_minimum_size = card_size
 	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)
 	if c.is_exhausted():
 		btn.modulate *= Color(0.6, 0.6, 0.6)
@@ -2170,7 +2463,7 @@ func _make_creature_widget(c: CardInstance, friendly: bool) -> Control:
 	if c.data is CreatureData:
 		badge_text = "%d/%d" % [c.current_attack, c.current_health()]
 		CardRenderUtil.add_corner_badge(btn, badge_text)
-	CardRenderUtil.wire_hover_preview(btn, _card_preview_overlay, c.data, tex, c.data.cost, _creature_bbcode(c), badge_text)
+	_wire_docked_preview(btn, c.data, tex, c.data.cost, _creature_bbcode(c), badge_text)
 
 	if friendly and c.is_face_down and c.true_data != null and c.true_data.ambush.get("flip_trigger", "") == "paid":
 		var cost := int(c.true_data.ambush.get("flip_cost", 0))

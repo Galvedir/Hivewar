@@ -60,6 +60,7 @@ const FALLBACK_LEADER_ZONE_SIZE := Vector2(180, 260)
 const FALLBACK_PILE_SIZE := Vector2(60, 84)
 const HAND_CARD_ASPECT := 0.72 # width = height * this, matching a real card's proportions
 const HAND_PLAY_LIFT_THRESHOLD := 90.0 # how far above the hand tray's own top edge a card must be dragged before releasing it counts as playing it instead of reordering — "pick up cards and place them in the play area to play them"
+const LEADER_TOP_ALIGN_MARGIN := 8.0 # § user request: the opponent's Leader panel aligns to the top of its zone instead of centering — see _fit_view_to_region
 
 ## Larva pips (§ user request, after a couple of reversals — final form:
 ## "the larva column should take up space in the grid... it should exist in
@@ -2150,7 +2151,7 @@ func _refresh() -> void:
 	# life_override), and larva/hand-size/turn are all visible elsewhere
 	# already (each side's own Larva pip row, the opponent's own visible
 	# hand, and the Action Log, respectively).
-	_refresh_leader_panel(_opponent_leader_btn, _opponent_leader_view, ai.leader.data, ai.health)
+	_refresh_leader_panel(_opponent_leader_btn, _opponent_leader_view, ai.leader.data, ai.health, true)
 	_refresh_pile(_opponent_deck_pile, ai.deck.size())
 	_refresh_pile(_opponent_discard_btn, ai.graveyard.size())
 
@@ -2314,18 +2315,26 @@ func _refresh_larva_pips(row: VBoxContainer, current: int, max_larva: int) -> vo
 			panel.add_theme_stylebox_override("panel", style)
 			row.add_child(panel)
 
-## Uniformly scales+centers an EnlargedCardView to fit `region` — shared by
-## the docked hover-preview and the always-visible Leader panel (§ user
+## Uniformly scales+fits an EnlargedCardView into `region` — shared by the
+## docked hover-preview and the always-visible Leader panel (§ user
 ## request: the Leader should show its full rules text "always... since
 ## it's always in that state on the field", not just on hover). Uniform
 ## scale rather than stretching keeps everything inside proportional
 ## (EnlargedCardView's own internal layout is already anchor/percentage-
 ## based, so this is the only transform needed to resize it cleanly).
-func _fit_view_to_region(view: EnlargedCardView, region: Vector2) -> void:
+## Horizontally always centered; vertically centered too unless
+## `align_top` (§ user request — the opponent's Leader panel sits near the
+## top of its zone instead of centered in it), which leaves a small
+## LEADER_TOP_ALIGN_MARGIN gap instead of sitting perfectly flush against
+## the very top edge (which otherwise touches the deck/discard piles
+## directly above it with no breathing room at all).
+func _fit_view_to_region(view: EnlargedCardView, region: Vector2, align_top: bool = false) -> void:
 	var native: Vector2 = EnlargedCardView.SIZE
 	var scale_factor: float = clampf(minf(region.x / native.x, region.y / native.y), 0.1, 4.0)
 	view.scale = Vector2(scale_factor, scale_factor)
-	view.position = (region - native * scale_factor) * 0.5
+	var fitted := native * scale_factor
+	var y := LEADER_TOP_ALIGN_MARGIN if align_top else (region.y - fitted.y) * 0.5
+	view.position = Vector2((region.x - fitted.x) * 0.5, y)
 
 ## Refreshes the always-visible Leader panel's content and fit. `btn`'s own
 ## size mirrors the zone's (it fills it — see _build_leader_zone), so it
@@ -2336,10 +2345,10 @@ func _fit_view_to_region(view: EnlargedCardView, region: Vector2) -> void:
 ## other context that renders a Leader (Collection, the hover preview
 ## elsewhere) — here specifically it should track the Leader's actual
 ## current health, going up and down as the match plays out.
-func _refresh_leader_panel(btn: Button, view: EnlargedCardView, leader_data: LeaderData, current_health: int) -> void:
+func _refresh_leader_panel(btn: Button, view: EnlargedCardView, leader_data: LeaderData, current_health: int, align_top: bool = false) -> void:
 	var tex := CardDatabase.get_illustration_texture(leader_data)
 	view.set_content(leader_data, tex, 0, CardRenderUtil.card_full_text(leader_data), "", current_health)
-	_fit_view_to_region(view, _current_zone_size(btn, FALLBACK_LEADER_ZONE_SIZE))
+	_fit_view_to_region(view, _current_zone_size(btn, FALLBACK_LEADER_ZONE_SIZE), align_top)
 
 ## Hover handler for a Leader panel, wired once per side in
 ## _build_leader_zone rather than per-refresh like every other card (the

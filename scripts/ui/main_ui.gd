@@ -14,13 +14,25 @@ const AI := 1
 const PILE_SIZE := Vector2(60, 84)
 const HIVE_ZONE_WIDTH := 190
 
+## The always-visible Leader panel's size (§ user request: "the leader card
+## should always be shown... enlarged state"). Deliberately NOT the full
+## 260x340 hover-preview size (EnlargedCardView.SIZE): two of those stacked
+## vertically, plus the board rows, plus the hand tray, comfortably
+## exceeded any real window height and pushed the hand tray off-screen
+## entirely (§ user bug report — "I cannot see my hand of cards"). This is
+## the same style_card_face rendering every other card uses, just bigger
+## than a hand/board card — the full card (art, name, life total, Hero
+## Power/Ultimate text) is still one hover away, exactly like every other
+## card already works.
+const LEADER_PANEL_SIZE := Vector2(125, 140)
+
 ## Hand tray sizing (§ user request: cards "fanned out at the bottom" of
 ## the screen). HAND_PLAY_LIFT_THRESHOLD is how far above the tray's own
 ## top edge a card has to be dragged before releasing it counts as playing
 ## it instead of just reordering it within the hand — "pick up cards and
 ## place them in the play area to play them".
-const HAND_CARD_SIZE := Vector2(150, 210)
-const HAND_TRAY_HEIGHT := 230
+const HAND_CARD_SIZE := Vector2(140, 195)
+const HAND_TRAY_HEIGHT := 210
 const HAND_PLAY_LIFT_THRESHOLD := 90.0
 
 ## Effect ids that need a chosen creature target rather than an auto-pick,
@@ -70,19 +82,20 @@ var _rules_return_target: Control # whichever screen was open before Rules — m
 var _deck_builder_return_target: Control # whichever screen was open before Deck Builder — main menu or Practice
 var _collection_return_target: Control # whichever screen was open before Collection — main menu or Practice
 var _match_view: HBoxContainer
+var _match_bg: ColorRect
 var _match_root: VBoxContainer
 var _log_display: RichTextLabel
 var _opponent_board: HBoxContainer
 var _opponent_hive: HBoxContainer
 var _opponent_info: Label
-var _opponent_leader_view: EnlargedCardView
+var _opponent_leader_btn: Button
 var _opponent_deck_pile: Control
 var _opponent_discard_btn: Button
 var _player_board: HBoxContainer
 var _player_hive: HBoxContainer
 var _player_hand: Control
 var _player_info: Label
-var _player_leader_view: EnlargedCardView
+var _player_leader_btn: Button
 var _player_deck_pile: Control
 var _player_discard_btn: Button
 var _discard_popup: PanelContainer
@@ -174,6 +187,7 @@ func _ready() -> void:
 	_build_options_screen()
 	_build_match_view()
 	_match_view.visible = false
+	_match_bg.visible = false
 
 	# Added directly to self (a plain Control, not a Container) so its
 	# manually-set global_position isn't fought by a Container layout pass.
@@ -910,9 +924,11 @@ func _show_loading_screen() -> void:
 ## the player returns to the Practice deck-select screen.
 func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
 	_practice_screen.visible = false
+	_main_menu.visible = false # defensive — normally already hidden by the Practice-screen navigation that got here, but a match should never show the menu bleeding through regardless of how it was reached
 	_card_preview_overlay.hide_preview()
 	await _show_loading_screen()
 	_match_view.visible = true
+	_match_bg.visible = true
 	_stop_ambient_music()
 	_selected_hand_index = -1
 	_selected_attacker_id = -1
@@ -927,6 +943,19 @@ func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
 ## --- Match view scaffolding --------------------------------------------------
 
 func _build_match_view() -> void:
+	# An opaque battlefield background (§ user bug report — the main menu
+	# was visible bleeding through the match view wherever no widget
+	# happened to cover that exact pixel, since the layout containers
+	# themselves are fully transparent) — kept in sync with _match_view's
+	# own visibility below rather than depending on every part of the
+	# layout perfectly tiling the screen.
+	_match_bg = ColorRect.new()
+	_match_bg.color = Color(0.08, 0.08, 0.1)
+	_match_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_match_bg.visible = false
+	LayoutUtil.fill_parent(_match_bg)
+	add_child(_match_bg)
+
 	_match_root = VBoxContainer.new()
 	_match_view = HBoxContainer.new()
 	LayoutUtil.fill_parent(_match_view)
@@ -1061,23 +1090,32 @@ func _make_scrolling_row(height: int = 200, width: int = 0, expand_h: bool = fal
 	return row
 
 ## Builds one side's "identity cluster" (§ user request): the Leader always
-## shown in its enlarged state (via EnlargedCardView — the same rendering
-## the hover-preview popup uses), its info line, and its deck/discard
-## piles. The player's cluster additionally carries the Hero Power/
-## Ultimate buttons (only ever usable by the human) and puts its Leader
-## closest to the hand below it — mirroring the opponent's cluster, which
-## puts its Leader at the very top — so both sides read outward from the
-## shared battlefield in the middle the same way.
+## shown (a compact portrait — the same style_card_face rendering every
+## hand/board/hive card uses, just larger — with the full card, including
+## Hero Power/Ultimate text, available via the usual hover preview; see
+## LEADER_PANEL_SIZE's own comment for why this isn't the full
+## hover-preview-sized card), its info line, and its deck/discard piles.
+## The player's cluster additionally carries the Hero Power/Ultimate
+## buttons (only ever usable by the human) and puts its Leader closest to
+## the hand below it — mirroring the opponent's cluster, which puts its
+## Leader at the very top — so both sides read outward from the shared
+## battlefield in the middle the same way.
 func _build_identity_cluster(is_player: bool) -> VBoxContainer:
 	var cluster := VBoxContainer.new()
-	cluster.custom_minimum_size = Vector2(EnlargedCardView.SIZE.x + 16, 0)
+	cluster.custom_minimum_size = Vector2(LEADER_PANEL_SIZE.x + 16, 0)
 	cluster.add_theme_constant_override("separation", 4)
 
-	var leader_view := EnlargedCardView.new()
+	var leader_btn := Button.new()
+	leader_btn.custom_minimum_size = LEADER_PANEL_SIZE
+	leader_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	leader_btn.focus_mode = Control.FOCUS_NONE
+	leader_btn.mouse_entered.connect(_show_leader_preview.bind(is_player, leader_btn))
+	leader_btn.mouse_exited.connect(func() -> void: _card_preview_overlay.hide_preview())
 
 	var info := Label.new()
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info.add_theme_font_size_override("font_size", 12)
 
 	var deck_pile := Control.new()
 	deck_pile.custom_minimum_size = PILE_SIZE
@@ -1090,27 +1128,38 @@ func _build_identity_cluster(is_player: bool) -> VBoxContainer:
 	piles.add_child(discard_btn)
 
 	if is_player:
-		_player_leader_view = leader_view
+		_player_leader_btn = leader_btn
 		_player_info = info
 		_player_deck_pile = deck_pile
 		_player_discard_btn = discard_btn
 		_player_discard_btn.pressed.connect(_on_player_discard_pressed)
 		cluster.add_child(piles)
+		# § "make this more like MTG Arena": short button labels (full
+		# ability wording used to be baked into the button text itself,
+		# which — especially the Ultimate's — could be a full sentence wide
+		# enough to blow out this whole column's width and, since the
+		# Leader panel defaults to filling whatever width its siblings
+		# demand, stretch it into a giant misshapen box). The full wording
+		# is still there, just as a tooltip instead of the button's own text.
 		_hero_power_btn = Button.new()
+		_hero_power_btn.clip_text = true
+		_hero_power_btn.custom_minimum_size = Vector2(LEADER_PANEL_SIZE.x, 0)
 		_hero_power_btn.pressed.connect(_on_hero_power_pressed)
 		cluster.add_child(_hero_power_btn)
 		_ultimate_btn = Button.new()
+		_ultimate_btn.clip_text = true
+		_ultimate_btn.custom_minimum_size = Vector2(LEADER_PANEL_SIZE.x, 0)
 		_ultimate_btn.pressed.connect(_on_ultimate_pressed)
 		cluster.add_child(_ultimate_btn)
 		cluster.add_child(info)
-		cluster.add_child(leader_view)
+		cluster.add_child(leader_btn)
 	else:
-		_opponent_leader_view = leader_view
+		_opponent_leader_btn = leader_btn
 		_opponent_info = info
 		_opponent_deck_pile = deck_pile
 		_opponent_discard_btn = discard_btn
 		_opponent_discard_btn.pressed.connect(_on_opponent_discard_pressed)
-		cluster.add_child(leader_view)
+		cluster.add_child(leader_btn)
 		cluster.add_child(info)
 		cluster.add_child(piles)
 
@@ -1246,6 +1295,7 @@ func _build_game_over_popup() -> void:
 func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
 	_match_view.visible = false
+	_match_bg.visible = false
 	_card_preview_overlay.hide_preview()
 	_resume_ambient_music()
 	_refresh_saved_decks_menu()
@@ -1329,7 +1379,7 @@ func _apply_ai_action_visual(action: Dictionary) -> void:
 			if widget != null:
 				_start_lunge_animation(widget)
 		"hero_power", "ultimate":
-			_start_pulse_animation(_opponent_leader_view)
+			_start_pulse_animation(_opponent_leader_btn)
 
 func _find_widget_by_instance(container: Node, instance_id: int) -> Control:
 	for child in container.get_children():
@@ -1717,20 +1767,22 @@ func _refresh() -> void:
 	var human := GameState.players[HUMAN]
 	var ai := GameState.players[AI]
 
-	_opponent_info.text = "%s\nHealth %d | Larva %d/%d | Hand %d" % [
-		ai.leader.data.card_name, ai.health, ai.current_larva, ai.max_larva, ai.hand.size()
+	# § "make this more like MTG Arena": the Leader's name is already on its
+	# own card art (add_name_label) directly above this — repeating it here
+	# as its own line was extra vertical space this compact HUD can't
+	# spare, especially wrapped across several lines in a ~110px-wide column.
+	_opponent_info.text = "Health %d | Larva %d/%d | Hand %d" % [
+		ai.health, ai.current_larva, ai.max_larva, ai.hand.size()
 	]
-	var opp_tex := CardDatabase.get_illustration_texture(ai.leader.data)
-	_opponent_leader_view.set_content(ai.leader.data, opp_tex, 0, CardRenderUtil.card_full_text(ai.leader.data), "")
+	_refresh_leader_panel(_opponent_leader_btn, ai.leader.data)
 	_refresh_pile(_opponent_deck_pile, ai.deck.size())
 	_refresh_pile(_opponent_discard_btn, ai.graveyard.size())
 
-	_player_info.text = "%s\nHealth %d | Larva %d/%d | Turn %d (%s)" % [
-		human.leader.data.card_name, human.health, human.current_larva, human.max_larva,
+	_player_info.text = "Health %d | Larva %d/%d | Turn %d (%s)" % [
+		human.health, human.current_larva, human.max_larva,
 		GameState.turn_number, "Your turn" if GameState.active_player_index == HUMAN else "Opponent's turn"
 	]
-	var player_tex := CardDatabase.get_illustration_texture(human.leader.data)
-	_player_leader_view.set_content(human.leader.data, player_tex, 0, CardRenderUtil.card_full_text(human.leader.data), "")
+	_refresh_leader_panel(_player_leader_btn, human.leader.data)
 	_refresh_pile(_player_deck_pile, human.deck.size())
 	_refresh_pile(_player_discard_btn, human.graveyard.size())
 
@@ -1743,9 +1795,17 @@ func _refresh() -> void:
 	var can_act := GameState.active_player_index == HUMAN and not _busy and not GameState.is_over
 	var targeting := _selected_hand_index != -1 or _pending_power_kind != ""
 	_hero_power_btn.disabled = not can_act or targeting or human.leader.hero_power_used_this_turn or human.leader.data.hero_power_cost > human.current_larva
-	_hero_power_btn.text = "Hero Power (%d): %s" % [human.leader.data.hero_power_cost, human.leader.data.hero_power_text]
+	# § "make this more like MTG Arena": short button labels — the full
+	# ability wording used to be baked into the button's own text, long
+	# enough (especially the Ultimate's) to blow out this column's width
+	# and, since the Leader panel used to default to filling whatever width
+	# its siblings demanded, stretch it into a giant misshapen box (§ user
+	# bug report). The full wording is a tooltip instead now.
+	_hero_power_btn.text = "Hero Power (%d)" % human.leader.data.hero_power_cost
+	_hero_power_btn.tooltip_text = human.leader.data.hero_power_text
 	_ultimate_btn.disabled = not can_act or targeting or human.leader.ultimate_used or human.leader.data.ultimate_cost > human.current_larva
-	_ultimate_btn.text = "Ultimate (%d): %s" % [human.leader.data.ultimate_cost, human.leader.data.ultimate_text]
+	_ultimate_btn.text = "Ultimate (%d)" % human.leader.data.ultimate_cost
+	_ultimate_btn.tooltip_text = human.leader.data.ultimate_text
 	_end_turn_btn.disabled = not can_act or targeting
 	_cancel_btn.visible = targeting or _selected_attacker_id != -1
 
@@ -1773,6 +1833,34 @@ func _refresh_pile(container: Control, count: int) -> void:
 	var visual := CardRenderUtil.build_pile_visual(PILE_SIZE, count)
 	container.add_child(visual)
 	LayoutUtil.fill_parent(visual)
+
+## Restyles the always-visible Leader panel (§ LEADER_PANEL_SIZE's own
+## comment) — the same art+name+life-total-badge rendering every hand/
+## board/hive card gets, with the full card (including Hero Power/Ultimate
+## text) available on hover via the usual CardPreviewOverlay, exactly like
+## every other card in the game. `btn` is persistent (built once, unlike
+## every other card widget which is torn down and rebuilt each refresh), so
+## its previous decorations are cleared first — but NOT its hover wiring,
+## which _build_identity_cluster connects exactly once (see
+## _show_leader_preview for why: CardRenderUtil.wire_hover_preview's
+## closure captures its card/texture/text arguments by value, so calling it
+## again on every refresh would stack a fresh duplicate connection each
+## time instead of updating anything).
+func _refresh_leader_panel(btn: Button, leader_data: LeaderData) -> void:
+	for child in btn.get_children():
+		child.queue_free()
+	CardRenderUtil.style_card_face(btn, leader_data, 0)
+
+## Hover handler for a Leader panel, wired once per side in
+## _build_identity_cluster rather than via CardRenderUtil.wire_hover_preview
+## (which would need rewiring — and thus stacking a duplicate connection —
+## on every refresh, since the Leader panel button is persistent instead of
+## rebuilt each time like every other card widget). Reads the current
+## Leader fresh at hover time instead of closing over stale values.
+func _show_leader_preview(is_player: bool, widget: Control) -> void:
+	var data: LeaderData = GameState.players[HUMAN].leader.data if is_player else GameState.players[AI].leader.data
+	var tex := CardDatabase.get_illustration_texture(data)
+	_card_preview_overlay.show_for(data, tex, 0, CardRenderUtil.card_full_text(data), "", widget.get_global_rect())
 
 func _render_row(row: HBoxContainer, board: Array[CardInstance], friendly: bool) -> void:
 	for child in row.get_children():

@@ -363,6 +363,7 @@ func _resolve_effect(effect_id: String, params: Dictionary, ctx: Dictionary) -> 
 					GameLog.log("%s shuffles %s into %s's library (from %s)." % [
 						player.leader.data.card_name, fresh.display_name(), opponent.leader.data.card_name, source_label
 					])
+					GameState.deck_shuffled.emit() # § user request: Shuffle sound plays here too
 		"grant_decay_to_enemy":
 			# Botfly's signature (§ Triatoma kingdom): afflicts an enemy creature
 			# with a parasitic Decay whose payload benefits the CASTER, not the

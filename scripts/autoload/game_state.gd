@@ -7,6 +7,12 @@ extends Node
 signal creature_died(instance: CardInstance, owner_id: int)
 signal game_ended(winner_id: int)
 signal player_health_changed(player_id: int)
+## § user request — a Shuffle sound "played when a match starts, and any
+## time a deck is shuffled from a card effect": emitted once here (both
+## decks are shuffled as part of the same setup) and again from
+## EffectResolver's shuffle_into_library case, so the UI has one place to
+## hook the sound regardless of which triggered it.
+signal deck_shuffled
 
 var players: Array[PlayerState] = []
 var active_player_index: int = 0
@@ -33,6 +39,7 @@ func setup_game(deck_refs: Array[String], starting_player_index: int = 0) -> voi
 	turn_number = 0
 	is_over = false
 	winner_id = -1
+	deck_shuffled.emit()
 
 func _resolve_deck_ref(deck_ref: String) -> Dictionary:
 	if DeckDefinitions.all_deck_ids().has(deck_ref):

@@ -507,7 +507,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Venomstrike.",
 	},
 	{
-		"id": "scorpion_skulker", "name": "Scorpion Skulker", "type": "Creature",
+		"id": "scorpion_skulker", "name": "Blue Scorpion", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.UNCOMMON,
 		"attack": 3, "health": 2, "creature_type": "Scorpion", "keywords": [Keywords.POISON, Keywords.PIERCE],
 		"text": "Poison. Pierce.",
@@ -519,7 +519,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Venomstrike.",
 	},
 	{
-		"id": "tarantula_ambusher", "name": "Tarantula Ambusher", "type": "Creature",
+		"id": "tarantula_ambusher", "name": "Jewel Tarantula", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 3, "creature_type": "Spider", "keywords": [Keywords.POISON],
 		"text": "Poison.",
@@ -622,15 +622,15 @@ const BLACK: Array[Dictionary] = [
 		"text": "Venomstrike. Pierce.",
 	},
 	{
-		"id": "plague_scorpion", "name": "Plague Scorpion", "type": "Creature",
+		"id": "plague_scorpion", "name": "Spitting Thicktail", "type": "Creature",
 		"cost": 3, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"attack": 3, "health": 3, "creature_type": "Scorpion", "keywords": [],
 		"text": "",
 	},
 	{
-		"id": "toxic_swarm_locust", "name": "Toxic Swarm Locust", "type": "Creature",
+		"id": "toxic_swarm_locust", "name": "Jumping Spider", "type": "Creature",
 		"cost": 2, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
-		"attack": 2, "health": 3, "creature_type": "Locust", "keywords": [],
+		"attack": 2, "health": 3, "creature_type": "Spider", "keywords": [],
 		"text": "",
 	},
 	{
@@ -672,7 +672,7 @@ const BLACK: Array[Dictionary] = [
 		"text": "Poison. Pierce. On Play: deal 2 damage to target enemy creature.",
 	},
 	{
-		"id": "withering_touch", "name": "Withering Touch", "type": "Ability",
+		"id": "withering_touch", "name": "Arriba!", "type": "Ability",
 		"cost": 1, "kingdoms": [Kingdoms.BLACK], "rarity": Rarities.COMMON,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_creature", "params": {"amount": 2}}],
 		"text": "Deal 2 damage to target enemy creature.",
@@ -1207,7 +1207,7 @@ const RED: Array[Dictionary] = [
 		"text": "Deal 3 damage to the enemy Leader. Restore 1 health to your Leader.",
 	},
 	{
-		"id": "thousand_stings", "name": "Thousand Stings", "type": "Ability",
+		"id": "thousand_stings", "name": "Thousand Bites", "type": "Ability",
 		"cost": 3, "kingdoms": [Kingdoms.RED], "rarity": Rarities.RARE,
 		"effects": [{"trigger": "on_cast", "effect_id": "damage_leader", "params": {"amount": 5, "target": "enemy"}}],
 		"text": "Deal 5 damage to the enemy Leader.",

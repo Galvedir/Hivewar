@@ -19,6 +19,8 @@ const ULTIMATE_COLOR := "#ffcc33"
 ## as Collection's).
 const MUSIC_1_PATH := "res://music/deck_builder_menu_music_1.mp3"
 const MUSIC_2_PATH := "res://music/deck_builder_menu_music_2.mp3"
+## § user request: a distinct SFX for adding a card to the build.
+const ADD_CARD_SFX_PATH := "res://music/add_card_to_deck.mp3"
 
 var _leader_id := ""
 var _cards := {} # card_id (String) -> count (int)
@@ -57,6 +59,8 @@ var _overlay: CardPreviewOverlay
 var _music_player: AudioStreamPlayer
 var _music_volume_db := 0.0 # kept in sync by main_ui.gd's _apply_audio_settings, same as the ambient track
 var _music_next_is_2 := true # which track plays next once the current one finishes
+var _sfx_player: AudioStreamPlayer
+var _sfx_volume_db := 0.0 # kept in sync by main_ui.gd's _apply_audio_settings
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -196,6 +200,9 @@ func _build_ui() -> void:
 	_music_player.finished.connect(_on_music_finished)
 	add_child(_music_player)
 
+	_sfx_player = AudioStreamPlayer.new()
+	add_child(_sfx_player)
+
 ## Starts this screen's alternating music (§ MUSIC_1_PATH's own comment) —
 ## called by main_ui.gd when this screen becomes the active one. Fails safe
 ## (no-op) if Music 1 isn't present yet, same pattern as every other
@@ -214,6 +221,18 @@ func stop_music() -> void:
 func set_music_volume_db(db: float) -> void:
 	_music_volume_db = db
 	_music_player.volume_db = db
+
+## Keeps _add_card's SFX in sync with the Options screen's SFX Volume slider.
+func set_sfx_volume_db(db: float) -> void:
+	_sfx_volume_db = db
+
+## § user request: a distinct sound when a card is added to the build.
+func _play_add_card_sfx() -> void:
+	if not ResourceLoader.exists(ADD_CARD_SFX_PATH):
+		return
+	_sfx_player.stream = load(ADD_CARD_SFX_PATH)
+	_sfx_player.volume_db = _sfx_volume_db
+	_sfx_player.play()
 
 func _play_track(path: String) -> void:
 	var stream: AudioStream = load(path)
@@ -369,6 +388,7 @@ func _add_card(card_id: String) -> void:
 		_status_label.text = "Already at the %d-copy limit." % DeckStorage.MAX_COPIES
 		return
 	_cards[card_id] = count + 1
+	_play_add_card_sfx()
 	_refresh_deck_list()
 	if _view_deck_only:
 		_refresh_browser() # a brand-new card in the deck needs to appear in the "My Deck" view

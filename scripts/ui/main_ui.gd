@@ -285,6 +285,7 @@ func _ready() -> void:
 	TurnManager.block_decision_requested.connect(_on_block_requested)
 	TurnManager.legend_rule_decision_requested.connect(_on_legend_rule_requested)
 	GameState.game_ended.connect(_on_game_ended)
+	GameState.deck_shuffled.connect(func() -> void: _play_sfx(SHUFFLE_SFX_PATH))
 	GameLog.entry_added.connect(_on_log_entry)
 
 	_setup_menu_audio()
@@ -325,6 +326,7 @@ func _apply_audio_settings() -> void:
 		_collection.set_music_volume_db(_linear_to_volume_db(_music_volume))
 	if _deck_builder != null:
 		_deck_builder.set_music_volume_db(_linear_to_volume_db(_music_volume))
+		_deck_builder.set_sfx_volume_db(_linear_to_volume_db(_sfx_volume))
 
 func _apply_graphics_settings() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if _fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
@@ -459,6 +461,43 @@ func _setup_menu_audio() -> void:
 func _play_click_sfx() -> void:
 	if _sfx_player != null:
 		_sfx_player.play()
+
+## Match-related one-shot SFX (§ user request) — each is a distinct, short
+## clip rather than a reused/swapped-stream player, since several of these
+## can legitimately overlap (e.g. two creatures entering play back to
+## back, or a hover while an attack sound is still finishing). A fresh
+## AudioStreamPlayer per call, self-freeing on finished, respects the SFX
+## volume slider the same way _sfx_player does; fails safe (no-ops) if the
+## asset isn't present, same convention as every other optional asset here.
+const SHUFFLE_SFX_PATH := "res://music/shuffle.mp3"
+const ATTACK_DAMAGE_SFX_PATH := "res://music/attack_damage.mp3"
+const CARD_HOVER_SFX_PATH := "res://music/card_hover.mp3"
+## Keyed by CreatureData.creature_type (§ user request: "any time a Bee/
+## Ant/Termite comes into play") — only fires for a creature actually
+## entering play via being played from hand (see _maybe_play_enter_sfx and
+## its call sites), not tokens/reclaims, which don't currently include any
+## of these three types anyway.
+const CREATURE_TYPE_ENTER_SFX := {
+	"Bee": "res://music/bee_enters_play.mp3",
+	"Ant": "res://music/ant_enters_play.mp3",
+	"Termite": "res://music/termite_enters_play.mp3",
+}
+
+func _play_sfx(path: String) -> void:
+	if not ResourceLoader.exists(path):
+		return
+	var player := AudioStreamPlayer.new()
+	player.stream = load(path)
+	player.volume_db = _linear_to_volume_db(_sfx_volume)
+	player.finished.connect(player.queue_free)
+	add_child(player)
+	player.play()
+
+func _maybe_play_enter_sfx(card_data: CardData) -> void:
+	if card_data is CreatureData:
+		var path: String = CREATURE_TYPE_ENTER_SFX.get((card_data as CreatureData).creature_type, "")
+		if path != "":
+			_play_sfx(path)
 
 ## Single source of truth for showing/hiding the top-level main menu —
 ## just its own visibility plus the bg animation overlay, which only ever
@@ -1732,10 +1771,15 @@ func _apply_ai_action_visual(action: Dictionary) -> void:
 				widget = _find_widget_by_instance(_opponent_hive, action.get("instance_id", -1))
 			if widget != null:
 				_start_pop_animation(widget)
+			if kind == "play_card": # flip_ambush reveals a creature already in play, not a new arrival
+				var inst := GameState.players[AI].find_on_board(int(action.get("instance_id", -1)))
+				if inst != null:
+					_maybe_play_enter_sfx(inst.data)
 		"attack":
 			var widget := _find_widget_by_instance(_opponent_board, action.get("attacker_id", -1))
 			if widget != null:
 				_start_lunge_animation(widget)
+			_play_sfx(ATTACK_DAMAGE_SFX_PATH)
 		"hero_power", "ultimate":
 			_start_pulse_animation(_opponent_leader_view)
 
@@ -1992,6 +2036,7 @@ func _on_hand_card_pressed(index: int) -> void:
 	_busy = false
 	if ok:
 		_status_label.text = ""
+		_maybe_play_enter_sfx(card.data)
 	else:
 		_status_label.text = "Can't play that right now (cost or Legend Rule)."
 	_clear_selection()
@@ -2065,6 +2110,7 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 		if not _passes_extra_filter(_pending_target_effect_id, instance):
 			_status_label.text = "Choose a face-down creature."
 			return
+		var played_card_data: CardData = player.hand[_selected_hand_index].data if _selected_hand_index >= 0 and _selected_hand_index < player.hand.size() else null
 		_busy = true
 		_refresh()
 		var ok := false
@@ -2074,6 +2120,8 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 			ok = TurnManager.use_ultimate(HUMAN, instance.instance_id, _pending_ultimate_larva_spend)
 		else:
 			ok = await TurnManager.play_card(HUMAN, _selected_hand_index, instance.instance_id)
+			if ok and played_card_data != null:
+				_maybe_play_enter_sfx(played_card_data)
 		_busy = false
 		_status_label.text = "" if ok else "Couldn't target that."
 		_clear_selection()
@@ -2126,6 +2174,7 @@ func _on_attack_confirm_yes() -> void:
 	_busy = true
 	_refresh()
 	await TurnManager.declare_attack(HUMAN, _selected_attacker_id, target)
+	_play_sfx(ATTACK_DAMAGE_SFX_PATH)
 	_selected_attacker_id = -1
 	_busy = false
 	_refresh()
@@ -2377,11 +2426,16 @@ func _wire_docked_preview(widget: Control, card_data: CardData, tex: Texture2D, 
 ## panel's real proportional region turns out to be (§ user request: the
 ## preview panel "scale[s] to fill the region") rather than staying a fixed
 ## size. `life_override` (a Leader's current health) defaults to -1 (use
-## the card's own printed stat) for every non-Leader caller.
+## the card's own printed stat) for every non-Leader caller. The single
+## choke point every hoverable card in a match routes through (hand,
+## board/Hive on both sides via _wire_docked_preview, and both Leader
+## panels via _show_leader_preview), so it's also where the hover SFX (§
+## user request: "every hoverable card in a match") lives.
 func _show_docked_preview(card_data: CardData, tex: Texture2D, cost: int, bbcode_text: String, badge_text: String, life_override: int = -1) -> void:
 	_preview_view.set_content(card_data, tex, cost, bbcode_text, badge_text, life_override)
 	_fit_view_to_region(_preview_view, _current_zone_size(_preview_dock, FALLBACK_LEADER_ZONE_SIZE))
 	_preview_view.visible = true
+	_play_sfx(CARD_HOVER_SFX_PATH)
 
 func _hide_docked_preview() -> void:
 	_preview_view.visible = false

@@ -11,14 +11,27 @@ signal open_rules
 const HERO_POWER_COLOR := "#8fd0ff"
 const ULTIMATE_COLOR := "#ffcc33"
 
-## Deck Builder screen music (§ user request): alternates 1, 2, 1, 2, ...
-## forever — unlike the Collection screen's "1 once, then 2 loops forever"
-## (see collection_ui.gd), both tracks here keep taking turns instead of
-## one ever looping solo. Only plays while this screen is the active one
+## Deck Builder screen music+background (§ user request, superseding the
+## earlier "alternate 1/2 forever" scheme): three phases in strict
+## sequence — Song 1 once, then Song 2 once, then Song 3 looping forever —
+## each with its own background image, and a 4-second/36-frame (6x6)
+## sprite-sheet animation transitioning INTO each phase (played before that
+## phase's background/song ever appear, including the very first one when
+## the screen opens). Only plays while this screen is the active one
 ## (main_ui.gd pauses the ambient menu track for the duration, same pattern
 ## as Collection's).
-const MUSIC_1_PATH := "res://music/deck_builder_menu_music_1.mp3"
-const MUSIC_2_PATH := "res://music/deck_builder_menu_music_2.mp3"
+const SONG_1_PATH := "res://music/deckbuilder/song_1.mp3"
+const SONG_2_PATH := "res://music/deckbuilder/song_2.mp3"
+const SONG_3_PATH := "res://music/deckbuilder/song_3.mp3"
+const BACKGROUND_1_PATH := "res://art/ui/backgrounds/deckbuilder/background_1.png"
+const BACKGROUND_2_PATH := "res://art/ui/backgrounds/deckbuilder/background_2.png"
+const BACKGROUND_3_PATH := "res://art/ui/backgrounds/deckbuilder/background_3.png"
+const TRANSITION_1_PATH := "res://art/ui/backgrounds/deckbuilder/transition_1.png"
+const TRANSITION_2_PATH := "res://art/ui/backgrounds/deckbuilder/transition_2.png"
+const TRANSITION_3_PATH := "res://art/ui/backgrounds/deckbuilder/transition_3.png"
+const TRANSITION_COLS := 6
+const TRANSITION_ROWS := 6
+const TRANSITION_FPS := 9.0 # 36 frames / 4 seconds
 ## § user request: a distinct SFX for adding a card to the build.
 const ADD_CARD_SFX_PATH := "res://music/add_card_to_deck.mp3"
 
@@ -58,9 +71,16 @@ var _saved_decks_box: VBoxContainer
 var _overlay: CardPreviewOverlay
 var _music_player: AudioStreamPlayer
 var _music_volume_db := 0.0 # kept in sync by main_ui.gd's _apply_audio_settings, same as the ambient track
-var _music_next_is_2 := true # which track plays next once the current one finishes
+var _song_on_finished: Callable # advances to the next phase — see _play_song/_on_music_finished
 var _sfx_player: AudioStreamPlayer
 var _sfx_volume_db := 0.0 # kept in sync by main_ui.gd's _apply_audio_settings
+
+var _bg_rect: TextureRect
+var _transition_rect: TextureRect
+var _transition_atlas: AtlasTexture
+var _transition_timer: Timer
+var _transition_frame := 0
+var _transition_on_complete: Callable
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -68,6 +88,20 @@ func _ready() -> void:
 	_new_deck()
 
 func _build_ui() -> void:
+	# Background image, added first so it renders behind the actual screen
+	# content below (same pattern as CollectionUI's own BG_PATH) — self is
+	# a plain Control, not a layout container, so the two coexist as
+	# separate full-rect layers instead of both being forced into a single
+	# vertical stack. Texture swaps between the three phase backgrounds as
+	# start_music progresses (see _show_phase_1/2/3); starts with no
+	# texture until start_music actually kicks off phase 1.
+	_bg_rect = TextureRect.new()
+	_bg_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_bg_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_bg_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	LayoutUtil.fill_parent(_bg_rect)
+	add_child(_bg_rect)
+
 	var root := VBoxContainer.new()
 	LayoutUtil.fill_parent(root)
 	root.add_theme_constant_override("separation", 6)
@@ -203,18 +237,123 @@ func _build_ui() -> void:
 	_sfx_player = AudioStreamPlayer.new()
 	add_child(_sfx_player)
 
-## Starts this screen's alternating music (§ MUSIC_1_PATH's own comment) —
-## called by main_ui.gd when this screen becomes the active one. Fails safe
-## (no-op) if Music 1 isn't present yet, same pattern as every other
-## optional art/audio asset.
-func start_music() -> void:
-	if not ResourceLoader.exists(MUSIC_1_PATH):
-		return
-	_music_next_is_2 = true
-	_play_track(MUSIC_1_PATH)
+	# The phase-transition overlay (§ TRANSITION_1_PATH's own comment):
+	# added last, and stretched over the full screen, so it draws on top of
+	# both the background and every real UI control above while a
+	# transition is playing — same fill_parent + last-added-wins draw order
+	# pattern as _overlay. Starts hidden; _play_transition shows it.
+	_transition_rect = TextureRect.new()
+	_transition_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_transition_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_transition_rect.visible = false
+	LayoutUtil.fill_parent(_transition_rect)
+	add_child(_transition_rect)
 
+	_transition_timer = Timer.new()
+	_transition_timer.wait_time = 1.0 / TRANSITION_FPS
+	_transition_timer.timeout.connect(_on_transition_tick)
+	add_child(_transition_timer)
+
+## Starts this screen's music+background sequence (§ SONG_1_PATH's own
+## comment) — called by main_ui.gd when this screen becomes the active
+## one. Always (re)starts from phase 1, so leaving and reopening the
+## screen replays the whole sequence rather than resuming mid-way.
+func start_music() -> void:
+	_show_phase_1()
+
+func _show_phase_1() -> void:
+	_play_transition(TRANSITION_1_PATH, func() -> void:
+		_set_background(BACKGROUND_1_PATH)
+		_play_song(SONG_1_PATH, false, _show_phase_2))
+
+func _show_phase_2() -> void:
+	_play_transition(TRANSITION_2_PATH, func() -> void:
+		_set_background(BACKGROUND_2_PATH)
+		_play_song(SONG_2_PATH, false, _show_phase_3))
+
+func _show_phase_3() -> void:
+	_play_transition(TRANSITION_3_PATH, func() -> void:
+		_set_background(BACKGROUND_3_PATH)
+		_play_song(SONG_3_PATH, true, Callable()))
+
+func _set_background(path: String) -> void:
+	_bg_rect.texture = load(path) if ResourceLoader.exists(path) else null
+
+## Plays `path` once (`loop` false) or forever (`loop` true), then calls
+## `on_finished` — but only for a non-looping stream: a plain
+## AudioStreamPlayer never re-emits `finished` for a stream with loop
+## enabled (see _on_music_finished), so Song 3 looping forever is exactly
+## "the sequence just stops advancing here" with no special-casing needed.
+## Fails safe straight to `on_finished` if the asset isn't present, so a
+## missing track doesn't stall the whole sequence.
+func _play_song(path: String, loop: bool, on_finished: Callable) -> void:
+	if not ResourceLoader.exists(path):
+		if on_finished.is_valid():
+			on_finished.call()
+		return
+	_song_on_finished = on_finished
+	var stream: AudioStream = load(path)
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = loop
+	_music_player.volume_db = _music_volume_db
+	_music_player.stream = stream
+	_music_player.play()
+
+func _on_music_finished() -> void:
+	var cb := _song_on_finished
+	_song_on_finished = Callable()
+	if cb.is_valid():
+		cb.call()
+
+## Plays a 6x6/36-frame transition sprite sheet once (§ user request: "use
+## the animation sprites as transitions... each sprite is 4 seconds long
+## and 36 frames"), then calls `on_complete`. Fails safe straight to
+## `on_complete` if the asset isn't present, so a missing transition
+## doesn't stall the sequence either.
+func _play_transition(path: String, on_complete: Callable) -> void:
+	if not ResourceLoader.exists(path):
+		on_complete.call()
+		return
+	var sheet: Texture2D = load(path)
+	var frame_w := sheet.get_width() / TRANSITION_COLS
+	var frame_h := sheet.get_height() / TRANSITION_ROWS
+	_transition_atlas = AtlasTexture.new()
+	_transition_atlas.atlas = sheet
+	_transition_atlas.region = Rect2(0, 0, frame_w, frame_h)
+	_transition_rect.texture = _transition_atlas
+	_transition_rect.visible = true
+	_transition_frame = 0
+	_transition_on_complete = on_complete
+	_transition_timer.start()
+
+func _on_transition_tick() -> void:
+	var total := TRANSITION_COLS * TRANSITION_ROWS
+	_transition_frame += 1
+	if _transition_frame >= total:
+		_transition_timer.stop()
+		_transition_rect.visible = false
+		var cb := _transition_on_complete
+		_transition_on_complete = Callable()
+		if cb.is_valid():
+			cb.call()
+		return
+	var frame_w := _transition_atlas.atlas.get_width() / TRANSITION_COLS
+	var frame_h := _transition_atlas.atlas.get_height() / TRANSITION_ROWS
+	var col := _transition_frame % TRANSITION_COLS
+	var row := _transition_frame / TRANSITION_COLS
+	_transition_atlas.region = Rect2(col * frame_w, row * frame_h, frame_w, frame_h)
+
+## Stops the music sequence and any in-flight transition, and clears the
+## background — called when leaving the screen, so a later start_music
+## (re-entering) always begins fresh from phase 1's own transition rather
+## than however things looked at the moment of leaving.
 func stop_music() -> void:
 	_music_player.stop()
+	_song_on_finished = Callable()
+	_transition_timer.stop()
+	_transition_rect.visible = false
+	_transition_on_complete = Callable()
+	_bg_rect.texture = null
 
 ## Keeps this screen's music in sync with the Options screen's Music Volume
 ## slider, same pattern as CollectionUI.set_music_volume_db.
@@ -233,25 +372,6 @@ func _play_add_card_sfx() -> void:
 	_sfx_player.stream = load(ADD_CARD_SFX_PATH)
 	_sfx_player.volume_db = _sfx_volume_db
 	_sfx_player.play()
-
-func _play_track(path: String) -> void:
-	var stream: AudioStream = load(path)
-	if stream is AudioStreamMP3:
-		(stream as AudioStreamMP3).loop = false
-	_music_player.volume_db = _music_volume_db
-	_music_player.stream = stream
-	_music_player.play()
-
-## Neither track ever loops on its own (see _play_track) — instead each
-## `finished` signal hands off to the other track, alternating 1, 2, 1, 2,
-## ... for as long as this screen stays open (§ user request — distinct
-## from the Collection screen's one-shot-then-loop-forever handoff).
-func _on_music_finished() -> void:
-	var next_path := MUSIC_2_PATH if _music_next_is_2 else MUSIC_1_PATH
-	if not ResourceLoader.exists(next_path):
-		return
-	_music_next_is_2 = not _music_next_is_2
-	_play_track(next_path)
 
 ## Builds a dropdown that lets the player check any number of `options`
 ## (§ user request — deck-builder filters used to be single-select only).

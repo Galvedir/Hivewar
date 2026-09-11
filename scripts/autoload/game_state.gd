@@ -41,6 +41,30 @@ func setup_game(deck_refs: Array[String], starting_player_index: int = 0) -> voi
 	winner_id = -1
 	deck_shuffled.emit()
 
+## § multiplayer plan — deliberately separate from setup_game rather than
+## a shared codepath, to keep zero regression risk on the single-player/
+## practice path. Builds both seats directly from HOST-supplied data
+## (leader + the exact already-shuffled card order) instead of shuffling
+## locally, so a host and guest client that both call this with the same
+## `seat_configs` end up with byte-identical decks/hands — the host
+## shuffles once (see NetworkMatch._build_seat_config) and sends the
+## result to the guest rather than each side shuffling independently.
+## `seat_configs[i]` is `{"leader_id": String, "card_order": Array[String]}`.
+func setup_networked_game(seat_configs: Array[Dictionary], starting_player_index: int = 0) -> void:
+	players.clear()
+	for i in range(2):
+		var cfg: Dictionary = seat_configs[i]
+		var leader := LeaderInstance.new(CardDatabase.get_leader(cfg["leader_id"]))
+		var player := PlayerState.new(i, leader, false)
+		for cid in cfg["card_order"]:
+			player.deck.append(CardDatabase.create_instance(cid, i))
+		players.append(player)
+	active_player_index = starting_player_index
+	turn_number = 0
+	is_over = false
+	winner_id = -1
+	deck_shuffled.emit()
+
 func _resolve_deck_ref(deck_ref: String) -> Dictionary:
 	if DeckDefinitions.all_deck_ids().has(deck_ref):
 		return DeckDefinitions.get_deck(deck_ref)

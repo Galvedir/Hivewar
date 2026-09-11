@@ -7,6 +7,17 @@ extends RefCounted
 
 var player_id: int
 var is_ai: bool = false
+## § multiplayer plan — true for the OTHER seat in a networked match, from
+## whichever client's own local mirror this is. Only ever consulted on the
+## HOST's mirror (see turn_manager.gd's declare_attack/_resolve_legend_rule):
+## it makes the host auto-resolve the guest's block/Legend Rule decisions
+## with the same heuristics AIPlayer already uses, rather than popping up a
+## prompt on the host's screen for a choice that isn't the host's to make.
+## The guest's own mirror never reaches those branches at all — it only
+## ever replays a decision the host already resolved (via each function's
+## forced_* param), so is_remote is set there purely for symmetry/possible
+## UI use, not because its value changes any decision logic.
+var is_remote: bool = false
 var leader: LeaderInstance
 var health: int = 30
 

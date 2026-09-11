@@ -19,8 +19,31 @@ signal legend_rule_decision_made
 var _pending_block_choices: Array[CardInstance] = []
 var _pending_legend_keep: CardInstance = null
 
+## § multiplayer plan — scratch vars set by declare_attack/_resolve_legend_
+## rule right before they return/complete, so NetworkMatch (host side) can
+## read exactly what was decided immediately after awaiting the call, to
+## include in the action it broadcasts. Contract: read these synchronously,
+## in the same continuation right after the await returns, before doing
+## anything else async — nothing else in this single-threaded game logic
+## can stomp them in between. -1 means "no Legend Rule conflict happened
+## this call" / "no blockers used or not a leader attack", respectively.
+var last_legend_keep_id: int = -1
+var last_block_choice_ids: Array[int] = []
+
 func start_game(deck_ids: Array[String], starting_player_index: int = 0) -> void:
 	GameState.setup_game(deck_ids, starting_player_index)
+	for player: PlayerState in GameState.players:
+		for i in range(3):
+			player.draw_card()
+	game_started.emit()
+	start_turn(GameState.active_player_index)
+
+## § multiplayer plan — the networked-match counterpart to start_game,
+## deliberately kept separate to avoid any regression risk to the single-
+## player path. See GameState.setup_networked_game for why both clients
+## reach identical state from this.
+func start_networked_game(seat_configs: Array[Dictionary], starting_player_index: int = 0) -> void:
+	GameState.setup_networked_game(seat_configs, starting_player_index)
 	for player: PlayerState in GameState.players:
 		for i in range(3):
 			player.draw_card()
@@ -89,13 +112,30 @@ func concede(player_id: int) -> void:
 ## (no UI to ask it anything). Returns true if `new_card` should proceed
 ## onto the board; false if an existing copy was kept instead, in which
 ## case the caller discards `new_card` without it ever entering play.
-func _resolve_legend_rule(player: PlayerState, new_card: CardInstance) -> bool:
+## `forced_keep_id` (§ multiplayer plan): when >= 0, skip requesting/
+## deciding anything and use exactly this instance id as the kept copy —
+## how the GUEST mirrors a Legend Rule choice the HOST already resolved
+## (whether that was a real human choice on the host's screen, or the
+## host's own auto-default for the guest's decisions below), so the two
+## mirrors can never diverge over it.
+func _resolve_legend_rule(player: PlayerState, new_card: CardInstance, forced_keep_id: int = -1) -> bool:
 	var existing := player.legendary_copies_in_play(new_card.data.card_name)
 	if existing.is_empty():
 		return true
 	var keep := new_card
-	if not player.is_ai:
+	if forced_keep_id >= 0:
+		if forced_keep_id != new_card.instance_id:
+			for c: CardInstance in existing:
+				if c.instance_id == forced_keep_id:
+					keep = c
+					break
+	elif not player.is_ai and not player.is_remote:
 		keep = await _request_human_legend_choice(new_card, existing)
+	# is_remote (and no forced id) falls through with keep still == new_card
+	# — same default AIPlayer gets, auto-resolving the remote seat's Legend
+	# Rule conflicts on the host's behalf for v1 (see project_multiplayer_
+	# architecture memory: no interactive network round-trip for this yet).
+	last_legend_keep_id = keep.instance_id
 	if keep == new_card:
 		for dup: CardInstance in existing:
 			player.board.erase(dup)
@@ -120,7 +160,7 @@ func submit_legend_choice(keep: CardInstance) -> void:
 ## cards whose effect needs a target (e.g. a removal Ability). May suspend
 ## (via await) if playing a Legendary the human already controls a copy of
 ## — the caller should `await` this.
-func play_card(player_index: int, hand_index: int, target_instance_id: int = -1) -> bool:
+func play_card(player_index: int, hand_index: int, target_instance_id: int = -1, forced_legend_keep_id: int = -1) -> bool:
 	if GameState.is_over:
 		return false
 	var player := GameState.players[player_index]
@@ -139,13 +179,14 @@ func play_card(player_index: int, hand_index: int, target_instance_id: int = -1)
 
 	player.hand.remove_at(hand_index)
 	player.current_larva -= cost
+	last_legend_keep_id = -1
 
 	match card_inst.data.card_type:
 		CardTypes.CREATURE:
 			var cd := card_inst.data as CreatureData
 			var proceeds := true
 			if card_inst.data.is_legendary:
-				proceeds = await _resolve_legend_rule(player, card_inst)
+				proceeds = await _resolve_legend_rule(player, card_inst, forced_legend_keep_id)
 			if not proceeds:
 				player.graveyard.append(card_inst)
 			else:
@@ -248,7 +289,13 @@ func flip_ambush_paid(player_index: int, board_instance_id: int) -> bool:
 ## already chose to redirect to). Suspends (via await) if the defender is
 ## human and an optional block is available — the caller should `await`
 ## this too, or listen for `attack_resolved`.
-func declare_attack(attacker_player_index: int, attacker_instance_id: int, target) -> void:
+## `forced_block_choice_ids` (§ multiplayer plan): when not null, skip
+## requesting/deciding anything and block with exactly these instance ids
+## (an empty array is a legal choice: no blocks) — how the GUEST mirrors a
+## block decision the HOST already resolved (a real human choice on the
+## host's screen, or the host's own auto-default below), so the two
+## mirrors can never diverge over it.
+func declare_attack(attacker_player_index: int, attacker_instance_id: int, target, forced_block_choice_ids = null) -> void:
 	if GameState.is_over:
 		return
 	var player := GameState.players[attacker_player_index]
@@ -257,16 +304,29 @@ func declare_attack(attacker_player_index: int, attacker_instance_id: int, targe
 	if attacker == null or not CombatResolver.can_attack(attacker):
 		return
 
+	last_block_choice_ids = []
 	if target is String and target == "leader":
 		if not CombatResolver.is_legal_leader_target(attacker, opponent):
 			return
 		var options := CombatResolver.legal_block_options(attacker, opponent)
 		var block_choices: Array[CardInstance] = []
 		if not options.is_empty():
-			if opponent.is_ai:
+			if forced_block_choice_ids != null:
+				var ids: Array = forced_block_choice_ids
+				block_choices = options.filter(func(c: CardInstance) -> bool: return ids.has(c.instance_id))
+			elif opponent.is_ai or opponent.is_remote:
+				# is_remote (§ multiplayer plan): same heuristic the AI
+				# already uses, auto-resolving the remote seat's block
+				# decision on the host's behalf for v1 (see
+				# project_multiplayer_architecture memory — no interactive
+				# network round-trip for this yet).
 				block_choices = AIPlayer.choose_block(opponent, attacker, options)
 			else:
 				block_choices = await _request_human_block(attacker, options)
+		var chosen_ids: Array[int] = []
+		for c: CardInstance in block_choices:
+			chosen_ids.append(c.instance_id)
+		last_block_choice_ids = chosen_ids
 		CombatResolver.resolve_attack(attacker, "leader", player, opponent, block_choices)
 	else:
 		var creature_target: CardInstance = target

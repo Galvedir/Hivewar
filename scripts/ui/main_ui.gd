@@ -233,6 +233,10 @@ var _ai_reveal_set: Dictionary = {}
 ## instead of a chain of awaits.
 var _ai_replay_queue: Array[Dictionary] = []
 var _ai_replay_pause_timer := 0.0
+## § multiplayer plan — true while replaying a REMOTE human's turn (actions
+## trickle in one at a time over the network) instead of a local AI's turn
+## (the whole batch is already known upfront) — see _process's own comment.
+var _replay_streaming := false
 
 var _menu_music_player: AudioStreamPlayer
 var _sfx_player: AudioStreamPlayer
@@ -304,6 +308,10 @@ func _ready() -> void:
 	GameState.game_ended.connect(_on_game_ended)
 	GameState.deck_shuffled.connect(func() -> void: _play_sfx(SHUFFLE_SFX_PATH))
 	GameLog.entry_added.connect(_on_log_entry)
+
+	NetworkMatch.match_ready.connect(_on_network_match_ready)
+	NetworkMatch.remote_action_applied.connect(_on_remote_action_applied)
+	NetworkMatch.opponent_disconnected.connect(_on_opponent_disconnected)
 
 	_setup_menu_audio()
 	_apply_audio_settings()
@@ -875,6 +883,61 @@ func _on_multiplayer_hub_closed() -> void:
 	_multiplayer_hub.visible = false
 	_set_main_menu_visible(true)
 
+## § multiplayer plan — HUMAN always means "my own seat," AI always means
+## "the other seat," regardless of which physical GameState index (0 =
+## host, 1 = guest — see NetworkMatch) the local player actually occupies.
+func _configure_seats_for_network() -> void:
+	HUMAN = NetworkMatch.local_seat
+	AI = NetworkMatch.remote_seat
+
+## Fired on BOTH clients once NetworkMatch has the agreed seat data (see
+## its own match_ready comment for why the actual TurnManager call happens
+## here rather than inside NetworkMatch: the match view needs to be shown
+## and laid out first, same as _start_match's single-player counterpart).
+func _on_network_match_ready(seats: Array[Dictionary], starting_player_index: int) -> void:
+	_configure_seats_for_network()
+	_multiplayer_hub.visible = false
+	_set_main_menu_visible(false)
+	_hide_docked_preview()
+	await _show_loading_screen()
+	_match_view.visible = true
+	_match_bg.visible = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_stop_ambient_music()
+	_selected_hand_index = -1
+	_selected_attacker_id = -1
+	GameLog.clear()
+	if _log_display != null:
+		_log_display.clear()
+	await TurnManager.start_networked_game(seats, starting_player_index)
+	NetworkMatch.mark_remote_seat()
+	_refresh()
+
+## Queues one remote action for the existing AI-replay pacing pump (see
+## _process) — the network case is otherwise indistinguishable from a
+## local AI's replay log once it's in this queue.
+func _on_remote_action_applied(action: Dictionary) -> void:
+	_ai_replay_queue.append(action)
+
+## § multiplayer plan — reacts to Steam's own P2P session-failed signal (a
+## hard connection failure), not the full 1-minute-heartbeat/5-minute-
+## timeout escalating-warning policy recorded in project_multiplayer_
+## architecture memory, which isn't built yet. This is a placeholder
+## graceful exit until that's in place.
+func _on_opponent_disconnected() -> void:
+	if not NetworkMatch.is_active:
+		return
+	NetworkMatch.end_match()
+	_game_over_popup.visible = false
+	_pause_menu.visible = false
+	_match_view.visible = false
+	_match_bg.visible = false
+	_hide_docked_preview()
+	_resume_ambient_music()
+	_set_main_menu_visible(true)
+	_main_menu_status_label.text = "Connection to your opponent was lost."
+
 func _on_exit_pressed() -> void:
 	get_tree().quit()
 
@@ -1139,6 +1202,12 @@ func _show_loading_screen() -> void:
 ## the match view becomes visible; _on_new_game_pressed resumes it when
 ## the player returns to the Practice deck-select screen.
 func _start_match(your_deck_id: String, opponent_deck_id: String) -> void:
+	# Defensive (§ multiplayer plan): a prior networked match as the guest
+	# seat leaves these swapped (HUMAN=1/AI=0) — every local/practice match
+	# always means literal seat 0/1, regardless of what a previous match
+	# left them as.
+	HUMAN = 0
+	AI = 1
 	_practice_screen.visible = false
 	_main_menu.visible = false # defensive — normally already hidden by the Practice-screen navigation that got here, but a match should never show the menu bleeding through regardless of how it was reached
 	_hide_docked_preview()
@@ -1557,7 +1626,10 @@ func _toggle_pause_menu() -> void:
 ## triggers that chain and closes the menu that opened it.
 func _on_concede_pressed() -> void:
 	_pause_menu.visible = false
-	TurnManager.concede(HUMAN)
+	if NetworkMatch.is_active:
+		await NetworkMatch.local_concede()
+	else:
+		TurnManager.concede(HUMAN)
 
 ## GameLog.entry_added fires for essentially every game action (draws,
 ## plays, attacks, damage, hero powers, ...), so re-rendering the board
@@ -1718,8 +1790,19 @@ func _on_new_game_pressed() -> void:
 	_match_bg.visible = false
 	_hide_docked_preview()
 	_resume_ambient_music()
-	_refresh_saved_decks_menu()
-	_practice_screen.visible = true
+	# § user spec: "after the game is over it should take you back to the
+	# deck choosing screen with your opponent to both choose decks again if
+	# you want" — the Steam lobby is still alive (NetworkMatch.end_match
+	# only tears down the match's own action-protocol state, not the
+	# lobby), so re-showing the hub reconnects both players to the same
+	# lobby, decks/ready state intact for an instant rematch or a change.
+	if NetworkMatch.is_active:
+		NetworkMatch.end_match()
+		_multiplayer_hub.refresh_on_show()
+		_multiplayer_hub.visible = true
+	else:
+		_refresh_saved_decks_menu()
+		_practice_screen.visible = true
 
 ## --- Signal handlers ---------------------------------------------------------
 
@@ -1727,7 +1810,26 @@ func _on_turn_started(player_id: int) -> void:
 	_refresh()
 	if GameState.is_over:
 		return
-	if GameState.players[player_id].is_ai:
+	if GameState.players[player_id].is_remote:
+		# § multiplayer plan — a real remote human, not the bot: their
+		# actions arrive one at a time over the network instead of as one
+		# upfront batch (NetworkMatch.remote_action_applied ->
+		# _on_remote_action_applied -> _ai_replay_queue), so _replay_streaming
+		# tells _process below not to clear busy/reveal just because the
+		# queue transiently ran dry between their actions — only the NEXT
+		# turn_started (this function, re-entered once their end_turn
+		# arrives and is applied) actually ends this state.
+		_busy = true
+		_refresh()
+		var remote_player := GameState.players[player_id]
+		_ai_reveal_set = {}
+		for c: CardInstance in remote_player.board:
+			_ai_reveal_set[c.instance_id] = true
+		for c: CardInstance in remote_player.hive_zone:
+			_ai_reveal_set[c.instance_id] = true
+		_ai_reveal_active = true
+		_replay_streaming = true
+	elif GameState.players[player_id].is_ai:
 		_busy = true
 		_refresh()
 		var ai_player := GameState.players[player_id]
@@ -1737,9 +1839,14 @@ func _on_turn_started(player_id: int) -> void:
 		for c: CardInstance in ai_player.hive_zone:
 			_ai_reveal_set[c.instance_id] = true
 		_ai_reveal_active = true
+		_replay_streaming = false
 		# Nothing awaited after this line (see _process's own comment for
 		# why the actual pacing/animation happens there instead of here).
 		_ai_replay_queue = await AIPlayer.take_turn(player_id)
+	else:
+		_busy = false
+		_ai_reveal_active = false
+		_replay_streaming = false
 
 const AI_ACTION_PAUSE := 0.45
 
@@ -1766,7 +1873,7 @@ func _process(delta: float) -> void:
 	var action: Dictionary = _ai_replay_queue.pop_front()
 	_apply_ai_action_visual(action)
 	_ai_replay_pause_timer = AI_ACTION_PAUSE
-	if _ai_replay_queue.is_empty():
+	if _ai_replay_queue.is_empty() and not _replay_streaming:
 		_ai_reveal_active = false
 		_busy = false
 		_refresh()
@@ -1917,6 +2024,46 @@ func _on_game_ended(winner_id: int) -> void:
 	_game_over_popup.visible = true
 	_refresh()
 
+## --- Networked-match dispatch (§ multiplayer plan) --------------------------
+## Every player-action call site below goes through one of these instead of
+## calling TurnManager directly, so a networked match routes through
+## NetworkMatch (host applies + broadcasts, guest requests + awaits the
+## host's echo) while a local/practice match keeps calling TurnManager
+## exactly as before — NetworkMatch.is_active is false for every existing
+## single-player path, so that path is completely unchanged.
+
+func _dispatch_play_card(hand_index: int, target_instance_id: int = -1) -> bool:
+	if NetworkMatch.is_active:
+		return await NetworkMatch.local_play_card(hand_index, target_instance_id)
+	return await TurnManager.play_card(HUMAN, hand_index, target_instance_id)
+
+func _dispatch_hero_power(target_instance_id: int = -1) -> bool:
+	if NetworkMatch.is_active:
+		return await NetworkMatch.local_hero_power(target_instance_id)
+	return TurnManager.use_hero_power(HUMAN, target_instance_id)
+
+func _dispatch_ultimate(target_instance_id: int = -1, larva_to_spend: int = -1) -> bool:
+	if NetworkMatch.is_active:
+		return await NetworkMatch.local_ultimate(target_instance_id, larva_to_spend)
+	return TurnManager.use_ultimate(HUMAN, target_instance_id, larva_to_spend)
+
+func _dispatch_flip_ambush(board_instance_id: int) -> bool:
+	if NetworkMatch.is_active:
+		return await NetworkMatch.local_flip_ambush(board_instance_id)
+	return TurnManager.flip_ambush_paid(HUMAN, board_instance_id)
+
+func _dispatch_attack(attacker_instance_id: int, target) -> void:
+	if NetworkMatch.is_active:
+		await NetworkMatch.local_attack(attacker_instance_id, target)
+	else:
+		await TurnManager.declare_attack(HUMAN, attacker_instance_id, target)
+
+func _dispatch_end_turn() -> void:
+	if NetworkMatch.is_active:
+		await NetworkMatch.local_end_turn()
+	else:
+		TurnManager.end_turn()
+
 ## --- Player action handlers --------------------------------------------------
 
 func _on_hero_power_pressed() -> void:
@@ -1925,7 +2072,7 @@ func _on_hero_power_pressed() -> void:
 	var player := GameState.players[HUMAN]
 	if _begin_targeting_if_needed(player.leader.data.hero_power_effects, "hero"):
 		return
-	if not TurnManager.use_hero_power(HUMAN):
+	if not await _dispatch_hero_power():
 		_status_label.text = "Can't use Hero Power right now."
 	_refresh()
 
@@ -1942,7 +2089,7 @@ func _on_ultimate_pressed() -> void:
 		return
 	if _begin_targeting_if_needed(player.leader.data.ultimate_effects, "ultimate"):
 		return
-	if not TurnManager.use_ultimate(HUMAN):
+	if not await _dispatch_ultimate():
 		_status_label.text = "Can't use Ultimate right now."
 	_refresh()
 
@@ -1956,7 +2103,7 @@ func _on_x_cost_confirm() -> void:
 	_pending_ultimate_larva_spend = amount
 	if _begin_targeting_if_needed(player.leader.data.ultimate_effects, "ultimate"):
 		return
-	var ok := TurnManager.use_ultimate(HUMAN, -1, amount)
+	var ok := await _dispatch_ultimate(-1, amount)
 	_pending_ultimate_larva_spend = -1
 	_status_label.text = "" if ok else "Can't use Ultimate right now."
 	_refresh()
@@ -1991,7 +2138,7 @@ func _on_end_turn_pressed() -> void:
 	if _busy or GameState.active_player_index != HUMAN:
 		return
 	_clear_selection()
-	TurnManager.end_turn()
+	await _dispatch_end_turn()
 
 func _on_cancel_pressed() -> void:
 	_clear_selection()
@@ -2055,7 +2202,7 @@ func _on_hand_card_pressed(index: int) -> void:
 
 	_busy = true
 	_refresh()
-	var ok := await TurnManager.play_card(HUMAN, index)
+	var ok := await _dispatch_play_card(index)
 	_busy = false
 	if ok:
 		_status_label.text = ""
@@ -2117,7 +2264,7 @@ func _required_target_effect_id(card: CardInstance) -> String:
 func _on_flip_ambush_pressed(instance_id: int) -> void:
 	if _busy or GameState.active_player_index != HUMAN:
 		return
-	TurnManager.flip_ambush_paid(HUMAN, instance_id)
+	await _dispatch_flip_ambush(instance_id)
 	_refresh()
 
 func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> void:
@@ -2138,11 +2285,11 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 		_refresh()
 		var ok := false
 		if _pending_power_kind == "hero":
-			ok = TurnManager.use_hero_power(HUMAN, instance.instance_id)
+			ok = await _dispatch_hero_power(instance.instance_id)
 		elif _pending_power_kind == "ultimate":
-			ok = TurnManager.use_ultimate(HUMAN, instance.instance_id, _pending_ultimate_larva_spend)
+			ok = await _dispatch_ultimate(instance.instance_id, _pending_ultimate_larva_spend)
 		else:
-			ok = await TurnManager.play_card(HUMAN, _selected_hand_index, instance.instance_id)
+			ok = await _dispatch_play_card(_selected_hand_index, instance.instance_id)
 			if ok and played_card_data != null:
 				_maybe_play_enter_sfx(played_card_data)
 		_busy = false
@@ -2196,7 +2343,7 @@ func _on_attack_confirm_yes() -> void:
 	_pending_attack_target = null
 	_busy = true
 	_refresh()
-	await TurnManager.declare_attack(HUMAN, _selected_attacker_id, target)
+	await _dispatch_attack(_selected_attacker_id, target)
 	_play_sfx(ATTACK_DAMAGE_SFX_PATH)
 	_selected_attacker_id = -1
 	_busy = false

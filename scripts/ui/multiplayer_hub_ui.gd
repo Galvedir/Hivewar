@@ -14,11 +14,10 @@ extends Control
 ## from a premade deck") work once both players are in the lobby, synced
 ## via each player's own Steam lobby MEMBER data (a player can only write
 ## their own entry, so "reading the opponent's" is how each side sees the
-## other's live pick/ready state). Match start itself is deliberately a
-## stub for now — see _on_start_match_pressed's own comment — since it
-## depends on the network action protocol and match-screen seat
-## generalization, both still to be built (see
-## project_multiplayer_architecture memory for the full remaining plan).
+## other's live pick/ready state). Match start itself hands off to
+## NetworkMatch (see _on_start_match_pressed) — this screen's own job ends
+## there; main_ui.gd owns the actual match view and reacts to
+## NetworkMatch.match_ready to swap over to it.
 
 signal closed
 
@@ -39,6 +38,7 @@ var _ready_btn: Button
 var _opponent_status_label: Label
 var _start_match_btn: Button
 var _my_ready := false
+var _opponent_id := 0 # the current lobby's other member, kept in sync by _refresh_lobby_state
 var _invite_popup: PanelContainer
 var _invite_popup_label: Label
 var _pending_invite_lobby_id := 0
@@ -241,12 +241,17 @@ func _on_ready_pressed() -> void:
 	SteamManager.set_my_lobby_member_data(MEMBER_KEY_READY, "1" if _my_ready else "0")
 	_refresh_lobby_state()
 
-## Match start needs the network action protocol and the match screen's
-## hardcoded HUMAN/AI seat assumption generalized to "which seat am I" —
-## neither exists yet (see project_multiplayer_architecture memory), so
-## this is deliberately just a status message rather than a broken match.
+## Only the lobby owner ever sees this button (see _refresh_lobby_state) —
+## it shuffles both decks locally and hands off to NetworkMatch, which
+## sends the resulting deck data to the guest and fires `match_ready` on
+## both clients; main_ui.gd is what actually swaps this screen out for the
+## match view once that arrives (see its _on_network_match_ready).
 func _on_start_match_pressed() -> void:
-	_status_label.text = "Match networking isn't built yet — that's the next step!"
+	if not SteamManager.is_lobby_owner() or _opponent_id == 0 or _my_deck_option.selected < 0:
+		return
+	var my_deck_ref: String = _deck_refs[_my_deck_option.selected]
+	var opponent_deck_ref := SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK)
+	NetworkMatch.start_as_host(my_deck_ref, opponent_deck_ref, _opponent_id)
 
 ## Steam's own invite popup only reaches the local player while Hivewar is
 ## already running and this screen is the active one — accepting an
@@ -274,22 +279,22 @@ func _refresh_lobby_state() -> void:
 	_ready_btn.disabled = _my_deck_option.selected < 0
 
 	var local_id := SteamManager.get_local_steam_id()
-	var opponent_id := 0
+	_opponent_id = 0
 	for member_id in SteamManager.get_lobby_members():
 		if member_id != local_id:
-			opponent_id = member_id
+			_opponent_id = member_id
 			break
 
-	if opponent_id == 0:
+	if _opponent_id == 0:
 		_opponent_status_label.text = ""
 		_start_match_btn.visible = false
 		_status_label.text = "Waiting for a friend to join — click Invite Friend, or share this Lobby ID: %d" % lobby_id
 		return
 
-	var opponent_deck := SteamManager.get_lobby_member_data(opponent_id, MEMBER_KEY_DECK)
-	var opponent_ready := SteamManager.get_lobby_member_data(opponent_id, MEMBER_KEY_READY) == "1"
+	var opponent_deck := SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK)
+	var opponent_ready := SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_READY) == "1"
 	_opponent_status_label.text = "%s — Deck: %s — %s" % [
-		SteamManager.get_persona_name(opponent_id),
+		SteamManager.get_persona_name(_opponent_id),
 		_deck_display_name(opponent_deck) if opponent_deck != "" else "(choosing...)",
 		"Ready!" if opponent_ready else "Not ready",
 	]

@@ -5,8 +5,19 @@ extends Control
 ## layout) so it's easy to keep in sync with the engine; swap for real
 ## scenes/art in a later pass without touching TurnManager/GameState.
 
-const HUMAN := 0
-const AI := 1
+## § multiplayer plan — these were `const` when this UI only ever ran one
+## local human against the AI. Now `var`s so a networked match can swap
+## them: HUMAN always means "my own seat" and AI always means "the other
+## seat" (which may be a remote human, not actually the AI, in a
+## multiplayer match) — every one of the hundreds of existing
+## `GameState.players[HUMAN]`/`TurnManager.play_card(HUMAN, ...)`-style
+## call sites throughout this file keeps working completely unchanged
+## either way, since they only ever cared about the array index, not the
+## literal identity. _configure_seats sets these once, right before a
+## match starts; local/AI practice matches never touch it, so HUMAN=0/AI=1
+## always for that path, unchanged from before.
+var HUMAN := 0
+var AI := 1
 
 ## Battlefield layout (§ user request — an exact percentage spec, mirrored
 ## for the opponent): each side's own area splits vertically into a play

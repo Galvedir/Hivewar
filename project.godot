@@ -19,6 +19,7 @@ config/custom_user_dir_name="Hivewar"
 
 [autoload]
 
+SteamManager="*res://scripts/autoload/steam_manager.gd"
 GameLog="*res://scripts/autoload/game_log.gd"
 CardDatabase="*res://scripts/autoload/card_database.gd"
 DeckStorage="*res://scripts/autoload/deck_storage.gd"

@@ -129,6 +129,7 @@ var _options_screen: Control
 var _deck_builder: DeckBuilderUI
 var _collection: CollectionUI
 var _rules_screen: RulesScreenUI
+var _multiplayer_hub: MultiplayerHubUI
 var _rules_return_target: Control # whichever screen was open before Rules — main menu, Practice, or Deck Builder
 var _deck_builder_return_target: Control # whichever screen was open before Deck Builder — main menu or Practice
 var _collection_return_target: Control # whichever screen was open before Collection — main menu or Practice
@@ -280,6 +281,11 @@ func _ready() -> void:
 	_rules_screen.closed.connect(_on_rules_closed)
 	add_child(_rules_screen)
 	_deck_builder.open_rules.connect(_on_open_rules.bind(_deck_builder))
+
+	_multiplayer_hub = MultiplayerHubUI.new()
+	_multiplayer_hub.visible = false
+	_multiplayer_hub.closed.connect(_on_multiplayer_hub_closed)
+	add_child(_multiplayer_hub)
 
 	TurnManager.turn_started.connect(_on_turn_started)
 	TurnManager.block_decision_requested.connect(_on_block_requested)
@@ -850,7 +856,13 @@ func _on_campaign_pressed() -> void:
 	_main_menu_status_label.text = "Campaign mode isn't available yet."
 
 func _on_multiplayer_pressed() -> void:
-	_main_menu_status_label.text = "Multiplayer isn't available yet."
+	_set_main_menu_visible(false)
+	_multiplayer_hub.refresh_on_show()
+	_multiplayer_hub.visible = true
+
+func _on_multiplayer_hub_closed() -> void:
+	_multiplayer_hub.visible = false
+	_set_main_menu_visible(true)
 
 func _on_exit_pressed() -> void:
 	get_tree().quit()

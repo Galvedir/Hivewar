@@ -14,6 +14,7 @@ signal lobby_created(success: bool, lobby_id: int)
 signal lobby_joined(success: bool, lobby_id: int)
 signal lobby_left
 signal lobby_members_changed
+signal lobby_data_changed # lobby data OR a member's data changed (e.g. deck pick/ready toggle)
 signal invite_received(lobby_id: int, inviter_name: String)
 signal p2p_packet_received(sender_id: int, bytes: PackedByteArray)
 signal p2p_session_failed(remote_id: int)
@@ -34,6 +35,7 @@ func _ready() -> void:
 	Steam.lobby_created.connect(_on_lobby_created)
 	Steam.lobby_joined.connect(_on_lobby_joined)
 	Steam.lobby_chat_update.connect(_on_lobby_chat_update)
+	Steam.lobby_data_update.connect(_on_lobby_data_update)
 	Steam.lobby_invite.connect(_on_lobby_invite)
 	Steam.join_requested.connect(_on_join_requested)
 	Steam.p2p_session_request.connect(_on_p2p_session_request)
@@ -107,6 +109,17 @@ func set_lobby_data(key: String, value: String) -> void:
 func get_lobby_data(key: String) -> String:
 	return Steam.getLobbyData(current_lobby_id, key) if is_initialized and current_lobby_id != 0 else ""
 
+## Per-member data (§ user's lobby deck-pick/ready-up flow) — unlike lobby
+## data above, each member can only ever write their OWN entry; reading
+## another member's is how each side sees the other's current pick/ready
+## state.
+func set_my_lobby_member_data(key: String, value: String) -> void:
+	if is_initialized and current_lobby_id != 0:
+		Steam.setLobbyMemberData(current_lobby_id, key, value)
+
+func get_lobby_member_data(member_id: int, key: String) -> String:
+	return Steam.getLobbyMemberData(current_lobby_id, member_id, key) if is_initialized and current_lobby_id != 0 else ""
+
 func send_p2p(remote_id: int, bytes: PackedByteArray, reliable: bool = true) -> void:
 	if is_initialized:
 		Steam.sendP2PPacket(remote_id, bytes, Steam.P2P_SEND_RELIABLE if reliable else Steam.P2P_SEND_UNRELIABLE, P2P_CHANNEL)
@@ -146,6 +159,10 @@ func _on_lobby_chat_update(lobby_id: int, _changed_id: int, _making_change_id: i
 			if member_id != get_local_steam_id():
 				Steam.acceptP2PSessionWithUser(member_id)
 		lobby_members_changed.emit()
+
+func _on_lobby_data_update(_success: int, lobby_id: int, _member_id: int) -> void:
+	if lobby_id == current_lobby_id:
+		lobby_data_changed.emit()
 
 ## Fires when a Steam friend invites the local user to a lobby while
 ## Hivewar is already running (accepting an invite while the game isn't

@@ -9,6 +9,13 @@ export_presets.cfg
 *.so
 *.dll
 *.dylib
+# ...except GodotSteam's own binaries — a testing partner needs these
+# locally just to open/run the project once Steam code references the
+# extension, so they're tracked in git rather than requiring a manual
+# download step (see project_multiplayer_architecture memory).
+!addons/godotsteam/**/*.so
+!addons/godotsteam/**/*.dll
+!addons/godotsteam/**/*.dylib
 
 # OS
 .DS_Store

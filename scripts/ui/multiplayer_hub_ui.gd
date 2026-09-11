@@ -3,11 +3,11 @@ extends Control
 ## Multiplayer entry screen (§ multiplayer plan — host-authoritative P2P
 ## via Steam, friend-invite-only for v1): reachable from the Main Menu's
 ## Multiplayer button. Handles hosting a lobby, inviting a friend via
-## Steam's own overlay, and both accepting an incoming Steam invite and a
-## manual "join by lobby ID" fallback (useful for testing before the
-## invite flow is fully polished, since Steam's invite popup only reaches
-## the local player while this screen is actually open — see
-## _on_invite_received's own comment).
+## Steam's own overlay, and a manual "join by lobby ID" fallback (useful
+## for testing). Accepting an INCOMING invite is handled by main_ui.gd
+## instead, as a top-level overlay independent of which screen is
+## currently showing — see its _on_invite_received's own comment for why
+## that couldn't live here.
 ##
 ## Deck selection and ready-up (§ user spec: "go to a lobby where you both
 ## choose decks... from your created decks in the deckbuilder or choose
@@ -39,9 +39,6 @@ var _opponent_status_label: Label
 var _start_match_btn: Button
 var _my_ready := false
 var _opponent_id := 0 # the current lobby's other member, kept in sync by _refresh_lobby_state
-var _invite_popup: PanelContainer
-var _invite_popup_label: Label
-var _pending_invite_lobby_id := 0
 
 func _ready() -> void:
 	LayoutUtil.fill_parent(self)
@@ -51,7 +48,6 @@ func _ready() -> void:
 	SteamManager.lobby_members_changed.connect(_refresh_lobby_state)
 	SteamManager.lobby_data_changed.connect(_refresh_lobby_state)
 	SteamManager.lobby_left.connect(_refresh_lobby_state)
-	SteamManager.invite_received.connect(_on_invite_received)
 
 func _build_ui() -> void:
 	var root := VBoxContainer.new()
@@ -138,7 +134,6 @@ func _build_ui() -> void:
 	_start_match_btn.pressed.connect(_on_start_match_pressed)
 	_lobby_box.add_child(_start_match_btn)
 
-	_build_invite_popup()
 	_build_deck_options()
 	_refresh_lobby_state()
 
@@ -165,28 +160,6 @@ func _deck_display_name(deck_ref: String) -> String:
 	if DeckDefinitions.all_deck_ids().has(deck_ref):
 		return deck_ref.replace("_", " ").capitalize()
 	return deck_ref
-
-func _build_invite_popup() -> void:
-	_invite_popup = PanelContainer.new()
-	_invite_popup.visible = false
-	_invite_popup.set_anchors_preset(Control.PRESET_CENTER)
-	add_child(_invite_popup)
-	var box := VBoxContainer.new()
-	_invite_popup.add_child(box)
-	_invite_popup_label = Label.new()
-	box.add_child(_invite_popup_label)
-	var row := HBoxContainer.new()
-	box.add_child(row)
-	var join_btn := Button.new()
-	join_btn.text = "Join"
-	join_btn.pressed.connect(func() -> void:
-		_invite_popup.visible = false
-		SteamManager.join_lobby(_pending_invite_lobby_id))
-	row.add_child(join_btn)
-	var decline_btn := Button.new()
-	decline_btn.text = "Decline"
-	decline_btn.pressed.connect(func() -> void: _invite_popup.visible = false)
-	row.add_child(decline_btn)
 
 ## Called every time this screen becomes the active one (§ main_ui.gd's
 ## _on_open_multiplayer) — refreshes in case Steam state changed while
@@ -252,16 +225,6 @@ func _on_start_match_pressed() -> void:
 	var my_deck_ref: String = _deck_refs[_my_deck_option.selected]
 	var opponent_deck_ref := SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK)
 	NetworkMatch.start_as_host(my_deck_ref, opponent_deck_ref, _opponent_id)
-
-## Steam's own invite popup only reaches the local player while Hivewar is
-## already running and this screen is the active one — accepting an
-## invite that launches the game fresh, or one that arrives while this
-## screen isn't open, isn't handled yet (see this class's own header
-## comment).
-func _on_invite_received(lobby_id: int, inviter_name: String) -> void:
-	_pending_invite_lobby_id = lobby_id
-	_invite_popup_label.text = "%s invited you to a game. Join?" % inviter_name
-	_invite_popup.visible = true
 
 func _refresh_lobby_state() -> void:
 	var lobby_id := SteamManager.current_lobby_id

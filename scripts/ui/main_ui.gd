@@ -186,6 +186,18 @@ var _legend_popup: PanelContainer
 var _legend_popup_box: VBoxContainer
 var _game_over_popup: PanelContainer
 var _game_over_label: Label
+## § multiplayer plan — disconnect-policy escalation UI (see
+## NetworkMatch's own comment on _silence_timer): a small top-center
+## banner for the 3:00-4:00 "connection looks unstable" warning, then a
+## large hard-to-miss centered countdown for the final 60 seconds.
+var _connection_warning_banner: PanelContainer
+var _connection_countdown_overlay: PanelContainer
+var _connection_countdown_label: Label
+## § multiplayer plan — top-level (see _build_invite_popup's own comment
+## for why this moved out of MultiplayerHubUI).
+var _invite_popup: PanelContainer
+var _invite_popup_label: Label
+var _pending_invite_lobby_id := 0
 ## The card-preview panel (§ user request: "instead of showing it near the
 ## card you are hovering over") — docked in a fixed region of the player's
 ## own play row (see PLAY_PREVIEW_RATIO) instead of floating near whatever
@@ -312,6 +324,11 @@ func _ready() -> void:
 	NetworkMatch.match_ready.connect(_on_network_match_ready)
 	NetworkMatch.remote_action_applied.connect(_on_remote_action_applied)
 	NetworkMatch.opponent_disconnected.connect(_on_opponent_disconnected)
+	NetworkMatch.opponent_timed_out.connect(_on_opponent_timed_out)
+	NetworkMatch.connection_warning.connect(_on_connection_warning)
+	NetworkMatch.connection_countdown.connect(_on_connection_countdown)
+	NetworkMatch.connection_restored.connect(_on_connection_restored)
+	NetworkMatch.guest_request_pending.connect(_on_guest_request_pending)
 
 	_setup_menu_audio()
 	_apply_audio_settings()
@@ -920,23 +937,49 @@ func _on_network_match_ready(seats: Array[Dictionary], starting_player_index: in
 func _on_remote_action_applied(action: Dictionary) -> void:
 	_ai_replay_queue.append(action)
 
-## § multiplayer plan — reacts to Steam's own P2P session-failed signal (a
-## hard connection failure), not the full 1-minute-heartbeat/5-minute-
-## timeout escalating-warning policy recorded in project_multiplayer_
-## architecture memory, which isn't built yet. This is a placeholder
-## graceful exit until that's in place.
+## Minor polish (§ multiplayer plan) — a guest's action briefly round-trips
+## to the host before it visibly happens; without this the screen just sits
+## unresponsive for that gap with no feedback.
+func _on_guest_request_pending(pending: bool) -> void:
+	_status_label.text = "Waiting for host..." if pending else ""
+
+## Reacts to Steam's own P2P session-failed signal — a hard, immediate
+## connection failure, distinct from the heartbeat/silence timeout below
+## (which gives the opponent up to 5 minutes of real silence before
+## treating it as a disconnect). NetworkMatch hasn't torn itself down yet
+## when this fires, so this handler does it.
 func _on_opponent_disconnected() -> void:
 	if not NetworkMatch.is_active:
 		return
 	NetworkMatch.end_match()
+	_return_to_menu_after_network_loss("Connection to your opponent was lost.")
+
+## § disconnect policy (project_multiplayer_architecture memory) — 5
+## minutes of total silence from the opponent. NetworkMatch has already
+## torn itself down (is_active is already false) by the time this fires,
+## so this only handles the UI side.
+func _on_opponent_timed_out() -> void:
+	_return_to_menu_after_network_loss("Your opponent's connection timed out — you win by default!")
+
+## § disconnect policy: "both clients tear down the lobby/P2P session" —
+## NetworkMatch.end_match only tears down the action-protocol state (the
+## normal post-match path keeps the Steam lobby alive on purpose, for a
+## rematch — see _on_new_game_pressed); an actual connection loss should
+## drop the lobby too, since there's no functioning connection left to
+## rematch over.
+func _return_to_menu_after_network_loss(message: String) -> void:
+	if SteamManager.current_lobby_id != 0:
+		SteamManager.leave_lobby()
 	_game_over_popup.visible = false
 	_pause_menu.visible = false
 	_match_view.visible = false
 	_match_bg.visible = false
+	_connection_warning_banner.visible = false
+	_connection_countdown_overlay.visible = false
 	_hide_docked_preview()
 	_resume_ambient_music()
 	_set_main_menu_visible(true)
-	_main_menu_status_label.text = "Connection to your opponent was lost."
+	_main_menu_status_label.text = message
 
 func _on_exit_pressed() -> void:
 	get_tree().quit()
@@ -1321,6 +1364,9 @@ func _build_match_view() -> void:
 	_build_legend_popup()
 	_build_discard_popup()
 	_build_game_over_popup()
+	_build_connection_status_ui()
+	_build_invite_popup()
+	SteamManager.invite_received.connect(_on_invite_received)
 
 ## One side's HUD strip (§ user request), left to right: deck+discard piles
 ## / hand / action buttons for the player; mirrored on both axes for the
@@ -1783,11 +1829,136 @@ func _build_game_over_popup() -> void:
 	again.pressed.connect(_on_new_game_pressed)
 	box.add_child(again)
 
+## § verify_ui_visually memory lesson applied here too: a bare
+## PanelContainer's default theme background turned out to be nearly
+## invisible against a busy image background (the Main Menu's splash art)
+## when actually screenshotted — legible over the match view's plain dark
+## background, but not over that. An explicit opaque fill makes every
+## top-level overlay popup readable regardless of what's showing behind it.
+func _opaque_popup_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.1, 0.1, 0.12, 0.92)
+	style.set_content_margin_all(14)
+	style.set_corner_radius_all(6)
+	style.border_color = Color(1, 1, 1, 0.15)
+	style.set_border_width_all(1)
+	return style
+
+## § multiplayer plan — disconnect-policy escalation UI (see
+## NetworkMatch's _process comment): a small top-center warning banner,
+## then a large centered countdown that replaces it for the final 60
+## seconds. Both start hidden; NetworkMatch's connection_warning/
+## connection_countdown/connection_restored signals drive visibility.
+func _build_connection_status_ui() -> void:
+	_connection_warning_banner = PanelContainer.new()
+	_connection_warning_banner.visible = false
+	_connection_warning_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_connection_warning_banner.z_index = 100
+	_connection_warning_banner.add_theme_stylebox_override("panel", _opaque_popup_style())
+	add_child(_connection_warning_banner)
+	var warning_label := Label.new()
+	warning_label.text = "Your opponent's connection looks unstable — they may be disconnected soon."
+	warning_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+	_connection_warning_banner.add_child(warning_label)
+
+	_connection_countdown_overlay = PanelContainer.new()
+	_connection_countdown_overlay.visible = false
+	_connection_countdown_overlay.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_connection_countdown_overlay.z_index = 100
+	_connection_countdown_overlay.add_theme_stylebox_override("panel", _opaque_popup_style())
+	add_child(_connection_countdown_overlay)
+	_connection_countdown_label = Label.new()
+	_connection_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_connection_countdown_label.add_theme_font_size_override("font_size", 36)
+	_connection_countdown_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
+	_connection_countdown_overlay.add_child(_connection_countdown_label)
+
+func _on_connection_warning() -> void:
+	_connection_warning_banner.visible = true
+
+func _on_connection_countdown(seconds_left: int) -> void:
+	_connection_warning_banner.visible = false
+	_connection_countdown_overlay.visible = true
+	_connection_countdown_label.text = "Opponent connection lost!\nAuto-forfeit in %d..." % seconds_left
+
+func _on_connection_restored() -> void:
+	_connection_warning_banner.visible = false
+	_connection_countdown_overlay.visible = false
+
+## § multiplayer plan — top-level (a sibling of every screen, same as
+## _pause_menu/_game_over_popup), so an incoming Steam invite can be
+## accepted no matter which screen happens to be showing. This used to
+## live inside MultiplayerHubUI, where the popup was a CHILD of that
+## screen — Control visibility is hierarchical, so it could only ever
+## actually show while the Hub screen itself was already the visible one,
+## exactly the gap this class's old header comment described. Doesn't yet
+## handle an invite that launches Hivewar fresh from a cold start (that
+## needs reading Steam's launch command line at boot, not a signal this
+## already-running instance can receive) — only "already running,
+## anywhere in the menus."
+func _build_invite_popup() -> void:
+	_invite_popup = PanelContainer.new()
+	_invite_popup.visible = false
+	_invite_popup.set_anchors_preset(Control.PRESET_CENTER)
+	_invite_popup.z_index = 100
+	_invite_popup.add_theme_stylebox_override("panel", _opaque_popup_style())
+	add_child(_invite_popup)
+	var box := VBoxContainer.new()
+	_invite_popup.add_child(box)
+	_invite_popup_label = Label.new()
+	box.add_child(_invite_popup_label)
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var join_btn := Button.new()
+	join_btn.text = "Join"
+	join_btn.pressed.connect(_on_invite_join_pressed)
+	row.add_child(join_btn)
+	var decline_btn := Button.new()
+	decline_btn.text = "Decline"
+	decline_btn.pressed.connect(func() -> void: _invite_popup.visible = false)
+	row.add_child(decline_btn)
+
+## A live match can't sensibly be interrupted by a second invite — just
+## drop it rather than yanking the player out of a game in progress.
+func _on_invite_received(lobby_id: int, inviter_name: String) -> void:
+	if NetworkMatch.is_active:
+		return
+	_pending_invite_lobby_id = lobby_id
+	_invite_popup_label.text = "%s invited you to a game. Join?" % inviter_name
+	_invite_popup.visible = true
+
+func _on_invite_join_pressed() -> void:
+	_invite_popup.visible = false
+	if SteamManager.current_lobby_id != 0:
+		SteamManager.leave_lobby()
+	SteamManager.join_lobby(_pending_invite_lobby_id)
+	# Jump straight to the Multiplayer Hub regardless of whatever screen
+	# was showing, same as clicking the Main Menu's own Multiplayer button.
+	_hide_all_top_level_screens()
+	_hide_docked_preview()
+	_resume_ambient_music() # in case the Collection screen's own track was playing
+	_multiplayer_hub.refresh_on_show()
+	_multiplayer_hub.visible = true
+
+## Hides every top-level screen this Control owns (§ multiplayer plan —
+## shared by the invite-accept flow above, which can be triggered from any
+## of them, not just the Main Menu _on_multiplayer_pressed already
+## handled).
+func _hide_all_top_level_screens() -> void:
+	_main_menu.visible = false
+	_practice_screen.visible = false
+	_deck_builder.visible = false
+	_collection.visible = false
+	_rules_screen.visible = false
+	_multiplayer_hub.visible = false
+
 func _on_new_game_pressed() -> void:
 	_game_over_popup.visible = false
 	_pause_menu.visible = false
 	_match_view.visible = false
 	_match_bg.visible = false
+	_connection_warning_banner.visible = false
+	_connection_countdown_overlay.visible = false
 	_hide_docked_preview()
 	_resume_ambient_music()
 	# § user spec: "after the game is over it should take you back to the

@@ -34,7 +34,32 @@ signal match_ready(seats: Array[Dictionary], starting_player_index: int)
 ## ({"kind": ..., ...}) — main_ui.gd appends these straight onto its
 ## existing _ai_replay_queue as they arrive, one at a time.
 signal remote_action_applied(action: Dictionary)
+## A hard Steam-level P2P failure (distinct from the heartbeat/silence
+## timeout below) — Steam itself reports the session as gone.
 signal opponent_disconnected
+## § disconnect policy (project_multiplayer_architecture memory, finalized
+## 2026-09-11): 3:00 of silence from the opponent — connection looks
+## unstable, but not yet treated as a disconnect.
+signal connection_warning
+## 4:00 of silence — the final 60 seconds before auto-forfeit; fires every
+## frame with the whole seconds remaining so the UI can show a hard-to-
+## miss countdown.
+signal connection_countdown(seconds_left: int)
+## Silence ended before reaching the 5:00 mark — clear whatever warning/
+## countdown UI is showing.
+signal connection_restored
+## 5:00 of total silence — this client independently declares itself the
+## winner by default and the match is over; main_ui.gd tears down and
+## returns to the Main Menu. Symmetric and independent on both sides (see
+## the memory file): if the failure is a genuine two-way network
+## partition, both clients reach this on their own, each believing it won
+## — there's no central arbiter to resolve that, by design.
+signal opponent_timed_out
+## True while a guest-side action_request is in flight, waiting for the
+## host's echo — main_ui.gd shows a "Waiting for host..." status during
+## this window (never fires at all on the host, who applies everything
+## synchronously/awaits its own popups directly).
+signal guest_request_pending(pending: bool)
 
 var is_active := false
 var is_host := false
@@ -44,9 +69,57 @@ var remote_steam_id := 0
 
 signal _local_request_completed(msg: Dictionary)
 
+## § disconnect policy — heartbeat every 1 minute; escalating feedback as
+## silence approaches the 5-minute total-timeout mark. `_silence_timer` is
+## "time since I last heard ANYTHING from my peer" (reset by every packet
+## received, not just heartbeats — a real game action counts too, so
+## these only matter during long gaps like the opponent thinking through
+## a big turn, or truly having disconnected). `_heartbeat_timer` is
+## unrelated to my own silence reading; it's purely so the OTHER side
+## keeps hearing from ME during those same long gaps.
+const HEARTBEAT_INTERVAL := 60.0
+const WARNING_THRESHOLD := 180.0    # 3:00
+const COUNTDOWN_THRESHOLD := 240.0  # 4:00
+const DISCONNECT_THRESHOLD := 300.0 # 5:00
+
+var _heartbeat_timer := 0.0
+var _silence_timer := 0.0
+var _warned := false
+var _countdown_active := false
+
 func _ready() -> void:
 	SteamManager.p2p_packet_received.connect(_on_p2p_packet_received)
 	SteamManager.p2p_session_failed.connect(_on_p2p_session_failed)
+
+func _process(delta: float) -> void:
+	if not is_active:
+		return
+	_heartbeat_timer += delta
+	if _heartbeat_timer >= HEARTBEAT_INTERVAL:
+		_heartbeat_timer = 0.0
+		_send_to_remote({"type": "heartbeat"})
+
+	_silence_timer += delta
+	if _silence_timer >= DISCONNECT_THRESHOLD:
+		_on_silence_timeout()
+	elif _silence_timer >= COUNTDOWN_THRESHOLD:
+		_countdown_active = true
+		connection_countdown.emit(int(ceil(DISCONNECT_THRESHOLD - _silence_timer)))
+	elif _silence_timer >= WARNING_THRESHOLD and not _warned:
+		_warned = true
+		connection_warning.emit()
+
+func _on_silence_timeout() -> void:
+	if not is_active:
+		return
+	end_match()
+	opponent_timed_out.emit()
+
+func _reset_connection_timers() -> void:
+	_heartbeat_timer = 0.0
+	_silence_timer = 0.0
+	_warned = false
+	_countdown_active = false
 
 ## --- Match start ------------------------------------------------------------
 
@@ -61,6 +134,7 @@ func start_as_host(local_deck_ref: String, remote_deck_ref: String, remote_id: i
 	local_seat = 0
 	remote_seat = 1
 	remote_steam_id = remote_id
+	_reset_connection_timers()
 	var host_cfg := _build_seat_config(local_deck_ref)
 	var guest_cfg := _build_seat_config(remote_deck_ref)
 	_send_to_remote({
@@ -79,6 +153,7 @@ func end_match() -> void:
 	is_active = false
 	is_host = false
 	remote_steam_id = 0
+	_reset_connection_timers()
 
 func _build_seat_config(deck_ref: String) -> Dictionary:
 	var deck_def: Dictionary = DeckDefinitions.get_deck(deck_ref) if DeckDefinitions.all_deck_ids().has(deck_ref) else DeckStorage.get_deck(deck_ref)
@@ -134,7 +209,9 @@ func _guest_request_and_wait(kind: String, params: Dictionary) -> bool:
 	payload["type"] = "action_request"
 	payload["kind"] = kind
 	_send_to_remote(payload)
+	guest_request_pending.emit(true)
 	var msg: Dictionary = await _local_request_completed
+	guest_request_pending.emit(false)
 	return msg.get("ok", true)
 
 ## --- Host side: apply via the real TurnManager, then broadcast the result --
@@ -298,11 +375,19 @@ func _on_p2p_packet_received(sender_id: int, bytes: PackedByteArray) -> void:
 		local_seat = 1
 		remote_seat = 0
 		remote_steam_id = sender_id
+		_reset_connection_timers()
 		var seats: Array[Dictionary] = [msg["host_deck"], msg["guest_deck"]]
 		match_ready.emit(seats, msg.get("starting_player_index", 0))
 		return
 	if not is_active or sender_id != remote_steam_id:
 		return
+	# Any packet at all from the opponent counts as proof of life, not just
+	# heartbeats — see _process's own comment on _silence_timer.
+	if _warned or _countdown_active:
+		_warned = false
+		_countdown_active = false
+		connection_restored.emit()
+	_silence_timer = 0.0
 	match msg_type:
 		"action_request":
 			if is_host:

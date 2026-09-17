@@ -288,11 +288,9 @@ static func build_card_back(size: Vector2) -> Control:
 		back.add_child(label)
 	return back
 
-## Deck/discard "pile" visual (§ user request: "a spot that shows the deck,
-## the discard pile") — a face-down card-back plus a count badge. Used bare
-## for the deck (not interactive) and dropped into a Button for the discard
-## pile (kept clickable to open its existing list popup) — the visual
-## itself doesn't need to know which case it's in.
+## Deck pile visual (§ user request: "a spot that shows the deck, the
+## discard pile") — a face-down card-back plus a count badge, since deck
+## order/contents are genuinely hidden information. Not interactive.
 static func build_pile_visual(size: Vector2, count: int) -> Control:
 	var root := Control.new()
 	root.custom_minimum_size = size
@@ -300,7 +298,37 @@ static func build_pile_visual(size: Vector2, count: int) -> Control:
 	var back := build_card_back(size)
 	LayoutUtil.fill_parent(back)
 	root.add_child(back)
+	_add_pile_count_badge(root, count)
+	return root
 
+## Discard pile visual (§ user bug report: "the discard pile should be
+## face up and show the cards that are in it") — shows the most recently
+## discarded card's own face (art + name + cost), not a face-down back
+## like the deck pile: a discard pile's contents are public information in
+## any real card game, unlike deck order. Falls back to a dimmed empty-
+## pile placeholder when there's nothing in it yet. The existing click-to-
+## open full list (MainUI._show_discard) still covers "the cards in it" in
+## full; this is just the at-a-glance pile icon, dropped into a Button so
+## that popup stays reachable.
+static func build_discard_pile_visual(size: Vector2, top_card: CardData, count: int) -> Control:
+	var root := Control.new()
+	root.custom_minimum_size = size
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if top_card != null:
+		var face := Button.new()
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		style_card_face(face, top_card, top_card.cost)
+		LayoutUtil.fill_parent(face)
+		root.add_child(face)
+	else:
+		var back := build_card_back(size)
+		back.modulate = Color(1, 1, 1, 0.35) # empty — a dimmed placeholder, not a real face-down card
+		LayoutUtil.fill_parent(back)
+		root.add_child(back)
+	_add_pile_count_badge(root, count)
+	return root
+
+static func _add_pile_count_badge(root: Control, count: int) -> void:
 	var badge := Panel.new()
 	badge.add_theme_stylebox_override("panel", make_dark_box_style())
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -320,7 +348,6 @@ static func build_pile_visual(size: Vector2, count: int) -> Control:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	LayoutUtil.fill_parent(label)
 	badge.add_child(label)
-	return root
 
 ## First line of a card's rules text (§ user request): "{Kingdom} -
 ## {Creature Type}" for creatures, "{Kingdom} - {Ability/Gear/Hive}"

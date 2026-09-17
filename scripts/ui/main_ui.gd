@@ -193,6 +193,11 @@ var _game_over_label: Label
 var _connection_warning_banner: PanelContainer
 var _connection_countdown_overlay: PanelContainer
 var _connection_countdown_label: Label
+## § user request — a large, center-screen "Your Turn"/"Opponent's Turn"
+## banner that shows briefly on every turn change, then fades on its own.
+var _turn_banner: PanelContainer
+var _turn_banner_label: Label
+var _turn_banner_token := 0 # invalidates a stale auto-hide if a new turn starts before the old banner finished fading
 ## § multiplayer plan — top-level (see _build_invite_popup's own comment
 ## for why this moved out of MultiplayerHubUI).
 var _invite_popup: PanelContainer
@@ -1366,6 +1371,7 @@ func _build_match_view() -> void:
 	_build_discard_popup()
 	_build_game_over_popup()
 	_build_connection_status_ui()
+	_build_turn_banner()
 	_build_invite_popup()
 	SteamManager.invite_received.connect(_on_invite_received)
 	SteamManager.lobby_joined.connect(_on_any_lobby_joined)
@@ -1875,6 +1881,37 @@ func _build_connection_status_ui() -> void:
 	_connection_countdown_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
 	_connection_countdown_overlay.add_child(_connection_countdown_label)
 
+## § user request — "a pop up... saying the turn has passed... 'Opponents
+## Turn' and 'Your Turn'... large and in the middle of the screen... show
+## for a bit and then go away automatically." Center-anchored (unlike the
+## connection banners above, which sit at the top so they don't block the
+## board) since this is meant to be the obvious, momentary focal point.
+func _build_turn_banner() -> void:
+	_turn_banner = PanelContainer.new()
+	_turn_banner.visible = false
+	_turn_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_turn_banner.set_anchors_preset(Control.PRESET_CENTER)
+	_turn_banner.z_index = 100
+	_turn_banner.add_theme_stylebox_override("panel", _opaque_popup_style())
+	add_child(_turn_banner)
+	_turn_banner_label = Label.new()
+	_turn_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_turn_banner_label.add_theme_font_size_override("font_size", 48)
+	_turn_banner.add_child(_turn_banner_label)
+
+const TURN_BANNER_DURATION := 1.6
+
+func _show_turn_banner(player_id: int) -> void:
+	_turn_banner_label.text = "Your Turn" if player_id == HUMAN else "Opponent's Turn"
+	_turn_banner_label.add_theme_color_override("font_color", Color(0.6, 1, 0.6) if player_id == HUMAN else Color(1, 0.6, 0.6))
+	_turn_banner.visible = true
+	_turn_banner.modulate.a = 1.0
+	_turn_banner_token += 1
+	var my_token := _turn_banner_token
+	await get_tree().create_timer(TURN_BANNER_DURATION).timeout
+	if my_token == _turn_banner_token: # a newer turn didn't already start (and re-show) while this one was waiting
+		_turn_banner.visible = false
+
 func _on_connection_warning() -> void:
 	_connection_warning_banner.visible = true
 
@@ -2014,6 +2051,7 @@ func _on_turn_started(player_id: int) -> void:
 	_refresh()
 	if GameState.is_over:
 		return
+	_show_turn_banner(player_id)
 	if GameState.players[player_id].is_remote:
 		# § multiplayer plan — a real remote human, not the bot: their
 		# actions arrive one at a time over the network instead of as one
@@ -2023,15 +2061,25 @@ func _on_turn_started(player_id: int) -> void:
 		# queue transiently ran dry between their actions — only the NEXT
 		# turn_started (this function, re-entered once their end_turn
 		# arrives and is applied) actually ends this state.
+		#
+		# § bugfix — deliberately does NOT set _ai_reveal_active/seed
+		# _ai_reveal_set the way the AI branch below does. That masking
+		# exists to fake a progressive reveal for the AI, which resolves
+		# its ENTIRE turn instantly and would otherwise dump its whole
+		# board onto the screen at once; a real remote opponent's actions
+		# already arrive one at a time, naturally paced by the network, so
+		# the masking is both unnecessary AND actively harmful here: it
+		# only ever reveals the exact instance_id an action's own replay-
+		# log entry names, so a card whose effect creates something ELSE
+		# (e.g. Mud Dauber's On Play summoning token creatures) left that
+		# something else invisible for the rest of the turn — nothing
+		# ever added ITS instance_id to the reveal set (§ user bug report:
+		# "I played Mud Dauber and my opponent can't see the tokens yet").
+		# Leaving _ai_reveal_active false means _render_row's masking
+		# check never triggers, so every _refresh() shows the real,
+		# current board exactly as GameState has it.
 		_busy = true
 		_refresh()
-		var remote_player := GameState.players[player_id]
-		_ai_reveal_set = {}
-		for c: CardInstance in remote_player.board:
-			_ai_reveal_set[c.instance_id] = true
-		for c: CardInstance in remote_player.hive_zone:
-			_ai_reveal_set[c.instance_id] = true
-		_ai_reveal_active = true
 		_replay_streaming = true
 	elif GameState.players[player_id].is_ai:
 		_busy = true
@@ -2576,11 +2624,11 @@ func _refresh() -> void:
 	# hand, and the Action Log, respectively).
 	_refresh_leader_panel(_opponent_leader_btn, _opponent_leader_view, ai.leader.data, ai.health, true)
 	_refresh_pile(_opponent_deck_pile, ai.deck.size())
-	_refresh_pile(_opponent_discard_btn, ai.graveyard.size())
+	_refresh_discard_pile(_opponent_discard_btn, ai.graveyard)
 
 	_refresh_leader_panel(_player_leader_btn, _player_leader_view, human.leader.data, human.health)
 	_refresh_pile(_player_deck_pile, human.deck.size())
-	_refresh_pile(_player_discard_btn, human.graveyard.size())
+	_refresh_discard_pile(_player_discard_btn, human.graveyard)
 
 	_render_row(_opponent_board, ai.board, false, _opponent_board_zone)
 	_render_row(_player_board, human.board, true, _player_board_zone)
@@ -2678,6 +2726,21 @@ func _refresh_pile(container: Control, count: int) -> void:
 		child.queue_free()
 	var size := _current_zone_size(container, FALLBACK_PILE_SIZE)
 	var visual := CardRenderUtil.build_pile_visual(size, count)
+	container.add_child(visual)
+	LayoutUtil.fill_parent(visual)
+
+## § bugfix — "the discard pile should be face up and show the cards that
+## are in it": shows the most recently discarded card's own face instead
+## of the same face-down back the deck pile uses (a discard pile is public
+## information; a deck's remaining order isn't). The full list is still
+## reachable via the existing click popup (_show_discard) — this is just
+## the pile icon itself.
+func _refresh_discard_pile(container: Control, graveyard: Array[CardInstance]) -> void:
+	for child in container.get_children():
+		child.queue_free()
+	var size := _current_zone_size(container, FALLBACK_PILE_SIZE)
+	var top_card: CardData = graveyard.back().data if not graveyard.is_empty() else null
+	var visual := CardRenderUtil.build_discard_pile_visual(size, top_card, graveyard.size())
 	container.add_child(visual)
 	LayoutUtil.fill_parent(visual)
 
@@ -3152,17 +3215,36 @@ func _reorder_hand_to(instance_id: int, drop_x: float) -> void:
 func _make_creature_widget(c: CardInstance, friendly: bool, card_size: Vector2) -> Control:
 	var box := VBoxContainer.new()
 	box.set_meta("instance_id", c.instance_id) # § lets _find_widget_by_instance locate this for the AI turn-animation hook
+	# § bugfix — a Container (this VBoxContainer, and the HBoxContainer row
+	# it lives in) resets a direct managed child's rotation/scale back to
+	# identity the first time it sorts its children, every time, no matter
+	# when the assignment happens relative to that — confirmed via a
+	# throwaway repro (rotation_degrees silently reverted to 0.0 one frame
+	# after being set directly on btn, whether set before or after
+	# box.add_child). Wrapping the actual card button in a plain
+	# (non-Container) Control sidesteps it: btn is no longer a Container-
+	# managed child at all, only `wrapper` (whose own rotation we never
+	# touch) is.
+	var wrapper := Control.new()
+	wrapper.custom_minimum_size = card_size
+	box.add_child(wrapper)
 	var btn := Button.new()
-	btn.custom_minimum_size = card_size
+	LayoutUtil.fill_parent(btn)
 	var tex := CardRenderUtil.style_card_face(btn, c.data, c.data.cost)
 	if c.is_exhausted():
 		btn.modulate *= Color(0.6, 0.6, 0.6)
+		# § user request — a "tapped" look, MTG-style: rotate around the
+		# card's own center (not its top-left corner, Control's default
+		# pivot) so it visually pivots in place instead of swinging out
+		# from a corner.
+		btn.pivot_offset = card_size / 2.0
+		btn.rotation_degrees = 45.0
 	if c.instance_id == _selected_attacker_id:
 		btn.modulate *= Color(1.3, 1.3, 0.6) # gold tint — the only "selection" cue left now that the base card has no text (§ user request)
 	if _creature_usable_glow(c, friendly):
 		CardRenderUtil.add_playable_glow(btn)
 	btn.pressed.connect(_on_board_creature_pressed.bind(c, friendly))
-	box.add_child(btn)
+	wrapper.add_child(btn)
 
 	var badge_text := ""
 	if c.data is CreatureData:
@@ -3180,6 +3262,7 @@ func _make_creature_widget(c: CardInstance, friendly: bool, card_size: Vector2) 
 	return box
 
 const TEMP_KEYWORD_COLOR := "#ffcc33"
+const GRANTED_KEYWORD_COLOR := "#ff9966"
 
 ## Hover-preview body text for a live board creature (§ user request: the
 ## base widget shows only art + name/cost/ATK-DEF decorations — this is
@@ -3194,6 +3277,21 @@ func _creature_bbcode(c: CardInstance) -> String:
 		lines.append(_bbcode_escape(CardRenderUtil.format_rules_text(c.data.text)))
 	if not c.temp_keywords.is_empty():
 		lines.append("[color=%s]%s (until your next turn)[/color]" % [TEMP_KEYWORD_COLOR, _bbcode_escape(", ".join(c.temp_keywords))])
+	# § bugfix — a PERMANENT (until-death) keyword granted by an opponent's
+	# effect (e.g. Warble Fly Pest's Decay affliction) was applied to
+	## runtime_keywords and worked correctly, but was never actually shown
+	# anywhere: this hover text only ever listed temp_keywords (the
+	# until-next-turn kind) and the card's own printed text. Diffing
+	# against the printed keyword set surfaces anything granted at
+	# runtime — by an effect like this one, or by attached Gear, which
+	# previously was only inferable from the gear's own name, not by
+	# which keyword it actually grants.
+	var granted_keywords: Array[String] = []
+	for kw: String in c.runtime_keywords:
+		if not c.data.keywords.has(kw):
+			granted_keywords.append(kw)
+	if not granted_keywords.is_empty():
+		lines.append("[color=%s]%s[/color]" % [GRANTED_KEYWORD_COLOR, _bbcode_escape(", ".join(granted_keywords))])
 	if not c.attached_gear.is_empty():
 		var gear_names := c.attached_gear.map(func(g: CardInstance) -> String: return g.display_name())
 		lines.append("Gear: " + _bbcode_escape(", ".join(gear_names)))

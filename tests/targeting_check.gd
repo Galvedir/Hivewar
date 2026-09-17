@@ -112,14 +112,14 @@ func _ready() -> void:
 	_check(main._opponent_board.get_child_count() == ai.board.size(), "Any GameLog entry immediately refreshes the opponent board, not just at turn start/end")
 
 	# --- The block popup shows the attacker's own attack/health (§ user request) ---
-	var big_attacker := CardDatabase.create_instance("apex_bloodhunter", 1) # 10/6
+	var big_attacker := CardDatabase.create_instance("apex_bloodhunter", 1) # 8/6 (§ balance: was 10/6)
 	var no_blockers: Array[CardInstance] = []
 	main._on_block_requested(big_attacker, no_blockers)
 	var block_label_text := ""
 	for child in main._block_popup_box.get_children():
 		if child is Label:
 			block_label_text = child.text
-	_check(block_label_text.contains("(10/6)"), "The block popup's prompt shows the attacking creature's attack/health, not just its name")
+	_check(block_label_text.contains("(8/6)"), "The block popup's prompt shows the attacking creature's attack/health, not just its name")
 
 	# Decking out is an instant loss (§ user request), checked at the turn draw.
 	human.deck.clear()

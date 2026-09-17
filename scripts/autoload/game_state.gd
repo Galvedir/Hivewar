@@ -153,10 +153,10 @@ func cleanup_dead(player_id: int) -> void:
 			i += 1
 	EffectResolver.refresh_colony_bonuses(p)
 
-## Attaches Gear to a friendly creature, discarding any Gear already on it (§5).
+## Attaches Gear to a friendly creature (§ user request: a creature can
+## wear any number of Gear at once — previously this discarded any Gear
+## already on the target first, artificially capping it at one).
 func attach_gear(gear_instance: CardInstance, target: CardInstance) -> void:
-	for g in target.attached_gear.duplicate():
-		_unequip_gear(g, target)
 	target.attached_gear.append(gear_instance)
 	var gd := gear_instance.data as GearData
 	target.current_attack += gd.attack_buff
@@ -165,11 +165,3 @@ func attach_gear(gear_instance: CardInstance, target: CardInstance) -> void:
 		if not target.runtime_keywords.has(kw):
 			target.runtime_keywords.append(kw)
 
-func _unequip_gear(gear_instance: CardInstance, target: CardInstance) -> void:
-	var gd := gear_instance.data as GearData
-	target.current_attack -= gd.attack_buff
-	target.max_health -= gd.health_buff
-	for kw: String in gd.grants_keywords:
-		target.runtime_keywords.erase(kw)
-	target.attached_gear.erase(gear_instance)
-	players[gear_instance.owner_id].graveyard.append(gear_instance)

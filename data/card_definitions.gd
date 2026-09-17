@@ -1144,8 +1144,13 @@ const RED: Array[Dictionary] = [
 	{
 		"id": "vampire_moth", "name": "Vampire Moth", "type": "Creature",
 		"cost": 5, "kingdoms": [Kingdoms.RED], "rarity": Rarities.RARE,
-		"attack": 5, "health": 4, "creature_type": "Moth", "keywords": [Keywords.LIFESTEAL, Keywords.SWIFT],
-		"text": "Lifesteal. Swift.",
+		"attack": 5, "health": 4, "creature_type": "Moth", "keywords": [Keywords.LIFESTEAL],
+		# § user balance report: "Vampire Moth too powerful" — Swift removed.
+		# 5/4 Lifesteal for 5 is already a strong body/drain; Swift on top
+		# meant it could deal 5 damage and heal 5 the SAME turn it landed,
+		# with no window to answer it first. Now a normal summoning-sick
+		# creature like the rest of the curve.
+		"text": "Lifesteal.",
 	},
 	{
 		"id": "hornet_queen_scourge", "name": "Mud Dauber", "type": "Creature",
@@ -1248,9 +1253,15 @@ const RED: Array[Dictionary] = [
 	{
 		"id": "apex_bloodhunter", "name": "Yomma, Alphagal Carrier", "type": "Creature",
 		"cost": 9, "kingdoms": [Kingdoms.RED], "rarity": Rarities.LEGENDARY,
-		"attack": 10, "health": 6, "creature_type": "Tick", "keywords": [Keywords.SWIFT, Keywords.LIFESTEAL],
-		"effects": [{"trigger": "on_play", "effect_id": "damage_leader", "params": {"amount": 4, "target": "enemy"}}],
-		"text": "Swift. Lifesteal. On Play: deal 4 damage to the enemy Leader.",
+		"attack": 8, "health": 6, "creature_type": "Tick", "keywords": [Keywords.SWIFT, Keywords.LIFESTEAL],
+		"effects": [{"trigger": "on_play", "effect_id": "damage_leader", "params": {"amount": 3, "target": "enemy"}}],
+		# § user balance report: "Yomma is too powerful" — attack 10->8 and
+		# On Play burn 4->3. Swift+Lifesteal let it swing the turn it
+		# landed for (attack + on-play damage) in one shot while also
+		# healing back the same amount; at the old numbers that was 14
+		# damage and 10 life gained from a single card. Still a top-end
+		# legendary finisher, just less of an outright one-card kill.
+		"text": "Swift. Lifesteal. On Play: deal 3 damage to the enemy Leader.",
 	},
 	{
 		"id": "assassin_vein_striker", "name": "Chaga's Carrier", "type": "Creature",

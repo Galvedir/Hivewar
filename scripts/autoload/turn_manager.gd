@@ -42,8 +42,23 @@ func start_game(deck_ids: Array[String], starting_player_index: int = 0) -> void
 ## deliberately kept separate to avoid any regression risk to the single-
 ## player path. See GameState.setup_networked_game for why both clients
 ## reach identical state from this.
-func start_networked_game(seat_configs: Array[Dictionary], starting_player_index: int = 0) -> void:
+##
+## Split into two steps (setup_networked_match / begin_networked_turns)
+## rather than one atomic call like start_game — § bugfix: the atomic
+## version called start_turn(...) (which synchronously fires turn_started
+## for turn 1) BEFORE main_ui.gd ever got a chance to call
+## NetworkMatch.mark_remote_seat(), so PlayerState.is_remote was still
+## false for the remote seat during the very first turn's turn_started
+## handling. That's harmless when player 0 (always the starting seat) is
+## the HOST's own seat on the host's client (is_remote correctly doesn't
+## apply there anyway), but on the GUEST's client, seat 0 IS the remote
+## seat, and turn 1 would be briefly treated as a local turn instead of a
+## remote one. Splitting lets main_ui.gd mark the remote seat in the gap
+## between setup and the first start_turn call.
+func setup_networked_match(seat_configs: Array[Dictionary], starting_player_index: int = 0) -> void:
 	GameState.setup_networked_game(seat_configs, starting_player_index)
+
+func begin_networked_turns() -> void:
 	for player: PlayerState in GameState.players:
 		for i in range(3):
 			player.draw_card()

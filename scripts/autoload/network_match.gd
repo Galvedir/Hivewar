@@ -24,11 +24,11 @@ extends Node
 
 ## Fired once both sides have agreed to start and the seat data (leader +
 ## exact shuffled card order for both seats) is known — deliberately does
-## NOT itself call TurnManager.start_networked_game, so main_ui.gd can show/
-## lay out the match view first (see _start_match's own comment about the
-## Leader panel starting tiny if GameState setup and its resulting
-## turn_started/_refresh calls happen before the view has ever been laid
-## out) and only then start the real game.
+## NOT itself call TurnManager.setup_networked_match/begin_networked_turns,
+## so main_ui.gd can show/lay out the match view first (see _start_match's
+## own comment about the Leader panel starting tiny if GameState setup and
+## its resulting turn_started/_refresh calls happen before the view has
+## ever been laid out) and only then start the real game.
 signal match_ready(seats: Array[Dictionary], starting_player_index: int)
 ## One entry, shaped exactly like an AIPlayer.take_turn() replay-log entry
 ## ({"kind": ..., ...}) — main_ui.gd appends these straight onto its
@@ -150,7 +150,20 @@ func start_as_host(local_deck_def: Dictionary, remote_deck_def: Dictionary, remo
 		"type": "match_start", "starting_player_index": 0,
 		"host_deck": host_cfg, "guest_deck": guest_cfg,
 	})
-	match_ready.emit([host_cfg, guest_cfg], 0)
+	# § bugfix — "guest transitions to the match, host doesn't": found via
+	# a throwaway test that called this exact function through the real
+	# button-press call stack. `match_ready` is declared with a strictly-
+	# typed `Array[Dictionary]` parameter; emitting an inline array
+	# literal like `[host_cfg, guest_cfg]` directly is left as a generic
+	# untyped Array, and Godot's signal dispatch refuses to coerce it at
+	# the emit boundary ("Cannot convert argument 1 from Array to Array")
+	# — the emit itself failed, so _on_network_match_ready never ran on
+	# the host at all. The guest's own match_ready (below, from the
+	# packet-received path) already assigned into an explicitly-typed
+	# `Array[Dictionary]` local first, which coerces the literal
+	# correctly — this is why only the host side ever broke.
+	var seats: Array[Dictionary] = [host_cfg, guest_cfg]
+	match_ready.emit(seats, 0)
 
 ## Called by main_ui.gd right after actually starting the game (once the
 ## match view is visible and laid out) — marks which seat is the remote

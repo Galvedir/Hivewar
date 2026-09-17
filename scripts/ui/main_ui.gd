@@ -927,8 +927,9 @@ func _on_network_match_ready(seats: Array[Dictionary], starting_player_index: in
 	GameLog.clear()
 	if _log_display != null:
 		_log_display.clear()
-	await TurnManager.start_networked_game(seats, starting_player_index)
+	TurnManager.setup_networked_match(seats, starting_player_index)
 	NetworkMatch.mark_remote_seat()
+	await TurnManager.begin_networked_turns()
 	_refresh()
 
 ## Queues one remote action for the existing AI-replay pacing pump (see

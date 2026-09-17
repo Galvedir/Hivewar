@@ -123,20 +123,29 @@ func _reset_connection_timers() -> void:
 
 ## --- Match start ------------------------------------------------------------
 
-## Called on the lobby owner's client once both players are ready. Shuffles
-## both decks once, locally, then sends the exact resulting card order to
-## the guest so both mirrors start byte-identical (see
-## GameState.setup_networked_game) — the guest never shuffles anything
-## itself.
-func start_as_host(local_deck_ref: String, remote_deck_ref: String, remote_id: int) -> void:
+## Called on the lobby owner's client once both players are ready.
+## `local_deck_def`/`remote_deck_def` are each a resolved
+## `{"leader_id", "cards"}` deck definition — NOT a name/ref string.
+## MultiplayerHubUI resolves both locally (each player's own choice,
+## premade or custom, is always resolvable on their own machine) and
+## sends the actual definition over Steam lobby member data, rather than
+## a ref the OTHER machine has no way to look up if it's a custom Deck
+## Builder save (§ bugfix — see MultiplayerHubUI._on_my_deck_selected's
+## own comment; this used to silently blow up whenever either player
+## picked a custom deck, matching the "Start Match button doesn't do
+## anything" report). Shuffles both decks once, locally, then sends the
+## exact resulting card order to the guest so both mirrors start byte-
+## identical (see GameState.setup_networked_game) — the guest never
+## shuffles anything itself.
+func start_as_host(local_deck_def: Dictionary, remote_deck_def: Dictionary, remote_id: int) -> void:
 	is_active = true
 	is_host = true
 	local_seat = 0
 	remote_seat = 1
 	remote_steam_id = remote_id
 	_reset_connection_timers()
-	var host_cfg := _build_seat_config(local_deck_ref)
-	var guest_cfg := _build_seat_config(remote_deck_ref)
+	var host_cfg := _build_seat_config(local_deck_def)
+	var guest_cfg := _build_seat_config(remote_deck_def)
 	_send_to_remote({
 		"type": "match_start", "starting_player_index": 0,
 		"host_deck": host_cfg, "guest_deck": guest_cfg,
@@ -155,8 +164,7 @@ func end_match() -> void:
 	remote_steam_id = 0
 	_reset_connection_timers()
 
-func _build_seat_config(deck_ref: String) -> Dictionary:
-	var deck_def: Dictionary = DeckDefinitions.get_deck(deck_ref) if DeckDefinitions.all_deck_ids().has(deck_ref) else DeckStorage.get_deck(deck_ref)
+func _build_seat_config(deck_def: Dictionary) -> Dictionary:
 	var card_ids: Array[String] = DeckDefinitions.expand(deck_def["cards"])
 	card_ids.shuffle()
 	return {"leader_id": deck_def["leader_id"], "card_order": card_ids}

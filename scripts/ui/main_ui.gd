@@ -1367,6 +1367,7 @@ func _build_match_view() -> void:
 	_build_connection_status_ui()
 	_build_invite_popup()
 	SteamManager.invite_received.connect(_on_invite_received)
+	SteamManager.lobby_joined.connect(_on_any_lobby_joined)
 
 ## One side's HUD strip (§ user request), left to right: deck+discard piles
 ## / hand / action buttons for the player; mirrored on both axes for the
@@ -1932,8 +1933,23 @@ func _on_invite_join_pressed() -> void:
 	if SteamManager.current_lobby_id != 0:
 		SteamManager.leave_lobby()
 	SteamManager.join_lobby(_pending_invite_lobby_id)
-	# Jump straight to the Multiplayer Hub regardless of whatever screen
-	# was showing, same as clicking the Main Menu's own Multiplayer button.
+	# Navigation itself happens generically in _on_any_lobby_joined once
+	# Steam actually confirms the join (below) — covers this popup's own
+	# Join button AND accepting via Steam's own overlay UI (friends list
+	## "Join Game", or Steam's native invite notification), which fires
+	# SteamManager.lobby_joined the exact same way but never went through
+	# this popup at all (§ user bug report: "accepting an invite via steam
+	# should take you to the lobby" — that path used to just silently join
+	# the lobby's Steam-side data with no UI reaction whatsoever).
+
+## Fires on ANY successful lobby join, regardless of what triggered it —
+## the in-game invite popup above, Steam's own overlay/friends-list "Join
+## Game", or the Hub's manual "Join by Lobby ID" fallback. Jumps straight
+## to the Multiplayer Hub from wherever the player currently is, same as
+## clicking the Main Menu's own Multiplayer button.
+func _on_any_lobby_joined(success: bool, _lobby_id: int) -> void:
+	if not success:
+		return
 	_hide_all_top_level_screens()
 	_hide_docked_preview()
 	_resume_ambient_music() # in case the Collection screen's own track was playing

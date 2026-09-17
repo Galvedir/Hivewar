@@ -200,11 +200,46 @@ func _on_lobby_joined(success: bool, _lobby_id: int) -> void:
 	_my_deck_option.selected = -1
 	_refresh_lobby_state()
 
+## § bugfix — a custom (Deck Builder-saved) deck's name only resolves
+## against DeckStorage on the machine that saved it; the opponent's
+## DeckStorage has no idea it exists. Sending just the ref string here
+## used to leave the HOST unable to resolve the GUEST's custom deck (or
+## vice versa) when it came time to actually start the match — silently:
+## _build_seat_config would look it up, find nothing, and blow up
+## resolving Dictionary["cards"] on an empty result, which aborted
+## start_as_host before it ever got to match_ready.emit(), matching the
+## user's "Start Match button doesn't do anything" report exactly. Fix:
+## resolve the FULL deck definition locally (always possible — a player
+## always has their OWN choice available, premade or custom) and send
+## that, not just a name that only means something on this machine.
 func _on_my_deck_selected(index: int) -> void:
 	if index < 0 or index >= _deck_refs.size():
 		return
-	SteamManager.set_my_lobby_member_data(MEMBER_KEY_DECK, _deck_refs[index])
+	var ref := _deck_refs[index]
+	var deck_def := _resolve_deck_ref(ref)
+	var payload := {"ref": ref, "leader_id": deck_def.get("leader_id", ""), "cards": deck_def.get("cards", {})}
+	SteamManager.set_my_lobby_member_data(MEMBER_KEY_DECK, JSON.stringify(payload))
 	_refresh_lobby_state()
+
+## Same resolution GameState.setup_game/_resolve_deck_ref does — a deck
+## ref is checked against the shared premade pool first, then the local
+## player's own DeckStorage saves. Only ever called with a ref chosen by
+## the LOCAL player, so DeckStorage always actually has it if it's not
+## premade.
+func _resolve_deck_ref(deck_ref: String) -> Dictionary:
+	if DeckDefinitions.all_deck_ids().has(deck_ref):
+		return DeckDefinitions.get_deck(deck_ref)
+	return DeckStorage.get_deck(deck_ref)
+
+## Parses the {"ref", "leader_id", "cards"} blob written by
+## _on_my_deck_selected above out of a lobby member's raw MEMBER_KEY_DECK
+## string. Returns {} for "not chosen yet" (empty string) or anything
+## malformed.
+func _parse_deck_payload(text: String) -> Dictionary:
+	if text == "":
+		return {}
+	var parsed = JSON.parse_string(text)
+	return parsed if parsed is Dictionary else {}
 
 func _on_ready_pressed() -> void:
 	if _my_deck_option.selected < 0:
@@ -222,9 +257,12 @@ func _on_ready_pressed() -> void:
 func _on_start_match_pressed() -> void:
 	if not SteamManager.is_lobby_owner() or _opponent_id == 0 or _my_deck_option.selected < 0:
 		return
-	var my_deck_ref: String = _deck_refs[_my_deck_option.selected]
-	var opponent_deck_ref := SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK)
-	NetworkMatch.start_as_host(my_deck_ref, opponent_deck_ref, _opponent_id)
+	var my_deck_def := _resolve_deck_ref(_deck_refs[_my_deck_option.selected])
+	var opponent_deck_def := _parse_deck_payload(SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK))
+	if my_deck_def.is_empty() or opponent_deck_def.is_empty():
+		_status_label.text = "Couldn't read a deck — try re-selecting your deck and Ready Up again."
+		return
+	NetworkMatch.start_as_host(my_deck_def, opponent_deck_def, _opponent_id)
 
 func _refresh_lobby_state() -> void:
 	var lobby_id := SteamManager.current_lobby_id
@@ -254,11 +292,11 @@ func _refresh_lobby_state() -> void:
 		_status_label.text = "Waiting for a friend to join — click Invite Friend, or share this Lobby ID: %d" % lobby_id
 		return
 
-	var opponent_deck := SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK)
+	var opponent_deck := _parse_deck_payload(SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK))
 	var opponent_ready := SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_READY) == "1"
 	_opponent_status_label.text = "%s — Deck: %s — %s" % [
 		SteamManager.get_persona_name(_opponent_id),
-		_deck_display_name(opponent_deck) if opponent_deck != "" else "(choosing...)",
+		_deck_display_name(opponent_deck.get("ref", "")) if not opponent_deck.is_empty() else "(choosing...)",
 		"Ready!" if opponent_ready else "Not ready",
 	]
 

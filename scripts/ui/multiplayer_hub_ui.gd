@@ -48,6 +48,7 @@ func _ready() -> void:
 	SteamManager.lobby_members_changed.connect(_refresh_lobby_state)
 	SteamManager.lobby_data_changed.connect(_refresh_lobby_state)
 	SteamManager.lobby_left.connect(_refresh_lobby_state)
+	SteamManager.p2p_session_failed.connect(_on_p2p_session_failed)
 
 func _build_ui() -> void:
 	var root := VBoxContainer.new()
@@ -254,15 +255,43 @@ func _on_ready_pressed() -> void:
 ## sends the resulting deck data to the guest and fires `match_ready` on
 ## both clients; main_ui.gd is what actually swaps this screen out for the
 ## match view once that arrives (see its _on_network_match_ready).
+## § bugfix — each early-out used to be a silent no-op with zero visible
+## feedback, which is exactly what "the Start Match button doesn't do
+## anything" looks like from the outside regardless of the actual cause.
+## Every branch now leaves a status message behind.
 func _on_start_match_pressed() -> void:
-	if not SteamManager.is_lobby_owner() or _opponent_id == 0 or _my_deck_option.selected < 0:
+	if not SteamManager.is_lobby_owner():
+		return # button isn't even visible to a non-owner; defensive only
+	if _opponent_id == 0:
+		_status_label.text = "No opponent in the lobby to start a match with."
+		return
+	if _my_deck_option.selected < 0:
+		_status_label.text = "Choose a deck first."
 		return
 	var my_deck_def := _resolve_deck_ref(_deck_refs[_my_deck_option.selected])
 	var opponent_deck_def := _parse_deck_payload(SteamManager.get_lobby_member_data(_opponent_id, MEMBER_KEY_DECK))
 	if my_deck_def.is_empty() or opponent_deck_def.is_empty():
 		_status_label.text = "Couldn't read a deck — try re-selecting your deck and Ready Up again."
 		return
+	_status_label.text = "Starting match..."
 	NetworkMatch.start_as_host(my_deck_def, opponent_deck_def, _opponent_id)
+
+## § bugfix — this used to only ever be checked once NetworkMatch was
+## already mid-match (NetworkMatch._on_p2p_session_failed gates on
+## is_active), so a P2P connection failure happening during the LOBBY
+## phase — before Start Match is ever pressed, e.g. restrictive NAT/
+## firewall on either side preventing a direct connection at all — was
+## silently dropped: lobby DATA (deck picks, ready state) still syncs fine
+## regardless, since that goes through Steam's central lobby service, not
+## a direct P2P link, so nothing in the lobby UI ever hinted at a problem
+## until Start Match tried to actually send P2P data and went nowhere.
+## This is a real, plausible explanation for "Start Match doesn't do
+## anything" persisting even after the deck-resolution bug was fixed.
+func _on_p2p_session_failed(remote_id: int, error_code: int) -> void:
+	if remote_id != _opponent_id or NetworkMatch.is_active:
+		return
+	var reason := "timed out" if error_code == Steam.P2P_SESSION_ERROR_TIMEOUT else "failed (error %d)" % error_code
+	_status_label.text = "Couldn't establish a direct connection to your opponent (%s) — this can happen with restrictive NAT/firewall settings. Starting a match likely won't work until this is resolved." % reason
 
 func _refresh_lobby_state() -> void:
 	var lobby_id := SteamManager.current_lobby_id

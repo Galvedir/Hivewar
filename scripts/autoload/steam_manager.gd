@@ -17,7 +17,10 @@ signal lobby_members_changed
 signal lobby_data_changed # lobby data OR a member's data changed (e.g. deck pick/ready toggle)
 signal invite_received(lobby_id: int, inviter_name: String)
 signal p2p_packet_received(sender_id: int, bytes: PackedByteArray)
-signal p2p_session_failed(remote_id: int)
+## `error_code` is Steamworks' P2PSessionError enum (Steam.P2P_SESSION_ERROR_*)
+## — most commonly TIMEOUT (a direct connection to that peer couldn't be
+## established at all, e.g. restrictive NAT/firewall on either side).
+signal p2p_session_failed(remote_id: int, error_code: int)
 
 const APP_ID := 480 # Valve's public "Spacewar" test app — see project_multiplayer_architecture memory
 const P2P_CHANNEL := 0
@@ -186,5 +189,5 @@ func _on_p2p_session_request(remote_steam_id: int) -> void:
 	if current_lobby_id != 0 and get_lobby_members().has(remote_steam_id):
 		Steam.acceptP2PSessionWithUser(remote_steam_id)
 
-func _on_p2p_session_connect_fail(remote_steam_id: int, _session_error: int) -> void:
-	p2p_session_failed.emit(remote_steam_id)
+func _on_p2p_session_connect_fail(remote_steam_id: int, session_error: int) -> void:
+	p2p_session_failed.emit(remote_steam_id, session_error)

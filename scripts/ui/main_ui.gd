@@ -1919,10 +1919,23 @@ func _build_invite_popup() -> void:
 	decline_btn.pressed.connect(func() -> void: _invite_popup.visible = false)
 	row.add_child(decline_btn)
 
+## § bugfix — "the join/decline popup is not getting dismissed after
+## accepting an invite": Steamworks is known to fire its invite callback
+## more than once for a single real invite (a duplicate/late signal), and
+## the old version of this handler had no guard against that — clicking
+## Join hid the popup immediately (see _on_invite_join_pressed), but a
+## delayed second invite_received for the SAME lobby arriving right after
+## would set it visible again, right on top of the Hub screen the player
+## had just been navigated to, looking exactly like "it never closed."
+## `_invite_join_in_flight` covers the join-in-progress window; the
+## `current_lobby_id == lobby_id` check covers a duplicate arriving after
+## the join already succeeded.
+var _invite_join_in_flight := false
+
 ## A live match can't sensibly be interrupted by a second invite — just
 ## drop it rather than yanking the player out of a game in progress.
 func _on_invite_received(lobby_id: int, inviter_name: String) -> void:
-	if NetworkMatch.is_active:
+	if NetworkMatch.is_active or _invite_join_in_flight or SteamManager.current_lobby_id == lobby_id:
 		return
 	_pending_invite_lobby_id = lobby_id
 	_invite_popup_label.text = "%s invited you to a game. Join?" % inviter_name
@@ -1930,6 +1943,7 @@ func _on_invite_received(lobby_id: int, inviter_name: String) -> void:
 
 func _on_invite_join_pressed() -> void:
 	_invite_popup.visible = false
+	_invite_join_in_flight = true
 	if SteamManager.current_lobby_id != 0:
 		SteamManager.leave_lobby()
 	SteamManager.join_lobby(_pending_invite_lobby_id)
@@ -1948,8 +1962,10 @@ func _on_invite_join_pressed() -> void:
 ## to the Multiplayer Hub from wherever the player currently is, same as
 ## clicking the Main Menu's own Multiplayer button.
 func _on_any_lobby_joined(success: bool, _lobby_id: int) -> void:
+	_invite_join_in_flight = false
 	if not success:
 		return
+	_invite_popup.visible = false
 	_hide_all_top_level_screens()
 	_hide_docked_preview()
 	_resume_ambient_music() # in case the Collection screen's own track was playing

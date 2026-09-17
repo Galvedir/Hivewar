@@ -404,6 +404,6 @@ func _on_p2p_packet_received(sender_id: int, bytes: PackedByteArray) -> void:
 			if not is_host:
 				_handle_action_applied(msg)
 
-func _on_p2p_session_failed(remote_id: int) -> void:
+func _on_p2p_session_failed(remote_id: int, _error_code: int) -> void:
 	if is_active and remote_id == remote_steam_id:
 		opponent_disconnected.emit()

@@ -1365,6 +1365,7 @@ func _build_match_view() -> void:
 	_build_log_panel()
 	_build_pause_menu()
 	_build_block_popup()
+	_build_attack_line_overlay()
 	_build_attack_confirm_popup()
 	_build_x_cost_popup()
 	_build_legend_popup()
@@ -1717,6 +1718,70 @@ func _build_block_popup() -> void:
 	add_child(_block_popup)
 	_block_popup_box = VBoxContainer.new()
 	_block_popup.add_child(_block_popup_box)
+
+## § user request — "like MTG where you draw lines and then confirm
+## attack": a line from the selected attacker to wherever you're
+## currently aiming, colored by whether that's a legal target right now.
+## The click-to-arm/click-to-target flow itself (_on_board_creature_pressed
+## / _on_enemy_leader_pressed) and the Yes/No confirm popup below are both
+## UNCHANGED — this only adds the visual line while an attacker is armed;
+## it doesn't fire the attack itself. Plain Control (not a Container) so
+## it never needs any layout beyond filling the screen once; a custom
+## _draw() would need a dedicated subclass, so this connects to
+## CanvasItem's own `draw` signal instead, matching this codebase's
+## build-everything-inline convention.
+var _attack_line_overlay: Control
+## In the overlay's own local coordinate space (see _attack_line_local) —
+## the mouse position while choosing a target, or frozen on the chosen
+## target's own center once _show_attack_confirm shows the popup.
+var _attack_line_to := Vector2.ZERO
+var _attack_line_legal := false
+
+func _build_attack_line_overlay() -> void:
+	_attack_line_overlay = Control.new()
+	_attack_line_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# § bugfix — z_index is relative to ALL siblings at this level, not just
+	# popups: -1 put the line behind the entire board/card content too
+	# (which renders at the default 0), not just behind the popups I was
+	# actually trying to stay under. 50 sits above the board (0) and below
+	# every OTHER popup in this file that bothers to set an explicit
+	# z_index (100) — the attack confirm popup itself doesn't set one, but
+	# it's added as a later sibling in the same default tier, which is
+	# enough for it to draw on top of this on its own.
+	_attack_line_overlay.z_index = 50
+	LayoutUtil.fill_parent(_attack_line_overlay)
+	_attack_line_overlay.draw.connect(_draw_attack_line)
+	add_child(_attack_line_overlay)
+
+func _attack_line_local(global_pos: Vector2) -> Vector2:
+	return _attack_line_overlay.get_global_transform().affine_inverse() * global_pos
+
+func _draw_attack_line() -> void:
+	if _selected_attacker_id == -1:
+		return
+	var attacker_widget := _find_widget_by_instance(_player_board, _selected_attacker_id)
+	if attacker_widget == null:
+		return
+	var from := _attack_line_local(attacker_widget.get_global_rect().get_center())
+	var color := Color(0.4, 1.0, 0.4, 0.9) if _attack_line_legal else Color(1.0, 0.3, 0.3, 0.7)
+	_attack_line_overlay.draw_line(from, _attack_line_to, color, 5.0, true)
+	_attack_line_overlay.draw_circle(_attack_line_to, 7.0, color)
+
+## Whether `global_pos` is currently over a legal target for the armed
+## attacker — drives the line's color as you aim it, same legality checks
+## the actual click handlers already gate on.
+func _point_is_legal_attack_target(global_pos: Vector2) -> bool:
+	var attacker := GameState.players[HUMAN].find_on_board(_selected_attacker_id)
+	if attacker == null:
+		return false
+	if is_instance_valid(_opponent_leader_btn) and _opponent_leader_btn.get_global_rect().has_point(global_pos):
+		return CombatResolver.is_legal_leader_target(attacker, GameState.players[AI])
+	for child in _opponent_board.get_children():
+		if child.has_meta("instance_id") and child.get_global_rect().has_point(global_pos):
+			var target := GameState.players[AI].find_on_board(int(child.get_meta("instance_id")))
+			if target != null:
+				return CombatResolver.is_legal_creature_target(attacker, target)
+	return false
 
 ## Brief "Confirm this attack?" step (§ user request) between choosing a
 ## target and the attack actually resolving — one attack at a time, not a
@@ -2554,6 +2619,11 @@ func _on_board_creature_pressed(instance: CardInstance, is_friendly: bool) -> vo
 		if CombatResolver.can_attack(instance):
 			_selected_attacker_id = instance.instance_id
 			_status_label.text = "%s selected — choose a target." % instance.display_name()
+			# So the attack line appears immediately, pointing at wherever the
+			# mouse already is, instead of waiting for the first motion event.
+			var mouse_pos := get_global_mouse_position()
+			_attack_line_to = _attack_line_local(mouse_pos)
+			_attack_line_legal = _point_is_legal_attack_target(mouse_pos)
 		else:
 			_status_label.text = "%s can't attack right now." % instance.display_name()
 		_refresh()
@@ -2582,11 +2652,21 @@ func _on_enemy_leader_pressed() -> void:
 ## choosing a target and the attack actually resolving.
 func _show_attack_confirm(target) -> void:
 	_pending_attack_target = target
+	# Freeze the line on the actual chosen target (rather than wherever the
+	# mouse happens to be sitting once the popup steals focus) as visual
+	# continuity between "aiming" and "confirming."
+	_attack_line_legal = true
 	if target is String:
 		_attack_confirm_label.text = "Attack the enemy Leader?"
+		if is_instance_valid(_opponent_leader_btn):
+			_attack_line_to = _attack_line_local(_opponent_leader_btn.get_global_rect().get_center())
 	else:
 		var t: CardInstance = target
 		_attack_confirm_label.text = "Attack %s (%d/%d)?" % [t.display_name(), t.current_attack, t.current_health()]
+		var target_widget := _find_widget_by_instance(_opponent_board, t.instance_id)
+		if target_widget != null:
+			_attack_line_to = _attack_line_local(target_widget.get_global_rect().get_center())
+	_attack_line_overlay.queue_redraw()
 	_attack_confirm_popup.visible = true
 
 func _on_attack_confirm_yes() -> void:
@@ -2713,6 +2793,12 @@ func _refresh() -> void:
 		CardRenderUtil.add_playable_glow(_ultimate_btn)
 
 	_cancel_btn.visible = show_leader_menu or targeting or _selected_attacker_id != -1
+
+	# Keeps the attack line in sync with _selected_attacker_id regardless
+	# of which of the many reset paths (Cancel, a resolved attack, a fresh
+	# turn, ...) got us here — _refresh() already runs after every one of
+	# them, so this is the one place that's guaranteed not to miss a reset.
+	_attack_line_overlay.queue_redraw()
 
 ## Rebuilds a deck/discard pile widget's visual (§ user request: "a spot
 ## that shows the deck, the discard pile... fill the area as much as you
@@ -3124,6 +3210,14 @@ func _input(event: InputEvent) -> void:
 	if _match_view.visible and event.is_action_pressed("ui_cancel"):
 		_toggle_pause_menu()
 		return
+	# § user request — the attack line follows the mouse while an attacker
+	# is armed and no target has been chosen yet (_pending_attack_target
+	# freezes it on the chosen target instead, until the confirm popup
+	# resolves — see _show_attack_confirm/_on_attack_confirm_no).
+	if _selected_attacker_id != -1 and _pending_attack_target == null and event is InputEventMouseMotion:
+		_attack_line_to = _attack_line_local(event.global_position)
+		_attack_line_legal = _point_is_legal_attack_target(event.global_position)
+		_attack_line_overlay.queue_redraw()
 	if _drag_btn == null:
 		return
 	if event is InputEventMouseMotion:

@@ -472,6 +472,8 @@ const SPLASH_PATH := "res://art/branding/title_screen.png"
 const SPLASH_DURATION := 2.5
 const MENU_MUSIC_PATH := "res://music/main_menu_music.mp3"
 const BUTTON_CLICK_SFX_PATH := "res://music/button_press.mp3"
+const MENU_BUTTON_ART_DIR := "res://art/ui/buttons/main_menu/"
+const MENU_BUTTON_WIDTH := 260.0 # matches btn_box's own fixed minimum width
 const LOADING_SPRITE_PATH := "res://art/branding/loading/loading-sprite.png"
 const LOADING_SPRITE_COLS := 4
 const LOADING_SPRITE_ROWS := 4
@@ -504,6 +506,47 @@ func _setup_menu_audio() -> void:
 		_sfx_player = AudioStreamPlayer.new()
 		_sfx_player.stream = load(BUTTON_CLICK_SFX_PATH)
 		add_child(_sfx_player)
+
+## § user request: main menu buttons now use real art per state (Enabled/
+## Hover art supplied; a Disabled state is planned but its art isn't done
+## yet, and neither is a dedicated press sound — see BUTTON_CLICK_SFX_PATH/
+## _play_click_sfx above, which already covers "a sound plays on press"
+## generically and fails safe the same way if/when that specific asset
+## changes). Fails safe per state: no art at all for `art_name` leaves the
+## button as Godot's plain default (text intact); a missing disabled
+## texture specifically falls back to the enabled art darkened, rather
+## than silently doing nothing once something on the main menu actually
+## starts using the disabled state.
+func _style_menu_button(btn: Button, art_name: String, fallback_text: String) -> void:
+	var enabled_path := MENU_BUTTON_ART_DIR + "enabled/" + art_name + ".png"
+	if not ResourceLoader.exists(enabled_path):
+		btn.text = fallback_text # asset missing — keep the plain labeled button rather than going blank
+		return
+	var enabled_tex: Texture2D = load(enabled_path)
+	btn.text = "" # the art already has the label baked in
+	btn.custom_minimum_size = Vector2(MENU_BUTTON_WIDTH, MENU_BUTTON_WIDTH * enabled_tex.get_height() / enabled_tex.get_width())
+	var enabled_style := _menu_button_stylebox(enabled_tex)
+	btn.add_theme_stylebox_override("normal", enabled_style)
+	btn.add_theme_stylebox_override("focus", enabled_style)
+
+	var hover_path := MENU_BUTTON_ART_DIR + "hover/" + art_name + ".png"
+	var hover_tex: Texture2D = load(hover_path) if ResourceLoader.exists(hover_path) else enabled_tex
+	var hover_style := _menu_button_stylebox(hover_tex)
+	btn.add_theme_stylebox_override("hover", hover_style)
+	btn.add_theme_stylebox_override("pressed", hover_style)
+
+	var disabled_path := MENU_BUTTON_ART_DIR + "disabled/" + art_name + ".png"
+	if ResourceLoader.exists(disabled_path):
+		btn.add_theme_stylebox_override("disabled", _menu_button_stylebox(load(disabled_path)))
+	else:
+		var placeholder_disabled := _menu_button_stylebox(enabled_tex)
+		placeholder_disabled.modulate_color = Color(0.45, 0.45, 0.45)
+		btn.add_theme_stylebox_override("disabled", placeholder_disabled)
+
+func _menu_button_stylebox(tex: Texture2D) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = tex
+	return style
 
 func _play_click_sfx() -> void:
 	if _sfx_player != null:
@@ -842,49 +885,49 @@ func _build_main_menu() -> void:
 	content.add_child(btn_box)
 
 	var campaign_btn := Button.new()
-	campaign_btn.text = "Campaign"
+	_style_menu_button(campaign_btn, "Campaign", "Campaign")
 	campaign_btn.pressed.connect(_on_campaign_pressed)
 	campaign_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(campaign_btn)
 
 	var practice_btn := Button.new()
-	practice_btn.text = "Practice"
+	_style_menu_button(practice_btn, "Practice", "Practice")
 	practice_btn.pressed.connect(_on_open_practice)
 	practice_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(practice_btn)
 
 	var multiplayer_btn := Button.new()
-	multiplayer_btn.text = "Multiplayer"
+	_style_menu_button(multiplayer_btn, "Multiplayer", "Multiplayer")
 	multiplayer_btn.pressed.connect(_on_multiplayer_pressed)
 	multiplayer_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(multiplayer_btn)
 
 	var builder_btn := Button.new()
-	builder_btn.text = "Deck Builder"
+	_style_menu_button(builder_btn, "Deck_Builder", "Deck Builder")
 	builder_btn.pressed.connect(_on_open_deck_builder.bind(_main_menu))
 	builder_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(builder_btn)
 
 	var collection_btn := Button.new()
-	collection_btn.text = "Collection"
+	_style_menu_button(collection_btn, "Collection", "Collection")
 	collection_btn.pressed.connect(_on_open_collection.bind(_main_menu))
 	collection_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(collection_btn)
 
 	var rules_btn := Button.new()
-	rules_btn.text = "Rules & Keywords"
+	_style_menu_button(rules_btn, "Rules", "Rules & Keywords")
 	rules_btn.pressed.connect(_on_open_rules.bind(_main_menu))
 	rules_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(rules_btn)
 
 	var options_btn := Button.new()
-	options_btn.text = "Options"
+	_style_menu_button(options_btn, "Options", "Options")
 	options_btn.pressed.connect(_on_options_pressed)
 	options_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(options_btn)
 
 	var exit_btn := Button.new()
-	exit_btn.text = "Exit"
+	_style_menu_button(exit_btn, "Exit", "Exit")
 	exit_btn.pressed.connect(_on_exit_pressed)
 	exit_btn.pressed.connect(_play_click_sfx)
 	btn_box.add_child(exit_btn)

@@ -257,6 +257,7 @@ var _replay_streaming := false
 
 var _menu_music_player: AudioStreamPlayer
 var _sfx_player: AudioStreamPlayer
+var _menu_button_sfx_player: AudioStreamPlayer
 var _menu_anim_rect: TextureRect
 var _menu_anim_atlas: AtlasTexture
 var _menu_anim_timer: Timer
@@ -472,6 +473,11 @@ const SPLASH_PATH := "res://art/branding/title_screen.png"
 const SPLASH_DURATION := 2.5
 const MENU_MUSIC_PATH := "res://music/main_menu_music.mp3"
 const BUTTON_CLICK_SFX_PATH := "res://music/button_press.mp3"
+## § user request — a dedicated click sound for just the 8 real Main Menu
+## buttons (see _style_menu_button below), distinct from the generic
+## BUTTON_CLICK_SFX_PATH every OTHER screen's buttons still use (Practice,
+## Deck Builder, etc. — those keep the old shared sound unchanged).
+const MENU_BUTTON_CLICK_SFX_PATH := "res://music/main_menu_button_pressed.mp3"
 const MENU_BUTTON_ART_DIR := "res://art/ui/buttons/main_menu/"
 const MENU_BUTTON_WIDTH := 260.0 # matches btn_box's own fixed minimum width
 const LOADING_SPRITE_PATH := "res://art/branding/loading/loading-sprite.png"
@@ -506,17 +512,18 @@ func _setup_menu_audio() -> void:
 		_sfx_player = AudioStreamPlayer.new()
 		_sfx_player.stream = load(BUTTON_CLICK_SFX_PATH)
 		add_child(_sfx_player)
+	if ResourceLoader.exists(MENU_BUTTON_CLICK_SFX_PATH):
+		_menu_button_sfx_player = AudioStreamPlayer.new()
+		_menu_button_sfx_player.stream = load(MENU_BUTTON_CLICK_SFX_PATH)
+		add_child(_menu_button_sfx_player)
 
 ## § user request: main menu buttons now use real art per state (Enabled/
-## Hover art supplied; a Disabled state is planned but its art isn't done
-## yet, and neither is a dedicated press sound — see BUTTON_CLICK_SFX_PATH/
-## _play_click_sfx above, which already covers "a sound plays on press"
-## generically and fails safe the same way if/when that specific asset
-## changes). Fails safe per state: no art at all for `art_name` leaves the
+## Hover/Disabled art all supplied now, plus a dedicated press sound — see
+## MENU_BUTTON_CLICK_SFX_PATH/_play_menu_button_click_sfx above). Fails
+## safe per state regardless: no art at all for `art_name` leaves the
 ## button as Godot's plain default (text intact); a missing disabled
-## texture specifically falls back to the enabled art darkened, rather
-## than silently doing nothing once something on the main menu actually
-## starts using the disabled state.
+## texture specifically would fall back to the enabled art darkened,
+## rather than silently doing nothing, if that ever goes missing again.
 func _style_menu_button(btn: Button, art_name: String, fallback_text: String) -> void:
 	var enabled_path := MENU_BUTTON_ART_DIR + "enabled/" + art_name + ".png"
 	if not ResourceLoader.exists(enabled_path):
@@ -551,6 +558,13 @@ func _menu_button_stylebox(tex: Texture2D) -> StyleBoxTexture:
 func _play_click_sfx() -> void:
 	if _sfx_player != null:
 		_sfx_player.play()
+
+## The dedicated sound for the 8 real Main Menu buttons only — see
+## MENU_BUTTON_CLICK_SFX_PATH's own comment for why this is separate from
+## _play_click_sfx above.
+func _play_menu_button_click_sfx() -> void:
+	if _menu_button_sfx_player != null:
+		_menu_button_sfx_player.play()
 
 ## Match-related one-shot SFX (§ user request) — each is a distinct, short
 ## clip rather than a reused/swapped-stream player, since several of these
@@ -887,49 +901,49 @@ func _build_main_menu() -> void:
 	var campaign_btn := Button.new()
 	_style_menu_button(campaign_btn, "Campaign", "Campaign")
 	campaign_btn.pressed.connect(_on_campaign_pressed)
-	campaign_btn.pressed.connect(_play_click_sfx)
+	campaign_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(campaign_btn)
 
 	var practice_btn := Button.new()
 	_style_menu_button(practice_btn, "Practice", "Practice")
 	practice_btn.pressed.connect(_on_open_practice)
-	practice_btn.pressed.connect(_play_click_sfx)
+	practice_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(practice_btn)
 
 	var multiplayer_btn := Button.new()
 	_style_menu_button(multiplayer_btn, "Multiplayer", "Multiplayer")
 	multiplayer_btn.pressed.connect(_on_multiplayer_pressed)
-	multiplayer_btn.pressed.connect(_play_click_sfx)
+	multiplayer_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(multiplayer_btn)
 
 	var builder_btn := Button.new()
 	_style_menu_button(builder_btn, "Deck_Builder", "Deck Builder")
 	builder_btn.pressed.connect(_on_open_deck_builder.bind(_main_menu))
-	builder_btn.pressed.connect(_play_click_sfx)
+	builder_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(builder_btn)
 
 	var collection_btn := Button.new()
 	_style_menu_button(collection_btn, "Collection", "Collection")
 	collection_btn.pressed.connect(_on_open_collection.bind(_main_menu))
-	collection_btn.pressed.connect(_play_click_sfx)
+	collection_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(collection_btn)
 
 	var rules_btn := Button.new()
 	_style_menu_button(rules_btn, "Rules", "Rules & Keywords")
 	rules_btn.pressed.connect(_on_open_rules.bind(_main_menu))
-	rules_btn.pressed.connect(_play_click_sfx)
+	rules_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(rules_btn)
 
 	var options_btn := Button.new()
 	_style_menu_button(options_btn, "Options", "Options")
 	options_btn.pressed.connect(_on_options_pressed)
-	options_btn.pressed.connect(_play_click_sfx)
+	options_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(options_btn)
 
 	var exit_btn := Button.new()
 	_style_menu_button(exit_btn, "Exit", "Exit")
 	exit_btn.pressed.connect(_on_exit_pressed)
-	exit_btn.pressed.connect(_play_click_sfx)
+	exit_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(exit_btn)
 
 	_main_menu_status_label = Label.new()

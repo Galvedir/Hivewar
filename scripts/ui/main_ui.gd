@@ -479,7 +479,15 @@ const BUTTON_CLICK_SFX_PATH := "res://music/button_press.mp3"
 ## Deck Builder, etc. — those keep the old shared sound unchanged).
 const MENU_BUTTON_CLICK_SFX_PATH := "res://music/main_menu_button_pressed.mp3"
 const MENU_BUTTON_ART_DIR := "res://art/ui/buttons/main_menu/"
-const MENU_BUTTON_WIDTH := 260.0 # matches btn_box's own fixed minimum width
+## § user bug report: "menu items ... off the screen towards the bottom" —
+## the real art buttons (2.4:1 aspect) at the old 260px width came out to
+## 109px tall each; 8 of those plus the old 10px separation added up to
+## 942px, well past the 940px viewport height once the logo above them
+## was accounted for too (the last button bottomed out at y=1126, 186px
+## past the bottom edge). Shrunk width and tightened the gap between
+## buttons (see btn_box's own separation override) so all 8 fit with some
+## margin to spare — matches btn_box's own fixed minimum width.
+const MENU_BUTTON_WIDTH := 200.0
 const LOADING_SPRITE_PATH := "res://art/branding/loading/loading-sprite.png"
 const LOADING_SPRITE_COLS := 4
 const LOADING_SPRITE_ROWS := 4
@@ -894,8 +902,8 @@ func _build_main_menu() -> void:
 
 	var btn_box := VBoxContainer.new()
 	btn_box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	btn_box.custom_minimum_size = Vector2(260, 0)
-	btn_box.add_theme_constant_override("separation", 10)
+	btn_box.custom_minimum_size = Vector2(MENU_BUTTON_WIDTH, 0)
+	btn_box.add_theme_constant_override("separation", 6)
 	content.add_child(btn_box)
 
 	var campaign_btn := Button.new()

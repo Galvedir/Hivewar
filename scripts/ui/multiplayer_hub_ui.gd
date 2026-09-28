@@ -59,7 +59,7 @@ func _build_ui() -> void:
 	var top := HBoxContainer.new()
 	root.add_child(top)
 	var back_btn := Button.new()
-	back_btn.text = "< Back to Menu"
+	back_btn.text = "< Back" # § user request: every "Back" button unified to one label so they can share one piece of art
 	back_btn.pressed.connect(func() -> void:
 		if SteamManager.current_lobby_id != 0:
 			SteamManager.leave_lobby()

@@ -1079,7 +1079,7 @@ func _build_practice_screen() -> void:
 	top.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_child(top)
 	var back_btn := Button.new()
-	back_btn.text = "< Back to Main Menu"
+	back_btn.text = "< Back" # § user request: every "Back" button unified to one label so they can share one piece of art
 	back_btn.pressed.connect(_on_practice_back_pressed)
 	back_btn.pressed.connect(_play_click_sfx)
 	top.add_child(back_btn)

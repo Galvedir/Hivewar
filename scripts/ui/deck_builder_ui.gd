@@ -110,7 +110,7 @@ func _build_ui() -> void:
 	var top := HBoxContainer.new()
 	root.add_child(top)
 	var back_btn := Button.new()
-	back_btn.text = "< Back" # § user request: every "Back" button unified to one label so they can share one piece of art
+	ButtonStyleUtil.style_art_button(back_btn, ButtonStyleUtil.DECK_BUILDER_BUTTON_ART_DIR, "Back", ButtonStyleUtil.DECK_BUILDER_BUTTON_WIDTH, "< Back")
 	back_btn.pressed.connect(func() -> void:
 		_overlay.hide_preview()
 		_reset_filters() # § user request: filters shouldn't persist once you navigate away
@@ -131,12 +131,12 @@ func _build_ui() -> void:
 	top.add_child(_leader_option)
 
 	var new_btn := Button.new()
-	new_btn.text = "New Deck"
+	ButtonStyleUtil.style_art_button(new_btn, ButtonStyleUtil.DECK_BUILDER_BUTTON_ART_DIR, "New_Deck", ButtonStyleUtil.DECK_BUILDER_BUTTON_WIDTH, "New Deck")
 	new_btn.pressed.connect(_new_deck)
 	top.add_child(new_btn)
 
 	var save_btn := Button.new()
-	save_btn.text = "Save Deck"
+	ButtonStyleUtil.style_art_button(save_btn, ButtonStyleUtil.DECK_BUILDER_BUTTON_ART_DIR, "Save_Deck", ButtonStyleUtil.DECK_BUILDER_BUTTON_WIDTH, "Save Deck")
 	save_btn.pressed.connect(_on_save_pressed)
 	top.add_child(save_btn)
 
@@ -658,7 +658,7 @@ func _refresh_saved_decks() -> void:
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(label)
 		var load_btn := Button.new()
-		load_btn.text = "Edit"
+		ButtonStyleUtil.style_art_button(load_btn, ButtonStyleUtil.DECK_BUILDER_BUTTON_ART_DIR, "Edit_Deck", ButtonStyleUtil.DECK_BUILDER_BUTTON_WIDTH, "Edit")
 		load_btn.pressed.connect(_load_deck.bind(deck_name))
 		row.add_child(load_btn)
 		var del_btn := Button.new()

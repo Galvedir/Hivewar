@@ -59,7 +59,7 @@ func _build_ui() -> void:
 	var top := HBoxContainer.new()
 	root.add_child(top)
 	var back_btn := Button.new()
-	back_btn.text = "< Back" # § user request: every "Back" button unified to one label so they can share one piece of art
+	ButtonStyleUtil.style_art_button(back_btn, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Back", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "< Back")
 	back_btn.pressed.connect(func() -> void:
 		if SteamManager.current_lobby_id != 0:
 			SteamManager.leave_lobby()
@@ -76,7 +76,7 @@ func _build_ui() -> void:
 	root.add_child(_status_label)
 
 	_host_btn = Button.new()
-	_host_btn.text = "Host a Game"
+	ButtonStyleUtil.style_art_button(_host_btn, ButtonStyleUtil.MATCH_BUTTON_ART_DIR, "Host_A_Game", ButtonStyleUtil.MATCH_BUTTON_WIDTH, "Host a Game")
 	_host_btn.pressed.connect(_on_host_pressed)
 	root.add_child(_host_btn)
 
@@ -130,7 +130,7 @@ func _build_ui() -> void:
 	_lobby_box.add_child(_opponent_status_label)
 
 	_start_match_btn = Button.new()
-	_start_match_btn.text = "Start Match"
+	ButtonStyleUtil.style_art_button(_start_match_btn, ButtonStyleUtil.MATCH_BUTTON_ART_DIR, "Start_Match", ButtonStyleUtil.MATCH_BUTTON_WIDTH, "Start Match")
 	_start_match_btn.visible = false
 	_start_match_btn.pressed.connect(_on_start_match_pressed)
 	_lobby_box.add_child(_start_match_btn)

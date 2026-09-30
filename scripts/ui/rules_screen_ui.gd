@@ -71,7 +71,7 @@ func _build_ui() -> void:
 	var top := HBoxContainer.new()
 	root.add_child(top)
 	var back_btn := Button.new()
-	back_btn.text = "< Back"
+	ButtonStyleUtil.style_art_button(back_btn, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Back", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "< Back")
 	back_btn.pressed.connect(func() -> void: closed.emit())
 	top.add_child(back_btn)
 	var title := Label.new()

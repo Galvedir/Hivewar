@@ -256,8 +256,6 @@ var _ai_replay_pause_timer := 0.0
 var _replay_streaming := false
 
 var _menu_music_player: AudioStreamPlayer
-var _sfx_player: AudioStreamPlayer
-var _menu_button_sfx_player: AudioStreamPlayer
 var _menu_anim_rect: TextureRect
 var _menu_anim_atlas: AtlasTexture
 var _menu_anim_timer: Timer
@@ -363,8 +361,7 @@ func _linear_to_volume_db(v: float) -> float:
 func _apply_audio_settings() -> void:
 	if _menu_music_player != null:
 		_menu_music_player.volume_db = _linear_to_volume_db(_music_volume)
-	if _sfx_player != null:
-		_sfx_player.volume_db = _linear_to_volume_db(_sfx_volume)
+	ButtonSfx.set_volume_db(_linear_to_volume_db(_sfx_volume))
 	# The Collection and Deck Builder screens' music (§ user request — it
 	# wasn't respecting the Music Volume slider at all, since neither
 	# screen's player ever had its volume_db touched) each use their own
@@ -439,7 +436,7 @@ func _build_options_screen() -> void:
 	fullscreen_row.add_child(_fullscreen_check)
 
 	var back_btn := Button.new()
-	back_btn.text = "< Back"
+	ButtonStyleUtil.style_art_button(back_btn, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Back", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "< Back")
 	back_btn.pressed.connect(_on_options_back_pressed)
 	box.add_child(back_btn)
 
@@ -472,12 +469,6 @@ const LOGO_PATH := "res://art/branding/logo.png"
 const SPLASH_PATH := "res://art/branding/title_screen.png"
 const SPLASH_DURATION := 2.5
 const MENU_MUSIC_PATH := "res://music/main_menu_music.mp3"
-const BUTTON_CLICK_SFX_PATH := "res://music/button_press.mp3"
-## § user request — a dedicated click sound for just the 8 real Main Menu
-## buttons (see _style_menu_button below), distinct from the generic
-## BUTTON_CLICK_SFX_PATH every OTHER screen's buttons still use (Practice,
-## Deck Builder, etc. — those keep the old shared sound unchanged).
-const MENU_BUTTON_CLICK_SFX_PATH := "res://music/main_menu_button_pressed.mp3"
 const MENU_BUTTON_ART_DIR := "res://art/ui/buttons/main_menu/"
 ## § user bug report: "menu items ... off the screen towards the bottom" —
 ## the real art buttons (2.4:1 aspect) at the old 260px width came out to
@@ -505,8 +496,9 @@ const STUDIO_SPLASH_LOOPS := 2
 
 ## Main-menu-only audio (§ user request) — no general audio system yet,
 ## just background music that plays while the deck-select screen is the
-## active screen, and a click SFX for its buttons. Both fail safe (no
-## AudioStreamPlayer created at all) if the asset isn't present.
+## active screen. Click/hover SFX for every button in the game (including
+## these) is handled globally by the ButtonSfx autoload instead. Fails safe
+## (no AudioStreamPlayer created at all) if the asset isn't present.
 func _setup_menu_audio() -> void:
 	if ResourceLoader.exists(MENU_MUSIC_PATH):
 		_menu_music_player = AudioStreamPlayer.new()
@@ -516,63 +508,13 @@ func _setup_menu_audio() -> void:
 		_menu_music_player.stream = stream
 		add_child(_menu_music_player)
 		_menu_music_player.play()
-	if ResourceLoader.exists(BUTTON_CLICK_SFX_PATH):
-		_sfx_player = AudioStreamPlayer.new()
-		_sfx_player.stream = load(BUTTON_CLICK_SFX_PATH)
-		add_child(_sfx_player)
-	if ResourceLoader.exists(MENU_BUTTON_CLICK_SFX_PATH):
-		_menu_button_sfx_player = AudioStreamPlayer.new()
-		_menu_button_sfx_player.stream = load(MENU_BUTTON_CLICK_SFX_PATH)
-		add_child(_menu_button_sfx_player)
 
-## § user request: main menu buttons now use real art per state (Enabled/
-## Hover/Disabled art all supplied now, plus a dedicated press sound — see
-## MENU_BUTTON_CLICK_SFX_PATH/_play_menu_button_click_sfx above). Fails
-## safe per state regardless: no art at all for `art_name` leaves the
-## button as Godot's plain default (text intact); a missing disabled
-## texture specifically would fall back to the enabled art darkened,
-## rather than silently doing nothing, if that ever goes missing again.
+## § user request: main menu buttons use real art per state (enabled/hover/
+## disabled all supplied; see ButtonStyleUtil for the shared fail-safe
+## per-state lookup + darkened-disabled fallback used by every button-art
+## set in the game now, not just this one).
 func _style_menu_button(btn: Button, art_name: String, fallback_text: String) -> void:
-	var enabled_path := MENU_BUTTON_ART_DIR + "enabled/" + art_name + ".png"
-	if not ResourceLoader.exists(enabled_path):
-		btn.text = fallback_text # asset missing — keep the plain labeled button rather than going blank
-		return
-	var enabled_tex: Texture2D = load(enabled_path)
-	btn.text = "" # the art already has the label baked in
-	btn.custom_minimum_size = Vector2(MENU_BUTTON_WIDTH, MENU_BUTTON_WIDTH * enabled_tex.get_height() / enabled_tex.get_width())
-	var enabled_style := _menu_button_stylebox(enabled_tex)
-	btn.add_theme_stylebox_override("normal", enabled_style)
-	btn.add_theme_stylebox_override("focus", enabled_style)
-
-	var hover_path := MENU_BUTTON_ART_DIR + "hover/" + art_name + ".png"
-	var hover_tex: Texture2D = load(hover_path) if ResourceLoader.exists(hover_path) else enabled_tex
-	var hover_style := _menu_button_stylebox(hover_tex)
-	btn.add_theme_stylebox_override("hover", hover_style)
-	btn.add_theme_stylebox_override("pressed", hover_style)
-
-	var disabled_path := MENU_BUTTON_ART_DIR + "disabled/" + art_name + ".png"
-	if ResourceLoader.exists(disabled_path):
-		btn.add_theme_stylebox_override("disabled", _menu_button_stylebox(load(disabled_path)))
-	else:
-		var placeholder_disabled := _menu_button_stylebox(enabled_tex)
-		placeholder_disabled.modulate_color = Color(0.45, 0.45, 0.45)
-		btn.add_theme_stylebox_override("disabled", placeholder_disabled)
-
-func _menu_button_stylebox(tex: Texture2D) -> StyleBoxTexture:
-	var style := StyleBoxTexture.new()
-	style.texture = tex
-	return style
-
-func _play_click_sfx() -> void:
-	if _sfx_player != null:
-		_sfx_player.play()
-
-## The dedicated sound for the 8 real Main Menu buttons only — see
-## MENU_BUTTON_CLICK_SFX_PATH's own comment for why this is separate from
-## _play_click_sfx above.
-func _play_menu_button_click_sfx() -> void:
-	if _menu_button_sfx_player != null:
-		_menu_button_sfx_player.play()
+	ButtonStyleUtil.style_art_button(btn, MENU_BUTTON_ART_DIR, art_name, MENU_BUTTON_WIDTH, fallback_text)
 
 ## Match-related one-shot SFX (§ user request) — each is a distinct, short
 ## clip rather than a reused/swapped-stream player, since several of these
@@ -909,49 +851,41 @@ func _build_main_menu() -> void:
 	var campaign_btn := Button.new()
 	_style_menu_button(campaign_btn, "Campaign", "Campaign")
 	campaign_btn.pressed.connect(_on_campaign_pressed)
-	campaign_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(campaign_btn)
 
 	var practice_btn := Button.new()
 	_style_menu_button(practice_btn, "Practice", "Practice")
 	practice_btn.pressed.connect(_on_open_practice)
-	practice_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(practice_btn)
 
 	var multiplayer_btn := Button.new()
 	_style_menu_button(multiplayer_btn, "Multiplayer", "Multiplayer")
 	multiplayer_btn.pressed.connect(_on_multiplayer_pressed)
-	multiplayer_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(multiplayer_btn)
 
 	var builder_btn := Button.new()
 	_style_menu_button(builder_btn, "Deck_Builder", "Deck Builder")
 	builder_btn.pressed.connect(_on_open_deck_builder.bind(_main_menu))
-	builder_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(builder_btn)
 
 	var collection_btn := Button.new()
 	_style_menu_button(collection_btn, "Collection", "Collection")
 	collection_btn.pressed.connect(_on_open_collection.bind(_main_menu))
-	collection_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(collection_btn)
 
 	var rules_btn := Button.new()
 	_style_menu_button(rules_btn, "Rules", "Rules & Keywords")
 	rules_btn.pressed.connect(_on_open_rules.bind(_main_menu))
-	rules_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(rules_btn)
 
 	var options_btn := Button.new()
 	_style_menu_button(options_btn, "Options", "Options")
 	options_btn.pressed.connect(_on_options_pressed)
-	options_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(options_btn)
 
 	var exit_btn := Button.new()
 	_style_menu_button(exit_btn, "Exit", "Exit")
 	exit_btn.pressed.connect(_on_exit_pressed)
-	exit_btn.pressed.connect(_play_menu_button_click_sfx)
 	btn_box.add_child(exit_btn)
 
 	_main_menu_status_label = Label.new()
@@ -1079,24 +1013,20 @@ func _build_practice_screen() -> void:
 	top.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_child(top)
 	var back_btn := Button.new()
-	back_btn.text = "< Back" # § user request: every "Back" button unified to one label so they can share one piece of art
+	ButtonStyleUtil.style_art_button(back_btn, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Back", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "< Back")
 	back_btn.pressed.connect(_on_practice_back_pressed)
-	back_btn.pressed.connect(_play_click_sfx)
 	top.add_child(back_btn)
 	var builder_btn := Button.new()
 	builder_btn.text = "Deck Builder"
 	builder_btn.pressed.connect(_on_open_deck_builder.bind(_practice_screen))
-	builder_btn.pressed.connect(_play_click_sfx)
 	top.add_child(builder_btn)
 	var collection_btn := Button.new()
 	collection_btn.text = "Collection"
 	collection_btn.pressed.connect(_on_open_collection.bind(_practice_screen))
-	collection_btn.pressed.connect(_play_click_sfx)
 	top.add_child(collection_btn)
 	var rules_btn := Button.new()
 	rules_btn.text = "Rules & Keywords"
 	rules_btn.pressed.connect(_on_open_rules.bind(_practice_screen))
-	rules_btn.pressed.connect(_play_click_sfx)
 	top.add_child(rules_btn)
 
 	var selection_row := HBoxContainer.new()
@@ -1154,7 +1084,6 @@ func _build_practice_screen() -> void:
 		btn.text = "%s\n(%s)" % [deck_id.replace("_", " ").capitalize(), leader.card_name]
 		btn.custom_minimum_size = Vector2(0, 56)
 		btn.pressed.connect(_on_practice_deck_picked.bind(deck_id))
-		btn.pressed.connect(_play_click_sfx)
 		list_box.add_child(btn)
 
 	var saved_title := Label.new()
@@ -1166,7 +1095,7 @@ func _build_practice_screen() -> void:
 	_refresh_saved_decks_menu()
 
 	_practice_start_btn = Button.new()
-	_practice_start_btn.text = "Start Match"
+	ButtonStyleUtil.style_art_button(_practice_start_btn, ButtonStyleUtil.MATCH_BUTTON_ART_DIR, "Start_Match", ButtonStyleUtil.MATCH_BUTTON_WIDTH, "Start Match")
 	_practice_start_btn.disabled = true
 	_practice_start_btn.pressed.connect(_on_practice_start_pressed)
 	content.add_child(_practice_start_btn)
@@ -1224,7 +1153,6 @@ func _refresh_saved_decks_menu() -> void:
 		btn.text = "%s\n(%s)" % [deck_name, leader.card_name if leader != null else "?"]
 		btn.custom_minimum_size = Vector2(0, 56)
 		btn.pressed.connect(_on_practice_deck_picked.bind(deck_name))
-		btn.pressed.connect(_play_click_sfx)
 		_saved_decks_menu_box.add_child(btn)
 
 ## Shows/hides a top-level screen, special-casing the main menu so its bg
@@ -1516,12 +1444,12 @@ func _build_action_zone() -> Control:
 	zone.add_theme_constant_override("separation", 6)
 
 	_end_turn_btn = Button.new()
-	_end_turn_btn.text = "End Turn"
+	ButtonStyleUtil.style_art_button(_end_turn_btn, ButtonStyleUtil.MATCH_BUTTON_ART_DIR, "End_Turn", ButtonStyleUtil.MATCH_BUTTON_WIDTH, "End Turn")
 	_end_turn_btn.pressed.connect(_on_end_turn_pressed)
 	zone.add_child(_end_turn_btn)
 
 	_attack_leader_btn = Button.new()
-	_attack_leader_btn.text = "Attack Leader"
+	ButtonStyleUtil.style_art_button(_attack_leader_btn, ButtonStyleUtil.MATCH_BUTTON_ART_DIR, "Attack_Leader", ButtonStyleUtil.MATCH_BUTTON_WIDTH, "Attack Leader")
 	_attack_leader_btn.visible = false
 	_attack_leader_btn.pressed.connect(_on_enemy_leader_pressed)
 	zone.add_child(_attack_leader_btn)
@@ -1539,7 +1467,7 @@ func _build_action_zone() -> Control:
 	zone.add_child(_ultimate_btn)
 
 	_cancel_btn = Button.new()
-	_cancel_btn.text = "Cancel"
+	ButtonStyleUtil.style_art_button(_cancel_btn, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Cancel", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "Cancel")
 	_cancel_btn.visible = false
 	_cancel_btn.pressed.connect(_on_cancel_pressed)
 	zone.add_child(_cancel_btn)
@@ -1732,7 +1660,7 @@ func _build_pause_menu() -> void:
 	resume_btn.pressed.connect(_toggle_pause_menu)
 	box.add_child(resume_btn)
 	var concede_btn := Button.new()
-	concede_btn.text = "Concede Match"
+	ButtonStyleUtil.style_art_button(concede_btn, ButtonStyleUtil.MATCH_BUTTON_ART_DIR, "Concede_Match", ButtonStyleUtil.MATCH_BUTTON_WIDTH, "Concede Match")
 	concede_btn.pressed.connect(_on_concede_pressed)
 	box.add_child(concede_btn)
 
@@ -1867,7 +1795,7 @@ func _build_attack_confirm_popup() -> void:
 	yes_btn.pressed.connect(_on_attack_confirm_yes)
 	row.add_child(yes_btn)
 	var no_btn := Button.new()
-	no_btn.text = "Cancel"
+	ButtonStyleUtil.style_art_button(no_btn, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Cancel", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "Cancel")
 	no_btn.pressed.connect(_on_attack_confirm_no)
 	row.add_child(no_btn)
 
@@ -1894,7 +1822,7 @@ func _build_x_cost_popup() -> void:
 	confirm.pressed.connect(_on_x_cost_confirm)
 	row.add_child(confirm)
 	var cancel := Button.new()
-	cancel.text = "Cancel"
+	ButtonStyleUtil.style_art_button(cancel, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Cancel", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "Cancel")
 	cancel.pressed.connect(_on_x_cost_cancel)
 	row.add_child(cancel)
 
@@ -1919,7 +1847,7 @@ func _build_discard_popup() -> void:
 	_discard_popup_box = VBoxContainer.new()
 	scroll.add_child(_discard_popup_box)
 	var close := Button.new()
-	close.text = "Close"
+	ButtonStyleUtil.style_art_button(close, ButtonStyleUtil.GENERAL_BUTTON_ART_DIR, "Close", ButtonStyleUtil.GENERAL_BUTTON_WIDTH, "Close")
 	close.pressed.connect(func() -> void: _discard_popup.visible = false)
 	box.add_child(close)
 

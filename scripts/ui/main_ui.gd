@@ -2384,6 +2384,7 @@ func _on_hero_power_pressed() -> void:
 		return
 	if not await _dispatch_hero_power():
 		_status_label.text = "Can't use Hero Power right now."
+	_clear_selection() # § bug fix: a non-targeted Hero Power left the Leader sub-menu open, forcing a needless Cancel click to get back to End Turn
 	_refresh()
 
 func _on_ultimate_pressed() -> void:
@@ -2401,6 +2402,7 @@ func _on_ultimate_pressed() -> void:
 		return
 	if not await _dispatch_ultimate():
 		_status_label.text = "Can't use Ultimate right now."
+	_clear_selection() # § bug fix: a non-targeted Ultimate left the Leader sub-menu open, forcing a needless Cancel click to get back to End Turn
 	_refresh()
 
 func _on_x_cost_confirm() -> void:
@@ -2414,8 +2416,8 @@ func _on_x_cost_confirm() -> void:
 	if _begin_targeting_if_needed(player.leader.data.ultimate_effects, "ultimate"):
 		return
 	var ok := await _dispatch_ultimate(-1, amount)
-	_pending_ultimate_larva_spend = -1
 	_status_label.text = "" if ok else "Can't use Ultimate right now."
+	_clear_selection() # § bug fix: same Leader-sub-menu-stuck-open issue as the non-variable-cost Ultimate path
 	_refresh()
 
 func _on_x_cost_cancel() -> void:

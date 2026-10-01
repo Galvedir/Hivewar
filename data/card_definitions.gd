@@ -1208,8 +1208,9 @@ const RED: Array[Dictionary] = [
 		"effects": [
 			{"trigger": "on_cast", "effect_id": "damage_leader", "params": {"amount": 3, "target": "enemy"}},
 			{"trigger": "on_cast", "effect_id": "heal_leader", "params": {"amount": 1, "target": "self"}},
+			{"trigger": "on_cast", "effect_id": "draw_card", "params": {"count": 1}},
 		],
-		"text": "Deal 3 damage to the enemy Leader. Restore 1 health to your Leader.",
+		"text": "Deal 3 damage to the enemy Leader. Restore 1 health to your Leader. Draw a card.",
 	},
 	{
 		"id": "thousand_stings", "name": "Thousand Bites", "type": "Ability",
